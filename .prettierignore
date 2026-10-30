@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+coverage
+data
+apps/api/src/db/migrations
+pnpm-lock.yaml
+
+# Dokumenty pisane ręcznie i statyczne makiety — poza formatowaniem (ADR-042 §4).
+# Prettier wyrównywałby tabele Markdown przy każdej edycji, a makiety mają
+# wkompilowany arkusz Tailwinda.
+*.md
+design/
+.private/

@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# runtime data (SQLite + uploads) — NIGDY nie commitujemy.
+# `data/*` zamiast `data/`, bo Git nie potrafi odwrócić wykluczenia
+# dla pliku wewnątrz wykluczonego katalogu — a .gitkeep musi być śledzony.
+data/*
+!data/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# test & coverage
+coverage/
+.vitest/
+
+# narzędzia pomocnicze w Pythonie (design/tools)
+__pycache__/
+*.py[cod]
+
+# misc
+.cache/
+.tmp/
+
+# Zbiór oceny OCR (08 §15) — prawdziwe paragony, nie trafiają do repozytorium
+apps/api/test/fixtures/receipts/
+
+# prywatne notatki i narzędzia opiekuna — nie trafiają do repozytorium
+.private/

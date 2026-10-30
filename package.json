@@ -1,0 +1,45 @@
+{
+  "name": "fineapp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "FineApp — aplikacja do planowania budżetu domowego (SQLite + TypeScript)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:api": "pnpm --filter @fineapp/api dev",
+    "dev:web": "pnpm --filter @fineapp/web dev",
+    "build": "pnpm --filter @fineapp/shared build && pnpm --filter @fineapp/api build && pnpm --filter @fineapp/web build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "db:generate": "pnpm --filter @fineapp/api db:generate",
+    "db:migrate": "pnpm --filter @fineapp/api db:migrate",
+    "db:seed": "pnpm --filter @fineapp/api db:seed",
+    "db:studio": "pnpm --filter @fineapp/api db:studio",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:logs": "docker compose logs -f app"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.4",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^64.5.4",
+    "prettier": "^3.9.8",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1"
+  }
+}

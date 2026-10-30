@@ -1,0 +1,59 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fineapp:latest
+    container_name: fineapp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATABASE_PATH: /data/fineapp.db
+      UPLOAD_DIR: /data/uploads
+      WEB_DIST_PATH: /app/web
+    ports:
+      # Na VPS zwykle wystawiane tylko lokalnie i proxowane przez Caddy/nginx (TLS).
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - fineapp-data:/data
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  # Zadanie cykliczne: kopia zapasowa SQLite (VACUUM INTO) + rotacja.
+  # Uruchamiane ręcznie lub z hosta: `docker compose run --rm backup`
+  backup:
+    image: alpine:3.21
+    profiles: ['tools']
+    volumes:
+      - fineapp-data:/data
+      - ./data/backups:/backups
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        apk add --no-cache sqlite >/dev/null
+        TS=$$(date +%Y%m%d-%H%M%S)
+        sqlite3 /data/fineapp.db "VACUUM INTO '/backups/fineapp-$$TS.db'"
+        ls -1t /backups/fineapp-*.db | tail -n +15 | xargs -r rm -f
+        echo "Backup gotowy: fineapp-$$TS.db"
+
+volumes:
+  fineapp-data:
+    driver: local

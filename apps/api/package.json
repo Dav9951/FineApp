@@ -1,0 +1,53 @@
+{
+  "name": "@fineapp/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FineApp API — Fastify + SQLite (Drizzle ORM).",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed/index.ts",
+    "db:studio": "drizzle-kit studio",
+    "user:create": "tsx src/scripts/create-user.ts",
+    "ocr:evaluate": "tsx src/scripts/evaluate-ocr.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/multipart": "^10.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/static": "^10.1.4",
+    "@fineapp/shared": "workspace:*",
+    "argon2": "^0.45.1",
+    "better-sqlite3": "^13.0.3",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "dotenv": "^18.0.1",
+    "drizzle-orm": "^0.45.3",
+    "fastify": "^5.12.5",
+    "fastify-type-provider-zod": "^4.0.2",
+    "jose": "^6.2.12",
+    "pino": "^10.3.1",
+    "sharp": "^0.35.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.4",
+    "drizzle-kit": "^0.31.11",
+    "pino-pretty": "^13.1.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  }
+}

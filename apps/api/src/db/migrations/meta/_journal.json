@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790006228524,
+      "tag": "0000_nosy_wolfsbane",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790083764027,
+      "tag": "0001_closed_golden_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790153273148,
+      "tag": "0002_idempotency_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790370176866,
+      "tag": "0003_documents_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790675408774,
+      "tag": "0004_households_default_expense_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793092801785,
+      "tag": "0005_budget_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793215784038,
+      "tag": "0006_budget_draft_groups",
+      "breakpoints": true
+    }
+  ]
+}

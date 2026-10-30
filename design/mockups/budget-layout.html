@@ -1,0 +1,504 @@
+<title>Grupy w planerze budżetu</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Spectral:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Wartości tokenów przepisane z apps/web/src/styles/tokens.css (jak w pozostałych makietach). */
+.t-light{
+  --background:40 32% 96%;--foreground:28 16% 13%;--card:42 44% 99%;--muted:40 22% 91%;
+  --muted-foreground:32 12% 38%;--border:38 18% 85%;--primary:212 62% 26%;
+  --primary-foreground:42 44% 99%;--income:164 54% 32%;--expense:6 62% 32%;
+  --savings:210 60% 30%;--warning:38 80% 30%;--danger:6 62% 32%;--scrim:28 18% 10%;
+  --shadow-sheet:0 -8px 32px -8px hsl(28 30% 8% / .24),0 -1px 0 0 hsl(var(--border));
+  --shadow-lift:0 10px 28px -6px hsl(28 30% 8% / .28);
+  --shadow-fab:0 6px 20px -4px hsl(212 62% 18% / .32);
+}
+.t-dark{
+  --background:28 14% 9%;--foreground:40 24% 94%;--card:28 13% 13%;--muted:28 12% 19%;
+  --muted-foreground:36 12% 64%;--border:28 11% 23%;--primary:206 78% 66%;
+  --primary-foreground:28 20% 10%;--income:164 48% 56%;--expense:6 68% 61%;
+  --savings:206 66% 56%;--warning:40 82% 58%;--danger:6 68% 61%;--scrim:0 0% 0%;
+  --shadow-sheet:0 -8px 32px -8px hsl(0 0% 0% / .56),0 -1px 0 0 hsl(var(--border));
+  --shadow-lift:0 10px 28px -6px hsl(0 0% 0% / .6);
+  --shadow-fab:0 6px 20px -4px hsl(0 0% 0% / .5);
+}
+/* Strona wokół makiet: tło stołu, na którym leżą telefony. Telefony mają własne motywy (t-light / t-dark). */
+:root{--page-bg:#e9e6e1;--page-fg:#2b2724;--page-soft:#4f4943;--page-mute:#77706a;--code-bg:#dcd7d0;--frame-edge:#c9c3bb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--page-bg:#242629;--page-fg:#e7e9ec;--page-soft:#c3c7cd;--page-mute:#8b9198;--code-bg:#16181b;--frame-edge:#404040;color-scheme:dark}}
+:root[data-theme="dark"]{--page-bg:#242629;--page-fg:#e7e9ec;--page-soft:#c3c7cd;--page-mute:#8b9198;--code-bg:#16181b;--frame-edge:#404040;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page-bg);color:var(--page-fg);font-family:'Source Sans 3',system-ui,sans-serif;font-size:16px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg{display:block}
+.wrap{max-width:1760px;margin:0 auto;padding-block:40px 90px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--page-mute);margin:0 0 12px}
+h1{text-wrap:balance;font-size:34px;line-height:1.15;margin:0 0 12px;font-weight:700;letter-spacing:-.02em}
+.lead{max-width:76ch;color:var(--page-soft);font-size:15px;line-height:1.6}
+.lead code,.note code{background:var(--code-bg);padding:1px 5px;border-radius:4px;font-size:13px}
+.frames{overflow-x:auto;display:flex;flex-wrap:wrap;gap:40px 28px;align-items:flex-start;padding:8px 0 16px;margin-top:40px}
+figure{margin:0;flex-shrink:0;width:390px}
+figcaption{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--page-mute);margin-bottom:8px}
+.note{font-size:13.5px;line-height:1.55;color:var(--page-soft);margin-top:14px}
+.note b{color:var(--page-fg)}
+.note ul{padding-left:18px;margin:6px 0}
+.note li{margin:3px 0}
+
+/* Telefon */
+.phone{position:relative;width:390px;height:844px;overflow:hidden;border-radius:26px;
+  border:1px solid var(--frame-edge);background:hsl(var(--background));color:hsl(var(--foreground));
+  box-shadow:0 18px 44px rgba(0,0,0,.3);display:flex;flex-direction:column;user-select:none}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;
+  border-bottom:1px solid hsl(var(--border));background:hsl(var(--background)/.95)}
+.bar .m{display:flex;align-items:center;gap:2px;font-size:20px;font-weight:600}
+.ib{width:44px;height:44px;display:grid;place-items:center;color:hsl(var(--muted-foreground));border-radius:999px}
+.ib.boxed{width:44px;height:44px;border:1px solid hsl(var(--border));border-radius:10px;color:hsl(var(--foreground))}
+.scroll{flex:1;overflow:hidden;padding:4px 16px 96px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 0 6px}
+.sec-h h2{margin:0;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:hsl(var(--muted-foreground))}
+.sec-h .r{display:flex;align-items:center;gap:6px}
+.num{font-family:'Spectral',Georgia,serif;font-variant-numeric:tabular-nums lining-nums;font-feature-settings:'tnum' 1,'lnum' 1}
+.sec-total{font-size:16px;font-weight:500;margin-right:4px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;
+  border:1px solid hsl(var(--border));font-size:14px;font-weight:600;color:hsl(var(--primary))}
+.pill.solid{background:hsl(var(--primary));color:hsl(var(--primary-foreground));border-color:transparent}
+
+/* Grupy i wiersze */
+.grp{display:flex;align-items:center;gap:6px;min-height:44px;margin-top:10px;padding:0 0 0 2px}
+.grp .chev{width:32px;height:44px;display:grid;place-items:center;color:hsl(var(--muted-foreground));margin-left:-8px}
+.grp.collapsed .chev svg{transform:rotate(-90deg)}
+.grp .gn{font-size:15px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grp .gc{font-size:12px;color:hsl(var(--muted-foreground));margin-left:2px;font-weight:500}
+.grp .gs{font-size:15px;font-weight:600}
+.grp.none .gn{color:hsl(var(--muted-foreground));font-weight:500}
+.rows{border-top:1px solid hsl(var(--border))}
+.row{display:flex;align-items:center;gap:12px;min-height:58px;padding:7px 0;border-bottom:1px solid hsl(var(--border));
+  background:hsl(var(--background))}
+.ico{width:32px;height:32px;flex-shrink:0;border-radius:8px;background:hsl(var(--muted));display:grid;place-items:center;color:hsl(var(--muted-foreground))}
+.txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.nm{font-size:16px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:13px;color:hsl(var(--muted-foreground));line-height:1.3}
+.amt{font-size:16px;color:hsl(var(--expense));white-space:nowrap}
+.handle{display:none;width:44px;height:44px;margin:-4px -10px -4px -6px;place-items:center;
+  color:hsl(var(--muted-foreground));touch-action:none;cursor:grab;border-radius:8px}
+.handle:focus-visible,button:focus-visible{outline:2px solid hsl(var(--primary));outline-offset:-4px}
+.arrange .handle{display:grid}
+.arrange .row{cursor:default}
+.row.dragging{position:relative;z-index:5;box-shadow:var(--shadow-lift);border-radius:10px;
+  border-bottom-color:transparent;background:hsl(var(--card));padding-left:8px;padding-right:8px;margin:0 -8px}
+.row.dragging .handle{cursor:grabbing;color:hsl(var(--primary))}
+.row.static-lift{position:relative;z-index:5;box-shadow:var(--shadow-lift);border-radius:10px;background:hsl(var(--card));
+  padding-left:8px;padding-right:8px;margin:0 -8px;transform:translateY(-14px) rotate(-.6deg);border-bottom-color:transparent}
+.drop{height:3px;border-radius:2px;background:hsl(var(--primary));margin:-2px 0}
+.empty-grp{min-height:52px;border:1.5px dashed hsl(var(--border));border-radius:10px;display:grid;place-items:center;
+  font-size:13px;color:hsl(var(--muted-foreground));margin:6px 0 2px}
+.addgrp{display:flex;align-items:center;gap:10px;min-height:48px;margin-top:12px;color:hsl(var(--primary));font-weight:600;font-size:15px}
+.hint{font-size:13px;line-height:1.45;color:hsl(var(--muted-foreground));background:hsl(var(--muted)/.6);
+  border-radius:10px;padding:10px 12px;margin:6px 0 4px}
+.quick{margin:10px 0 4px;border:1px solid hsl(var(--border));border-radius:14px;padding:12px 14px;background:hsl(var(--card))}
+.quick h3{margin:0 0 4px;font-size:15px}
+.quick p{margin:0 0 10px;font-size:13px;line-height:1.45;color:hsl(var(--muted-foreground))}
+.quick .pv{font-size:13px;line-height:1.6;margin:0 0 12px;padding-left:0;list-style:none}
+.quick .pv li{display:flex;justify-content:space-between}
+
+/* Dolny pasek trybu układania (zamiast FAB) */
+.done-bar{position:absolute;left:0;right:0;bottom:0;padding:10px 16px 18px;background:hsl(var(--background)/.96);
+  border-top:1px solid hsl(var(--border));display:flex;align-items:center;gap:10px}
+.done-bar .t{flex:1;font-size:13px;color:hsl(var(--muted-foreground));line-height:1.35}
+.btn{height:44px;padding:0 18px;border-radius:12px;font-weight:600;font-size:15px}
+.btn.primary{background:hsl(var(--primary));color:hsl(var(--primary-foreground))}
+.btn.soft{background:hsl(var(--muted));color:hsl(var(--foreground))}
+.btn.ghost-danger{color:hsl(var(--danger));justify-content:flex-start}
+.fab{position:absolute;right:16px;bottom:24px;width:56px;height:56px;border-radius:999px;background:hsl(var(--primary));
+  color:hsl(var(--primary-foreground));display:grid;place-items:center;box-shadow:var(--shadow-fab)}
+
+/* Arkusz */
+.scrim{position:absolute;inset:0;background:hsl(var(--scrim)/.55)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:hsl(var(--card));border-radius:18px 18px 0 0;
+  box-shadow:var(--shadow-sheet);padding:8px 16px 22px}
+.grab{width:40px;height:5px;border-radius:3px;background:hsl(var(--border));margin:4px auto 12px}
+.sheet h3{margin:0 0 14px;font-size:20px;font-weight:600}
+.lbl{font-size:13px;color:hsl(var(--muted-foreground));margin:0 0 6px;font-weight:500}
+.field{height:48px;border:1px solid hsl(var(--muted-foreground)/.6);border-radius:10px;display:flex;align-items:center;
+  padding:0 12px;font-size:16px;margin-bottom:14px;justify-content:space-between}
+.field.focus{border-color:hsl(var(--primary));box-shadow:0 0 0 2px hsl(var(--primary)/.25)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{height:40px;padding:0 14px;border-radius:999px;border:1px solid hsl(var(--border));display:inline-flex;align-items:center;font-size:14px;font-weight:500}
+.chip.on{border-color:hsl(var(--primary));background:hsl(var(--primary)/.12);color:hsl(var(--primary));font-weight:600}
+.sheet-row{display:flex;align-items:center;gap:12px;min-height:48px;border-top:1px solid hsl(var(--border));font-size:15px}
+.sheet-row .sp{flex:1}
+.mut{color:hsl(var(--muted-foreground))}
+.danger{color:hsl(var(--danger))}
+.sum-strip{display:flex;justify-content:space-between;font-size:13px;color:hsl(var(--muted-foreground));padding:2px 0 8px}
+.prog{height:4px;border-radius:999px;background:hsl(var(--muted));overflow:hidden;margin:2px 0 0}
+.prog i{display:block;height:100%;background:hsl(var(--expense));border-radius:999px}
+.gsub{font-size:12px;color:hsl(var(--muted-foreground));margin:-8px 0 4px 26px}
+
+/* Desktop */
+.desk{width:880px;height:560px;border-radius:14px;border:1px solid var(--frame-edge);overflow:hidden;display:flex;
+  background:hsl(var(--background));color:hsl(var(--foreground));box-shadow:0 18px 44px rgba(0,0,0,.38)}
+.desk .side{width:200px;border-right:1px solid hsl(var(--border));padding:18px 14px;font-size:14px;color:hsl(var(--muted-foreground))}
+.desk .side b{display:block;color:hsl(var(--foreground));font-size:18px;margin-bottom:18px}
+.desk .side div{padding:8px 10px;border-radius:8px}
+.desk .side .on{background:hsl(var(--muted));color:hsl(var(--primary));font-weight:600}
+.desk .main{flex:1;padding:6px 40px;overflow:hidden}
+.desk .row:hover{background:hsl(var(--muted)/.5)}
+.desk .row .handle.hov{display:grid;opacity:0}
+.desk .row:hover .handle.hov,.desk .row.hovered .handle.hov{opacity:1}
+.desk .row.hovered{background:hsl(var(--muted)/.5)}
+.cursor{position:absolute;pointer-events:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<div class="wrap">
+  <p class="kicker">FineApp · propozycja · planer budżetu (06 §3.14)</p>
+  <h1>Kolejność linii i grupy w szkicu</h1>
+  <div class="lead">
+    <p>Prośba właściciela: <b>przeciągać pozycje na liście</b> szkicu i <b>dzielić je na grupy</b>
+    („Mieszkanie i media”, „Raty”, „Subskrypcje”…). Dane fikcyjne w układzie listopadowego szkicu —
+    sekcja <i>Wydatki</i>, 6 970,09 zł.</p>
+    <p>Teza: <b>układanie to osobny tryb</b>, nie ukryty gest. Dotknięcie wiersza dalej otwiera arkusz linii,
+    przesunięcie w lewo dalej usuwa / pomija — przeciąganie przez cały wiersz kłóciłoby się z jednym i drugim
+    oraz z przewijaniem jedną ręką. W trybie „Układaj” każdy wiersz dostaje uchwyt 44 px po prawej
+    (pod kciukiem), a ta sama operacja jest dostępna bez gestu: pole <i>Grupa</i> w arkuszu linii
+    i strzałki klawiatury na uchwycie (15 §2 — gest nigdy jedyną drogą).</p>
+    <p>Grupy są <b>czysto prezentacyjne</b>: nie zmieniają bilansu, oceny szkicu ani wykonania (07 §13.4, §13.8).
+    Żyją wewnątrz jednej sekcji (Wpływy / Wydatki / Oszczędności i inwestycje) i <b>przechodzą na następny
+    miesiąc</b> razem z kolejnością — inaczej układanie co miesiąc od nowa nie miałoby sensu.</p>
+    <p>Ramka <b>②</b> działa: złap uchwyt <span class="num">⋮⋮</span> myszą albo palcem i przeciągnij;
+    z klawiatury — Tab do uchwytu, ↑ / ↓. Sumy grup przeliczają się na żywo.</p>
+  </div>
+
+  <div class="frames">
+
+    <!-- ① Widok zwykły -->
+    <figure>
+      <figcaption>① jasny · widok zwykły z grupami</figcaption>
+      <div class="phone t-light" id="f1"></div>
+      <div class="note">
+        <b>Nagłówek grupy</b> — nazwa, liczba pozycji, suma planu. Dotknięcie zwija / rozwija
+        (zapamiętane na urządzeniu, nie w szkicu). Zwinięta grupa nadal pokazuje sumę, więc sekcja
+        z 15 pozycjami mieści się na jednym ekranie.
+        <ul>
+          <li><b>„Układaj”</b> — przycisk w nagłówku sekcji obok „+”. Tylko szkic edytowalny.</li>
+          <li>Pozycje bez grupy — na końcu sekcji pod „Bez grupy”; tam trafiają nowe linie
+            i to, co przyniesie „Odśwież ze źródeł”.</li>
+          <li>Bez żadnej grupy ekran wygląda dokładnie jak dziś (bez nagłówka „Bez grupy”).</li>
+        </ul>
+      </div>
+    </figure>
+
+    <!-- ② Tryb układania (interaktywny) -->
+    <figure>
+      <figcaption>② jasny · tryb „Układaj” — działa, przeciągnij</figcaption>
+      <div class="phone t-light" id="f2"></div>
+      <div class="note">
+        <b>W trybie układania</b> uchwyt dochodzi po prawej, a kwota zostaje — widać, co się przenosi.
+        Dotknięcie wiersza i przesunięcie w lewo są wyłączone; FAB zastępuje pasek z „Gotowe”.
+        <ul>
+          <li>Wiersz przeciągnięty pod nagłówek grupy wpada do tej grupy; pod „Bez grupy” — wypada z grup.</li>
+          <li>Grupy przesuwa się uchwytem w nagłówku — cała grupa jedzie razem z pozycjami.</li>
+          <li><b>„⋯” przy grupie</b> → arkusz: nazwa, „Wyżej / Niżej”, „Usuń grupę”.</li>
+          <li>Zapis <b>po upuszczeniu</b>, optymistycznie; błąd sieci → powrót do poprzedniego układu
+            i toast „Nie zapisano kolejności”.</li>
+          <li>Pusta grupa (tylko w tym trybie) — ramka „Przeciągnij tu pozycje”.</li>
+        </ul>
+      </div>
+    </figure>
+
+    <!-- ③ Pierwsze wejście w tryb: szybki start -->
+    <figure>
+      <figcaption>③ ciemny · pierwsze „Układaj”, brak grup</figcaption>
+      <div class="phone t-dark" id="f3"></div>
+      <div class="note">
+        <b>Szybki start</b> zamiast pustego ekranu: jedno dotknięcie zakłada trzy grupy według
+        pochodzenia linii, które aplikacja już zna — <i>Stałe</i> (cykliczne, raty),
+        <i>Planowane</i>, <i>Zmienne</i> (średnie i własne). Potem już tylko poprawki przeciąganiem.
+        „Nie, sam ułożę” — sam uchwyt i „+ Nowa grupa”.
+      </div>
+    </figure>
+
+    <!-- ④ Arkusz grupy -->
+    <figure>
+      <figcaption>④ ciemny · arkusz grupy („⋯” przy nagłówku)</figcaption>
+      <div class="phone t-dark" id="f4"></div>
+      <div class="note">
+        Nazwa do 40 znaków, unikalna w sekcji szkicu (po niej grupa przechodzi na następny miesiąc).
+        <b>„Usuń grupę”</b> nie usuwa pozycji — przechodzą do „Bez grupy”; bez potwierdzenia,
+        z toastem „Cofnij”, bo nic nie ginie.
+      </div>
+    </figure>
+
+    <!-- ⑤ Arkusz linii: pole Grupa -->
+    <figure>
+      <figcaption>⑤ jasny · arkusz linii — droga bez gestu</figcaption>
+      <div class="phone t-light" id="f5"></div>
+      <div class="note">
+        W istniejącym arkuszu linii (<code>budget-line-sheet.tsx</code>) dochodzi jedno pole:
+        <b>Grupa</b> — rząd chipów z grupami sekcji i „Bez grupy”. Tak samo przy „+ Dodaj”:
+        domyślnie ostatnio wybrana grupa w tej sekcji. Kolejność wewnątrz grupy — tylko w trybie
+        układania (tam są też strzałki klawiatury).
+      </div>
+    </figure>
+
+    <!-- ⑥ Plan kontra wykonanie -->
+    <figure>
+      <figcaption>⑥ jasny · bieżący miesiąc, plan kontra wykonanie</figcaption>
+      <div class="phone t-light" id="f6"></div>
+      <div class="note">
+        W miesiącu trwającym i minionym nagłówek grupy dostaje drugi wiersz „wydano X · zostało Y”
+        i cienki pasek — jak linia (F9-9). <b>Wyjątek:</b> gdy dwie linie tej samej kategorii
+        (wspólne wykonanie, 07 §13.8) leżą w <i>różnych</i> grupach, tych grup nie da się rzetelnie
+        rozliczyć — nagłówek pokazuje sam plan, a wspólne wykonanie stoi pod ostatnią z tych linii,
+        jak dziś. Szkic minionego miesiąca — bez „Układaj” (tylko odczyt, I-20).
+      </div>
+    </figure>
+  </div>
+
+  <section style="margin-top:44px">
+    <p class="kicker">desktop · ≥ md, wskaźnik precyzyjny</p>
+    <div style="overflow-x:auto;padding-bottom:8px"><div style="position:relative;display:inline-block" id="f7"></div></div>
+    <div class="note" style="max-width:76ch">
+      Na desktopie (zrzut z prośby) to samo, plus skrót: przy wskaźniku myszy uchwyt pojawia się
+      po najechaniu na wiersz i można przeciągać <b>bez</b> włączania trybu. Najechanie nie jest
+      jedyną drogą — tryb „Układaj” i pole „Grupa” działają tak samo jak na telefonie.
+    </div>
+  </section>
+
+  <section style="margin-top:44px" class="note">
+    <p class="kicker">pod spodem · do zatwierdzenia przed implementacją</p>
+    <ul style="max-width:90ch">
+      <li><b>Dane:</b> nowa tabela <code>budget_draft_groups</code> (<code>draft_id</code>, <code>section</code> ∈ income / expense / pools,
+        <code>name</code>, <code>sort_order</code>); w <code>budget_draft_lines</code> kolumna <code>group_id</code>
+        (<code>ON DELETE SET NULL</code>). Istniejące <code>sort_order</code> liczone w obrębie grupy. Niezmiennik: sekcja grupy = sekcja linii.</li>
+      <li><b>API:</b> <code>POST/PATCH/DELETE /budget-drafts/:month/groups</code> oraz jedno atomowe
+        <code>PATCH /budget-drafts/:month/layout</code> z pełnym układem sekcji
+        (<code>{ section, groups: [{ id, lineIds }], ungrouped: [lineIds] }</code>) — jak <code>PATCH /accounts/order</code>.
+        Szkic miniony → <code>409</code> (I-20).</li>
+      <li><b>Przechodzenie układu:</b> „Utwórz z danych”, „Skopiuj z…” i „Zacznij od zera” kopiują grupy z najbliższego
+        wcześniejszego szkicu i przypisują linie po źródle (reguła, planowany, cel, zobowiązanie; kategoria dla średniej; nazwa dla własnej).
+        „Odśwież ze źródeł” dokłada nowe linie do „Bez grupy”.</li>
+      <li><b>Biblioteka:</b> <code>@dnd-kit/core</code> + <code>@dnd-kit/sortable</code> — dotyk, mysz i klawiatura z komunikatami dla czytnika;
+        natywne HTML5 drag &amp; drop nie działa na telefonie. Nowa zależność → ADR.</li>
+      <li><b>Dokumenty:</b> 16, 03 §3.20–3.21, 04 §14a, 05 §13b, 06 §3.14, 07 §13 (kopiowanie układu + wykonanie grupy), ADR.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+// --- dane: fikcyjny szkic listopada (grosze) ---
+const I = {
+  repeat:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  sigma:'<path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/>',
+  grip:'<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>',
+  chev:'<path d="m6 9 6 6 6-6"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  dots:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  sort:'<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>',
+  folder:'<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  left:'<path d="m15 18-6-6 6-6"/>', right:'<path d="m9 18 6-6-6-6"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  up:'<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>', down:'<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+};
+const svg = (n, s = 17) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${(1.5*24/s).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
+
+const L = {
+  czynsz:{n:'Czynsz najmu',s:'Czynsz',a:245000,k:'repeat'},
+  admin:{n:'Opłaty administracyjne',s:'Czynsz',a:48730,k:'repeat'},
+  prad:{n:'Prąd',s:'Prąd',a:15500,k:'repeat'},
+  internet:{n:'Internet',s:'Internet i TV',a:6900,k:'repeat'},
+  telefon:{n:'Telefon',s:'Telefon',a:4500,k:'repeat'},
+  pralka:{n:'Raty — pralka',s:'Wyposażenie',a:11900,k:'repeat'},
+  telewizor:{n:'Raty — telewizor',s:'',a:18750,k:'repeat'},
+  rower:{n:'Raty — rower',s:'',a:21330,k:'repeat'},
+  filmy:{n:'Serwis filmowy',s:'Streaming',a:3900,k:'repeat'},
+  muzyka:{n:'Muzyka w streamingu',s:'Streaming',a:2399,k:'repeat'},
+  zakupy:{n:'Zakupy spożywcze',s:'Zakupy spożywcze',a:135000,k:'pencil'},
+  paliwo:{n:'Paliwo',s:'Transport · średnia 3 mies.',a:58200,k:'sigma'},
+  kurs:{n:'Kurs językowy 2/3',s:'Edukacja',a:95000,k:'pencil'},
+  pule:{n:'Pule prezentowe',s:'Prezenty i darowizny',a:15000,k:'pencil'},
+  silownia:{n:'Siłownia',s:'Sport',a:14900,k:'repeat'},
+};
+const GROUPS = [
+  ['Mieszkanie i media',['czynsz','admin','prad','internet','telefon']],
+  ['Raty',['pralka','telewizor','rower']],
+  ['Subskrypcje',['filmy','muzyka']],
+  ['Codzienne',['zakupy','paliwo']],
+  ['Jednorazowe w listopadzie',['kurs','pule']],
+];
+const UNGROUPED = ['silownia'];
+const KIND = {repeat:'pozycja cykliczna',pencil:'własna',sigma:'ze średniej'};
+
+function fmt(minor){
+  const z = Math.floor(Math.abs(minor)/100), g = String(Math.abs(minor)%100).padStart(2,'0');
+  return String(z).replace(/\B(?=(\d{3})+(?!\d))/g,' ') + ',' + g;
+}
+function pl(n){ return n===1?'pozycja':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?'pozycje':'pozycji'; }
+
+function row(id, o = {}){
+  const l = L[id];
+  return `<div class="row${o.cls?' '+o.cls:''}" data-id="${id}" data-amount="${l.a}">
+    <span class="ico" title="${KIND[l.k]}">${svg(l.k)}</span>
+    <span class="txt"><span class="nm">${l.n}</span>${l.s?`<span class="sub">${l.s}</span>`:''}</span>
+    <span class="amt num">−${fmt(l.a)} zł</span>
+    <button class="handle${o.hov?' hov':''}" aria-label="Przesuń: ${l.n}. Strzałki w górę i w dół zmieniają miejsce.">${svg('grip',20)}</button>
+  </div>`;
+}
+function sum(ids){ return ids.reduce((s,id)=>s+L[id].a,0); }
+function grpHead(name, ids, o = {}){
+  const arr = o.arrange;
+  return `<div class="grp${o.collapsed?' collapsed':''}${o.none?' none':''}" data-group="${name}">
+    ${arr||o.none ? '' : `<button class="chev" aria-label="Zwiń grupę ${name}">${svg('chev',18)}</button>`}
+    <span class="gn">${name}${o.none?'':` <span class="gc">· ${ids.length}</span>`}</span>
+    <span class="gs num">${fmt(sum(ids))}</span>
+    ${arr && !o.none ? `<button class="ib" style="width:36px;margin-right:-4px" aria-label="Opcje grupy ${name}">${svg('dots',18)}</button>
+      <button class="handle" style="display:grid" aria-label="Przesuń grupę ${name}">${svg('grip',20)}</button>` : ''}
+  </div>`;
+}
+function bar(month, extra=''){
+  return `<div class="bar"><div class="m"><span class="ib">${svg('left',20)}</span>${month}<span class="ib">${svg('right',20)}</span></div>
+    <span class="ib boxed" aria-label="Odśwież ze źródeł">${svg('refresh',19)}</span>${extra}</div>`;
+}
+function secHead(total, arrange){
+  return `<div class="sec-h"><h2>Wydatki</h2><div class="r"><span class="sec-total num">${fmt(total)} zł</span>
+    ${arrange ? '' : `<button class="pill" aria-label="Układaj pozycje">${svg('sort',16)} Układaj</button>
+      <span class="ib boxed" aria-label="Dodaj wydatek">${svg('plus',20)}</span>`}</div></div>`;
+}
+const TOTAL = Object.values(L).reduce((s,l)=>s+l.a,0);
+
+// ① widok zwykły
+document.getElementById('f1').innerHTML = bar('listopad 2026') + `<div class="scroll">
+  ${secHead(TOTAL,false)}
+  ${GROUPS.map(([g,ids])=> g==='Subskrypcje'
+      ? grpHead(g,ids,{collapsed:true})
+      : grpHead(g,ids) + `<div class="rows">${ids.map(id=>row(id)).join('')}</div>`).join('')}
+  </div><div class="fab">${svg('plus',26)}</div>`;
+
+// ② tryb układania — interaktywny
+function renderArrange(){
+  const host = document.getElementById('f2');
+  host.innerHTML = bar('listopad 2026') + `<div class="scroll arrange" style="overflow-y:auto;padding-bottom:120px">
+    ${secHead(TOTAL,true)}
+    <div class="hint">Przeciągnij za ${svg('grip',14).replace('<svg','<svg style="display:inline;vertical-align:-2px"')} — także między grupami. Zmiany zapisują się od razu.</div>
+    <div class="list">
+      ${GROUPS.map(([g,ids])=>grpHead(g,ids,{arrange:true}) + ids.map(id=>row(id)).join('')).join('')}
+      ${grpHead('Bez grupy',UNGROUPED,{arrange:true,none:true})}
+      ${UNGROUPED.map(id=>row(id)).join('')}
+    </div>
+    <button class="addgrp">${svg('folder',20)} Nowa grupa</button>
+  </div>
+  <div class="done-bar"><span class="t">Układasz <b style="color:hsl(var(--foreground))">Wydatki</b>.<br>Kwoty i plan bez zmian.</span>
+    <button class="btn primary">Gotowe</button></div>`;
+  wire(host.querySelector('.list'));
+}
+function recalc(list){
+  let cur = null, ids = [];
+  const flush = () => { if (!cur) return;
+    const s = ids.reduce((a,el)=>a+Number(el.dataset.amount),0);
+    cur.querySelector('.gs').textContent = fmt(s);
+    const c = cur.querySelector('.gc'); if (c) c.textContent = '· ' + ids.length; };
+  for (const el of list.children){
+    if (el.classList.contains('grp')){ flush(); cur = el; ids = []; } else if (el.classList.contains('row')) ids.push(el);
+  }
+  flush();
+}
+function wire(list){
+  list.querySelectorAll('.row .handle').forEach(h => {
+    const rowEl = h.closest('.row');
+    h.addEventListener('pointerdown', e => {
+      e.preventDefault(); h.setPointerCapture(e.pointerId);
+      const grabOffset = e.clientY - rowEl.getBoundingClientRect().top;
+      rowEl.classList.add('dragging');
+      const move = ev => {
+        rowEl.style.transform = 'none';
+        const others = [...list.children].filter(x => x !== rowEl);
+        let before = null;
+        for (const o of others){ const r = o.getBoundingClientRect(); if (ev.clientY < r.top + r.height/2){ before = o; break; } }
+        if (before === others[0]) before = others[1];      // nic nad pierwszym nagłówkiem
+        if (before) list.insertBefore(rowEl, before); else list.appendChild(rowEl);
+        const nat = rowEl.getBoundingClientRect().top;
+        rowEl.style.transform = `translateY(${ev.clientY - grabOffset - nat}px)`;
+        recalc(list);
+      };
+      const up = () => { rowEl.classList.remove('dragging'); rowEl.style.transform = '';
+        h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); recalc(list); };
+      h.addEventListener('pointermove', move); h.addEventListener('pointerup', up);
+    });
+    h.addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp'){ const p = rowEl.previousElementSibling; if (p && p.previousElementSibling) list.insertBefore(rowEl, p); }
+      else if (e.key === 'ArrowDown'){ const n = rowEl.nextElementSibling; if (n) list.insertBefore(n, rowEl); }
+      else return;
+      e.preventDefault(); h.focus(); recalc(list);
+    });
+  });
+}
+renderArrange();
+
+// ③ pierwsze „Układaj” — bez grup, szybki start
+const FLAT = ['pralka','rower','telewizor','internet','czynsz','telefon','filmy','prad','admin','pule','zakupy','kurs','muzyka','paliwo','silownia'];
+const fixed = FLAT.filter(id=>L[id].k==='repeat'), variable = FLAT.filter(id=>L[id].k!=='repeat');
+document.getElementById('f3').innerHTML = bar('listopad 2026') + `<div class="scroll arrange">
+  ${secHead(TOTAL,true)}
+  <div class="quick"><h3>Podzielić wydatki na grupy?</h3>
+    <p>Na początek według tego, skąd pozycje pochodzą. Nazwy i przydział zmienisz potem przeciąganiem.</p>
+    <ul class="pv"><li><span>Stałe · ${fixed.length}</span><span class="num">${fmt(sum(fixed))}</span></li>
+      <li><span class="mut">Planowane · 0</span><span class="num mut">—</span></li>
+      <li><span>Zmienne · ${variable.length}</span><span class="num">${fmt(sum(variable))}</span></li></ul>
+    <div style="display:flex;gap:8px"><button class="btn primary" style="flex:1">Utwórz grupy</button><button class="btn soft">Sam ułożę</button></div></div>
+  <div class="rows">${FLAT.slice(0,7).map(id=>row(id)).join('')}</div>
+  </div><div class="done-bar"><span class="t">Układasz <b style="color:hsl(var(--foreground))">Wydatki</b>.</span><button class="btn primary">Gotowe</button></div>`;
+
+// ④ arkusz grupy
+document.getElementById('f4').innerHTML = bar('listopad 2026') + `<div class="scroll arrange">
+  ${secHead(TOTAL,true)}
+  ${grpHead('Mieszkanie i media',GROUPS[0][1],{arrange:true})}${GROUPS[0][1].map(id=>row(id)).join('')}
+  ${grpHead('Raty',GROUPS[1][1],{arrange:true})}${GROUPS[1][1].map(id=>row(id)).join('')}
+  </div><div class="scrim"></div>
+  <div class="sheet"><div class="grab"></div><h3>Grupa</h3>
+    <p class="lbl">Nazwa</p><div class="field focus">Raty<span class="mut" style="font-size:13px">4 / 40</span></div>
+    <div class="sum-strip"><span>3 pozycje w grupie</span><span class="num">519,80 zł</span></div>
+    <div class="sheet-row">${svg('up',20)}<span class="sp">Przesuń wyżej</span></div>
+    <div class="sheet-row">${svg('down',20)}<span class="sp">Przesuń niżej</span></div>
+    <div class="sheet-row danger">${svg('trash',20)}<span class="sp">Usuń grupę</span><span class="mut" style="font-size:13px">pozycje zostają</span></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn soft" style="flex:1">Anuluj</button><button class="btn primary" style="flex:1">Zapisz</button></div>
+  </div>`;
+
+// ⑤ arkusz linii z polem Grupa
+document.getElementById('f5').innerHTML = bar('listopad 2026') + `<div class="scroll">
+  ${secHead(TOTAL,false)}${grpHead('Subskrypcje',GROUPS[2][1])}<div class="rows">${GROUPS[2][1].map(id=>row(id)).join('')}</div>
+  </div><div class="scrim"></div>
+  <div class="sheet"><div class="grab"></div><h3>Muzyka w streamingu</h3>
+    <p class="lbl">Kwota</p><div class="field"><span class="num">23,99 zł</span></div>
+    <p class="lbl">Kategoria</p><div class="field">Streaming<span class="mut">${svg('right',18)}</span></div>
+    <p class="lbl">Grupa</p>
+    <div class="chips"><span class="chip">Mieszkanie i media</span><span class="chip">Raty</span>
+      <span class="chip on">${svg('check',15)}&nbsp;Subskrypcje</span><span class="chip">Codzienne</span>
+      <span class="chip">Jednorazowe w listopadzie</span><span class="chip">Bez grupy</span></div>
+    <div class="sheet-row mut" style="font-size:14px">Powiązane z: Muzyka w streamingu (cykliczne) · w regule 23,99</div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn soft" style="flex:1">Anuluj</button><button class="btn primary" style="flex:1">Zapisz zmiany</button></div>
+  </div>`;
+
+// ⑥ plan kontra wykonanie
+const spent = {'Mieszkanie i media':[317530,3100,99],'Raty':[51980,0,100],'Codzienne':[112060,81140,58]};
+document.getElementById('f6').innerHTML = bar('październik 2026') + `<div class="scroll">
+  ${secHead(TOTAL,false)}
+  ${GROUPS.slice(0,4).map(([g,ids])=>{
+    const s = spent[g];
+    const head = grpHead(g,ids,{collapsed:g!=='Codzienne'});
+    if (!s) return head + `<div class="gsub">sam plan — wspólne wykonanie „Streaming” dzieli grupy</div>`;
+    return head + `<div class="gsub" style="margin-bottom:8px">wydano <span class="num">${fmt(s[0])}</span> · zostało <span class="num">${fmt(s[1])}</span>
+      <div class="prog"><i style="width:${s[2]}%"></i></div></div>` + (g==='Codzienne' ? `<div class="rows">${ids.map(id=>row(id)).join('')}</div>` : '');
+  }).join('')}
+  </div><div class="fab">${svg('plus',26)}</div>`;
+
+// ⑦ desktop
+document.getElementById('f7').innerHTML = `<div class="desk t-light">
+  <div class="side"><b>FineApp</b><div>Miesiąc</div><div>Historia</div><div>Cele</div><div>Planowane</div><div class="on">Budżet</div><div>Kategorie</div></div>
+  <div class="main">${secHead(TOTAL,false)}
+    ${grpHead('Mieszkanie i media',GROUPS[0][1])}<div class="rows">${GROUPS[0][1].map((id,i)=>row(id,{hov:true,cls:i===2?'hovered':''})).join('')}</div>
+    ${grpHead('Raty',GROUPS[1][1],{collapsed:true})}
+  </div></div>`;
+</script>

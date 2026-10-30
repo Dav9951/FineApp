@@ -1,0 +1,59 @@
+# Produkcja na VPS za bramą https-portal (plans/10-deployment.md §12, ADR-065).
+#
+# Workflow `deploy-prod.yml` kopiuje ten plik na serwer jako
+# `~/projects/fineapp/docker-compose.yml`, obok `.env` i `scripts/`. Dzięki temu
+# `scripts/backup.sh` i `scripts/restore.sh` działają bez zmian — wołają `docker compose`
+# w tym katalogu i znają usługę `app` oraz wolumen `fineapp_fineapp-data`.
+#
+# Różnice względem `docker-compose.yml` z korzenia repozytorium (lokalna budowa):
+# - obraz z GHCR zamiast `build:` — VPS nie buduje, tylko uruchamia sprawdzony obraz;
+# - brak `ports:` — do kontenera dochodzi wyłącznie brama przez sieć `gateway-net`
+#   (ostrzej niż `127.0.0.1:3000` z 09 §11);
+# - limity zasobów — aplikacja nie może zagłodzić bramy, która trzyma TLS pozostałych
+#   serwisów na tym samym VPS.
+
+# Stała nazwa projektu = stała nazwa wolumenu (`fineapp_fineapp-data`), niezależnie od
+# katalogu, z którego ktoś wywoła `docker compose`.
+name: fineapp
+
+services:
+  app:
+    # Lokalny znacznik ustawiany przez workflow po pobraniu obrazu `:<sha>` z GHCR.
+    # Każde `docker compose up/run` (także w restore.sh) użyje dokładnie wdrożonej wersji,
+    # a nie tego, co akurat jest pod `:latest`.
+    image: ghcr.io/dav9951/fineapp:deployed
+    pull_policy: never
+    container_name: fineapp-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATABASE_PATH: /data/fineapp.db
+      UPLOAD_DIR: /data/uploads
+      WEB_DIST_PATH: /app/web
+    volumes:
+      - fineapp-data:/data
+    networks:
+      - gateway-net
+    # Szczyty: argon2id 64 MiB na logowanie, sharp przy analizie zdjęcia (10 §10).
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    # HEALTHCHECK pochodzi z Dockerfile (/api/v1/health z `dbOk`).
+
+networks:
+  gateway-net:
+    external: true
+
+volumes:
+  fineapp-data:

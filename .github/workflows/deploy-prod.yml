@@ -1,0 +1,215 @@
+name: Deploy to Production
+
+# Wdrożenie na VPS za bramą https-portal (plans/10-deployment.md §12, ADR-065).
+#
+# Wymaga zmiennej repozytorium `APP_URL` (np. https://budzet.example.pl)
+# i sekretów `HOST`, `USERNAME`, `SSH_PRIVATE_KEY`.
+#
+# Kiedy wdraża:
+# - ręcznie: Actions → Deploy to Production → Run workflow (zawsze);
+# - automatycznie po każdym push na `main` — dopiero gdy zmienna repozytorium
+#   `AUTO_DEPLOY` ma wartość `true`. Bez niej push na `main` przechodzi tylko przez CI.
+# Wycofanie: Run workflow z `image_tag` = pełny SHA wcześniejszego commita — bez testów
+# i bez budowy, wdraża obraz, który już jest w GHCR.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Wycofanie — pełny SHA commita, którego obraz wdrożyć (puste = zbuduj bieżący)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+
+# Nigdy dwa wdrożenia naraz i nigdy nie przerywamy trwającego (migracja w połowie).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/dav9951/fineapp
+
+jobs:
+  test:
+    if: ${{ inputs.image_tag == '' }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      # Obraz buduje (i wypycha) job `build`; gdy wdrożenie jest wyłączone,
+      # CI sprawdza budowę obrazu samo.
+      skip_image: ${{ github.event_name == 'workflow_dispatch' || vars.AUTO_DEPLOY == 'true' }}
+
+  build:
+    needs: test
+    if: ${{ inputs.image_tag == '' && (github.event_name == 'workflow_dispatch' || vars.AUTO_DEPLOY == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Etykieta org.opencontainers.image.source wiąże paczkę GHCR z repozytorium,
+      # więc GITHUB_TOKEN tego repozytorium może ją potem pobrać na serwerze.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=latest
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [test, build]
+    if: ${{ !cancelled() && !failure() && (needs.build.result == 'success' || inputs.image_tag != '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    steps:
+      - name: Resolve image
+        id: image
+        env:
+          TAG: ${{ inputs.image_tag || github.sha }}
+        run: |
+          if ! [[ "$TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::image_tag musi być pełnym SHA commita (40 znaków, małe litery)"
+            exit 1
+          fi
+          echo "ref=${IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      # Tylko pliki operacyjne: compose produkcyjny i skrypty kopii (10 §5, §12.6).
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            deploy
+            scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Upload compose file and scripts
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: deploy/docker-compose.prod.yml,scripts/backup.sh,scripts/restore.sh,scripts/offsite.sh
+          target: /home/${{ secrets.USERNAME }}/projects/fineapp/.incoming
+          rm: true
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE_REF,GHCR_USER,GHCR_TOKEN
+          script: |
+            set -eu
+            cd "$HOME/projects/fineapp"
+            if [ ! -f .env ]; then
+              echo "::error::Brak ~/projects/fineapp/.env — przygotuj go wg plans/10-deployment.md §3"
+              exit 1
+            fi
+
+            # 1) Pliki operacyjne w wersji z repozytorium
+            install -m 644 .incoming/deploy/docker-compose.prod.yml docker-compose.yml
+            mkdir -p scripts backups
+            install -m 755 .incoming/scripts/backup.sh .incoming/scripts/restore.sh .incoming/scripts/offsite.sh scripts/
+            rm -rf .incoming
+
+            # 2) Obraz — logowanie jednorazowym tokenem joba w osobnej konfiguracji Dockera,
+            #    żeby nie nadpisać logowania do GHCR, z którego korzystają inne serwisy na VPS
+            CFG="$(mktemp -d)"
+            trap 'rm -rf "$CFG"' EXIT
+            printf '%s' "$GHCR_TOKEN" | docker --config "$CFG" login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker --config "$CFG" pull "$IMAGE_REF"
+            rm -rf "$CFG"
+
+            # 3) Kopia bazy przed wdrożeniem (gdy aplikacja już działa). Migracje i tak robią
+            #    własną migawkę w wolumenie; ta ląduje poza nim, w ~/projects/fineapp/backups.
+            if [ "$(docker inspect -f '{{.State.Running}}' fineapp-app 2>/dev/null || true)" = "true" ]; then
+              echo "Poprzednia wersja: $(docker image inspect -f '{{join .RepoTags " "}}' ghcr.io/dav9951/fineapp:deployed 2>/dev/null || echo brak)"
+              BACKUP_DIR="$HOME/projects/fineapp/backups" scripts/backup.sh
+            fi
+
+            # 4) Start wskazanej wersji (compose używa znacznika :deployed, pull_policy: never)
+            docker tag "$IMAGE_REF" ghcr.io/dav9951/fineapp:deployed
+            docker compose up -d --remove-orphans
+
+            # 5) Wdrożenie udane tylko przy zdrowym kontenerze — healthcheck sprawdza dbOk
+            status=missing
+            for i in $(seq 1 45); do
+              status="$(docker inspect -f '{{.State.Health.Status}}' fineapp-app 2>/dev/null || echo missing)"
+              echo "health: $status"
+              case "$status" in healthy|unhealthy|missing) break ;; esac
+              sleep 2
+            done
+            if [ "$status" != "healthy" ]; then
+              echo "::error::Kontener nie jest zdrowy ($status) — ostatnie logi poniżej"
+              docker compose logs --tail 80 app || true
+              exit 1
+            fi
+
+            # 6) Brama: nginx w https-portal rozwiązuje `fineapp-app` raz, przy wczytaniu
+            #    konfiguracji. Nowy kontener może dostać inny adres w `gateway-net` — wtedy
+            #    brama dalej celuje w stary i zwraca 502 (ADR-080). `nginx -s reload` wczytuje
+            #    konfigurację od nowa bez restartu kontenera bramy; restart odnawiałby
+            #    certyfikaty wszystkich serwisów i mógł się zapętlić (10 §12.7).
+            GW="$(docker ps --format '{{.Names}} {{.Image}}' | awk '$2 ~ /https-portal/ {print $1; exit}')"
+            if [ -z "$GW" ]; then
+              echo "::warning::Nie znaleziono kontenera bramy https-portal — pomijam przeładowanie"
+            elif docker exec "$GW" nginx -t; then
+              docker exec "$GW" nginx -s reload
+              echo "Brama $GW przeładowana"
+            else
+              echo "::error::Konfiguracja nginx bramy $GW nie przechodzi nginx -t — nie przeładowuję (brama działa na starej)"
+              exit 1
+            fi
+
+            # 7) Sprzątanie: trzy najnowsze wersje zostają lokalnie
+            docker images --format '{{.Repository}}:{{.Tag}}' ghcr.io/dav9951/fineapp \
+              | grep -v -e ':deployed$' -e ':<none>$' | tail -n +4 | xargs -r docker rmi || true
+            docker image prune -f
+            docker ps --filter name=fineapp-app
+
+      # Adres publiczny przez bramę — błąd, nie ostrzeżenie: zdrowy kontener za bramą
+      # z nieaktualnym adresem to 502 dla użytkowników przy zielonym wdrożeniu (ADR-080).
+      # Kilka prób, bo przeładowanie nginx kończy stare procesy łagodnie.
+      - name: Public health check
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 15 "${APP_URL}/api/v1/health"; then
+              echo
+              exit 0
+            fi
+            echo "próba $i nieudana"
+            sleep 5
+          done
+          echo "::error::${APP_URL}/api/v1/health nie odpowiada przez bramę — zobacz plans/10-deployment.md §11 (502 po wdrożeniu)"
+          exit 1

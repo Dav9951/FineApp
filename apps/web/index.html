@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pl" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- `--background` motywu ciemnego z src/styles/tokens.css (28 14% 9%). -->
+    <meta name="theme-color" content="#1a1714" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Motyw z localStorage przed pierwszym malowaniem (ADR-067); `class="dark"` wyżej to
+         wartość domyślna na wypadek braku skryptu. -->
+    <script src="/theme-init.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>FineApp — budżet domowy</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

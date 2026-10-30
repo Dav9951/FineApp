@@ -1,0 +1,244 @@
+/*
+ * Tokeny design systemu FineApp — kierunek wizualny „Papier" (ADR-013).
+ *
+ * Dokumentacja i uzasadnienia: plans/15-design-system.md.
+ * Próbki kierunków, z których ten wybrano: design/directions/.
+ * Audyt kontrastu i daltonizmu: design/tools/palette_audit.py — po KAŻDEJ zmianie
+ * wartości w tym pliku przepisz je tam i uruchom ponownie.
+ *
+ * Zasady (15 §3.6):
+ *  - `:root` niesie motyw JASNY, klasa `.dark` na <html> nadpisuje go token po tokenie.
+ *  - Każdy token ma wartość w OBU motywach. Token zdefiniowany tylko w jednym ujawni
+ *    się jako błąd dopiero u użytkownika.
+ *  - Kolory zapisujemy jako składowe HSL bez funkcji `hsl()`, bo Tailwind opakowuje je
+ *    sam (`hsl(var(--primary))`) i dzięki temu działa modyfikator przezroczystości
+ *    (`bg-warning/12`). Ta sama składnia pozwala komponentom używać `hsl(var(--x) / .45)`.
+ *  - Komponenty NIGDY nie sięgają po surowe kolory. Żadnego `bg-blue-500` w aplikacji.
+ *
+ * Uwaga o motywie domyślnym: aplikacja startuje w motywie CIEMNYM (06 §1.5) — klasa
+ * `.dark` trafia na <html> przed pierwszym renderem. `:root` trzyma jasny, bo taka jest
+ * konwencja Tailwinda i bo dzięki temu token bez nadpisania degraduje się do czegoś
+ * czytelnego, a nie do bieli na bieli.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ==== Kroje ====
+     * Spectral na kwoty: szeryf projektowany do ekranu, o najniższym kontraście
+     * grubości z rozważanych — jego włosowe kreski nie znikają w motywie ciemnym,
+     * a minus zachowuje pełną wagę. Cyfry ma tabelaryczne DOMYŚLNIE, więc kolumna
+     * kwot zostaje wyrównana nawet tam, gdzie ktoś zapomni `font-variant-numeric`.
+     * Source Sans 3 na interfejs: najoszczędniejszy z mierzonych krojów —
+     * „Ubezpieczenie OC/AC" zajmuje 127 px wobec 140 px w IBM Plex Sans.
+     * Oba mają komplet polskiej diakrytyki (podzbiór latin-ext).
+     */
+    --font-sans: 'Source Sans 3', system-ui, -apple-system, sans-serif;
+    --font-numeric: 'Spectral', Georgia, 'Times New Roman', serif;
+
+    /* ==== Powierzchnie i tekst ====
+     * Papier, nie biel: tło ma ciepły odcień (40°), żeby ekran oglądany wieczorem
+     * nie świecił w oczy neutralną bielą. Kafel jest JAŚNIEJSZY od tła o dwa punkty,
+     * bo hierarchię niesie tu linia i odstęp, a nie wypełnienie (patrz --border).
+     */
+    --background: 40 32% 96%;
+    --foreground: 28 16% 13%;
+    --card: 42 44% 99%;
+    --card-foreground: 28 16% 13%;
+    --muted: 40 22% 91%;
+    --muted-foreground: 32 12% 38%;
+
+    /* ==== Obramowania, fokus, akcja ====
+     * --border jest w tym kierunku nośnikiem hierarchii: sekcje rozdziela włosowa
+     * linia zamiast wypełnionego prostokąta. Mimo to pozostaje elementem
+     * dekoracyjnym — żadna informacja nie zależy wyłącznie od jego widoczności.
+     * --input jest wyraźnie ciemniejszy, bo obramowanie pola JEST elementem
+     * interfejsu i podlega progowi 3:1.
+     */
+    --border: 38 18% 85%;
+    --input: 34 16% 48%;
+    --ring: 212 64% 34%;
+    --primary: 212 62% 26%;
+    --primary-foreground: 42 44% 99%;
+
+    /* ==== Wykresy (F8-5) ====
+     * Linia wykonania i przerywana linia planu na tle --card. Sprawdzone walidatorem
+     * palety (skill dataviz): różnica przy zwykłym widzeniu ΔE 17,5, przy protanopii
+     * 14,9, kontrast obu ≥ 3:1. Plan jest celowo szary — to linia odniesienia,
+     * a nie druga seria, więc jej odróżnienie niesie też kreskowanie. */
+    --chart-actual: 212 62% 26%;
+    --chart-plan: 32 12% 38%;
+
+    /* ==== Semantyka finansowa ====
+     * Zestaw wymuszony przez domenę (15 §3.2) — żadnej roli nie wolno usunąć
+     * ani scalić z inną.
+     *
+     * --debt NIE jest bursztynowy i to nie jest wybór estetyczny. Zobowiązanie
+     * i ostrzeżenie w tej samej strefie ciepłej dają przy deuteranopii ΔE ≈ 3,
+     * czyli są nierozróżnialne — a zaległa rata to dokładnie ta sytuacja, w której
+     * oba kolory stoją obok siebie. Dlatego --debt siedzi na osi różu/śliwki,
+     * sąsiadując z --investment: jedno i drugie jest zobowiązaniem, tylko
+     * w przeciwne strony.
+     *
+     * --savings i --investment rozdziela przede wszystkim JASNOŚĆ, nie odcień.
+     * Przy dichromatyzmie z barwy zostaje oś żółto-niebieska, więc błękit i fiolet
+     * zlewają się co do odcienia. Nasycenie --investment (42%) jest minimalne, przy
+     * którym para przechodzi próg przy protanopii — niżej się zlewa.
+     */
+    --income: 164 54% 32%;
+    --expense: 6 62% 32%;
+    --savings: 210 60% 30%;
+    --investment: 288 42% 50%;
+    --debt: 336 50% 38%;
+
+    /* ==== Stany komunikatów ====
+     * Kompromis kierunku „Papier": osiem ról, sześć odcieni. --success to --income,
+     * --danger to --expense. Tokeny zostają osobne, żeby dało się je kiedyś rozdzielić
+     * bez przeszukiwania kodu, ale wartość jest wspólna — inaczej trzeba by wcisnąć
+     * osiem barw w przestrzeń, w której i tak żadna nie mogłaby zostać cicha.
+     */
+    --warning: 38 80% 30%;
+    --success: 164 54% 32%;
+    --danger: 6 62% 32%;
+
+    /* ==== Układ ====
+     * Wysokość dolnego paska zakładek. Token, bo liczą od niej pozycję dwa różne
+     * elementy: FAB (15 §4.4 — „cały nad paskiem", 16 px odstępu) i toast (15 §4.10).
+     * Wartość nie zawiera bezpiecznego marginesu urządzenia: safe-area-inset-bottom
+     * obsługuje PASEK, nie FAB, więc FAB dolicza go osobno.
+     *
+     * 56 px = ikona 21 px + podpis 11 px + odstępy 4 px, przy celu dotykowym 44 px
+     * dla każdej z pięciu pozycji. Wartość NIE obejmuje włosowej linii, którą pasek
+     * dokłada nad sobą — kto liczy od górnej krawędzi paska, dolicza 1 px.
+     */
+    --tabbar-height: 56px;
+
+    /* ==== Kształt ====
+     * Promienie są małe, bo kierunek opiera się na liniach i odstępach.
+     * --radius dotyczy arkuszy i kafli w wariancie wypełnionym, --radius-sm
+     * pól i przycisków, --radius-full plakietek i awatarów.
+     */
+    --radius: 14px;
+    --radius-sm: 8px;
+    --radius-full: 999px;
+
+    /* Przyciemnienie pod arkuszem. Osobny token, bo NIE może to być --foreground:
+     * w motywie ciemnym tekst podstawowy jest prawie biały, więc nakładka z niego
+     * rozjaśniałaby ekran zamiast go przygasić. Scrim jest ciemny w obu motywach. */
+    --scrim: 28 18% 10%;
+
+    /* ==== Elewacja ====
+     * Kafle dashboardu NIE mają cienia — rozdziela je linia i odstęp (15 §3.5).
+     * Cień dostaje tylko to, co naprawdę unosi się nad treścią: arkusz od dołu i FAB.
+     * W motywie ciemnym cień traci siłę, więc arkusz dostaje tam dodatkowo jaśniejszą
+     * krawędź górną (--shadow-sheet niesie obie warstwy).
+     */
+    --shadow-sheet: 0 -8px 32px -8px hsl(28 30% 8% / 0.24), 0 -1px 0 0 hsl(var(--border));
+    --shadow-fab: 0 6px 20px -4px hsl(212 62% 18% / 0.32);
+  }
+
+  .dark {
+    /* Ciepłe espresso zamiast neutralnej czerni — ten sam odcień co papier,
+     * tylko odwrócony. Chłodna czerń przy ciepłych barwach semantycznych
+     * dawała wrażenie brudu. */
+    --background: 28 14% 9%;
+    --foreground: 40 24% 94%;
+    --card: 28 13% 13%;
+    --card-foreground: 40 24% 94%;
+    --muted: 28 12% 19%;
+    --muted-foreground: 36 12% 64%;
+
+    --border: 28 11% 23%;
+    --input: 30 12% 46%;
+    --ring: 206 84% 62%;
+    --primary: 206 78% 66%;
+    --primary-foreground: 28 20% 10%;
+
+    /* Odcienie rozjaśnione — na ciemnym tle nasycone barwy tracą kontrast.
+     * Wartości nie są mechanicznym odbiciem jasnych: każda przeszła ten sam
+     * audyt osobno (design/tools/palette_audit.py). */
+    --income: 164 48% 56%;
+    --expense: 6 68% 61%;
+    --savings: 206 66% 56%;
+    --investment: 288 48% 79%;
+    --debt: 336 56% 65%;
+
+    /* Wykresy: --primary ciemnego motywu dawało z szarym planem ΔE 13,6 przy zwykłym
+     * widzeniu (próg 15), więc wykonanie bierze stopień --savings: ΔE 16,0,
+     * protanopia 12,6, kontrast ≥ 3:1. */
+    --chart-actual: 206 66% 56%;
+    --chart-plan: 36 12% 64%;
+
+    --warning: 40 82% 58%;
+    --success: 164 48% 56%;
+    --danger: 6 68% 61%;
+
+    --scrim: 0 0% 0%;
+    --shadow-sheet: 0 -8px 32px -8px hsl(0 0% 0% / 0.56), 0 -1px 0 0 hsl(var(--border));
+    --shadow-fab: 0 6px 20px -4px hsl(0 0% 0% / 0.5);
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    /* Bez opóźnienia i powiększenia przy podwójnym dotknięciu — zamiast
+     * `maximum-scale=1`, które blokowało też powiększanie gestem (WCAG 1.4.4, F8-4). */
+    touch-action: manipulation;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    /* 100dvh zamiast 100vh — pasek adresu w iOS zmienia wysokość okna. */
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Kwoty stojące w kolumnie muszą mieć cyfry jednakowej szerokości — bez tego
+   * liczby „skaczą" przy przewijaniu listy transakcji (zasada 15 §2.3).
+   * Spectral ma cyfry tabelaryczne domyślnie, więc deklaracja poniżej jest
+   * zabezpieczeniem na wypadek zadziałania rezerwy (Georgia ich nie ma).
+   */
+  .tabular {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings:
+      'tnum' 1,
+      'lnum' 1;
+  }
+
+  /* Zasada 15 §2.11: ruch jest dodatkiem, nie warunkiem korzystania z aplikacji. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /*
+   * Pasek przewijania ukryty przy zachowanym przewijaniu — dla poziomych taśm kafli
+   * (konta na ekranie miesiąca). Na Androidzie Chromium i Brave pokazują pasek pod
+   * taśmą od razu po otwarciu, choć nikt jej jeszcze nie przewinął; ucięty ostatni
+   * kafel sam mówi, że jest więcej (15 §4.10 „Taśma kafli").
+   */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}

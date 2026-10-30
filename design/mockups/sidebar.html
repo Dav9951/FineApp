@@ -1,0 +1,269 @@
+<title>Pasek boczny FineApp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Spectral:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Układ: strona-stół z makietami pasków bocznych obok siebie; każda makieta ma własny motyw
+   (wartości z apps/web/src/styles/tokens.css, kierunek „Papier", ADR-013). */
+:root{
+  --page-bg:#e9e6e1;--page-fg:#2b2724;--page-soft:#4f4943;--page-mute:#77706a;--code-bg:#dcd7d0;--frame-edge:#c9c3bb;
+  --font-sans:'Source Sans 3',system-ui,-apple-system,sans-serif;
+  --font-numeric:'Spectral',Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--page-bg:#242629;--page-fg:#e7e9ec;--page-soft:#c3c7cd;--page-mute:#8b9198;--code-bg:#16181b;--frame-edge:#404040;color-scheme:dark}}
+:root[data-theme="dark"]{--page-bg:#242629;--page-fg:#e7e9ec;--page-soft:#c3c7cd;--page-mute:#8b9198;--code-bg:#16181b;--frame-edge:#404040;color-scheme:dark}
+
+/* Tokeny aplikacji — jasny i ciemny, jak w tokens.css. */
+.t-light{--background:40 32% 96%;--foreground:28 16% 13%;--card:42 44% 99%;--muted:40 22% 91%;--muted-foreground:32 12% 38%;
+  --border:38 18% 85%;--primary:212 62% 26%;--primary-foreground:42 44% 99%;--danger:6 62% 32%;--ring:212 64% 34%;
+  --shadow:0 6px 18px -8px hsl(28 30% 8% / .28);--tip-bg:28 16% 13%;--tip-fg:42 44% 99%}
+.t-dark{--background:28 14% 9%;--foreground:40 24% 94%;--card:28 13% 13%;--muted:28 12% 19%;--muted-foreground:36 12% 64%;
+  --border:28 11% 23%;--primary:206 78% 66%;--primary-foreground:28 20% 10%;--danger:6 68% 61%;--ring:206 84% 62%;
+  --shadow:0 6px 18px -8px hsl(0 0% 0% / .6);--tip-bg:40 24% 94%;--tip-fg:28 20% 10%}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--page-bg);color:var(--page-fg);font-family:var(--font-sans);font-size:16px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg{display:block;flex-shrink:0}
+.wrap{max-width:1500px;margin:0 auto;padding-block:40px 90px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--page-mute);margin:0 0 12px}
+h1{font-size:34px;line-height:1.15;margin:0 0 12px;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+.lead{max-width:74ch;color:var(--page-soft);font-size:15px;line-height:1.6}
+.lead code,.note code{background:var(--code-bg);padding:1px 5px;border-radius:4px;font-size:13px}
+.frames{display:flex;flex-wrap:wrap;gap:40px 36px;align-items:flex-start;margin-top:36px;overflow-x:auto;padding:4px 4px 12px}
+figure{margin:0;flex-shrink:0}
+figcaption{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--page-mute);margin-bottom:10px}
+.note{font-size:13.5px;line-height:1.55;color:var(--page-soft);margin-top:14px;max-width:330px}
+.note b{color:var(--page-fg)}
+.note ul{padding-left:18px;margin:6px 0}
+.note li{margin:3px 0}
+
+/* Okno aplikacji: pasek + skrawek treści. */
+.app{position:relative;display:flex;height:920px;border-radius:14px;overflow:hidden;border:1px solid var(--frame-edge);
+  background:hsl(var(--background));color:hsl(var(--foreground));box-shadow:0 18px 44px rgba(0,0,0,.22)}
+.content{width:120px;padding:28px 0 0 28px;display:flex;flex-direction:column;gap:12px}
+.content i{display:block;height:10px;border-radius:5px;background:hsl(var(--muted))}
+
+.side{position:relative;display:flex;flex-direction:column;width:248px;padding:20px 16px 16px;border-right:1px solid hsl(var(--border));
+  background:hsl(var(--background));overflow-y:auto;scrollbar-width:thin;transition:width .2s cubic-bezier(.32,.72,0,1)}
+.side.rail{overflow:visible}
+.side.rail{width:76px;padding-left:12px;padding-right:12px}
+@media (prefers-reduced-motion:reduce){.side,.thumb{transition:none!important}}
+
+.profile{display:flex;align-items:center;gap:12px;min-height:48px;padding:4px;margin:0 -4px;border-radius:10px;text-align:left}
+.profile:hover{background:hsl(var(--muted)/.6)}
+.avatar{width:44px;height:44px;border-radius:999px;display:grid;place-items:center;flex-shrink:0;
+  background:hsl(var(--primary)/.14);color:hsl(var(--primary));font-weight:700;font-size:15px;letter-spacing:.02em;
+  box-shadow:inset 0 0 0 1px hsl(var(--primary)/.22)}
+.avatars{position:relative;flex-shrink:0}
+.avatar2{position:absolute;right:-6px;bottom:-4px;width:22px;height:22px;border-radius:999px;display:grid;place-items:center;
+  background:hsl(var(--muted));color:hsl(var(--muted-foreground));font-size:11px;font-weight:700;box-shadow:0 0 0 2px hsl(var(--background))}
+.who{min-width:0;display:flex;flex-direction:column;gap:2px}
+.over{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:hsl(var(--muted-foreground));font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail .who,.rail .label,.rail .h,.rail .seg-text,.rail .logout span{display:none}
+.rail .profile{justify-content:center;margin:0;padding:2px 0}
+
+.collapse{position:absolute;top:32px;right:-14px;width:28px;height:28px;border-radius:999px;display:grid;place-items:center;
+  background:hsl(var(--card));border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));box-shadow:var(--shadow);z-index:2}
+.collapse::after{content:"";position:absolute;inset:-8px}
+.collapse:hover{color:hsl(var(--foreground))}
+.rail .collapse svg{transform:rotate(180deg)}
+
+.div{height:1px;background:hsl(var(--border));margin:16px 0 14px}
+.h{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:hsl(var(--muted-foreground));font-weight:600;padding:0 12px;margin:0 0 6px}
+.rail .group+.group .h{display:none}
+.rail .h-rail{display:block;height:1px;background:hsl(var(--border));margin:12px 8px}
+.h-rail{display:none}
+.group{display:flex;flex-direction:column;gap:2px}
+.group+.group{margin-top:14px}
+.link{position:relative;display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:10px;
+  color:hsl(var(--muted-foreground));font-size:15px;text-align:left;width:100%}
+.link:hover{background:hsl(var(--muted)/.6);color:hsl(var(--foreground))}
+.link.on{background:hsl(var(--muted));color:hsl(var(--primary));font-weight:600}
+.rail .link{justify-content:center;padding:0}
+.link:focus-visible,.profile:focus-visible,.collapse:focus-visible,.seg button:focus-visible,.logout:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
+
+.tip{position:absolute;left:calc(100% + 14px);top:50%;transform:translateY(-50%);white-space:nowrap;padding:8px 12px;border-radius:8px;
+  background:hsl(var(--tip-bg));color:hsl(var(--tip-fg));font-size:14px;font-weight:500;box-shadow:var(--shadow);pointer-events:none;display:none;z-index:3}
+.tip::before{content:"";position:absolute;left:-5px;top:50%;width:10px;height:10px;background:inherit;transform:translateY(-50%) rotate(45deg);border-radius:2px}
+.rail .link:hover .tip,.tip.show{display:block}
+
+.bottom{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;border-radius:999px;background:hsl(var(--muted));height:44px}
+.thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:999px;background:hsl(var(--card));
+  box-shadow:var(--shadow);transition:transform .22s cubic-bezier(.32,.72,0,1)}
+.t-dark .thumb{transform:translateX(100%)}
+.seg button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;font-size:14px;
+  color:hsl(var(--muted-foreground));font-weight:500}
+.seg button[aria-pressed="true"]{color:hsl(var(--foreground));font-weight:600}
+.rail .seg{grid-template-columns:1fr;height:44px;width:44px;margin:0 auto;padding:0;background:hsl(var(--muted))}
+.rail .thumb{display:none}
+.rail .seg button[aria-pressed="true"]{display:none}
+.rail .seg button{width:44px;height:44px}
+.logout{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:10px;color:hsl(var(--danger));font-size:15px;font-weight:500;width:100%}
+.logout:hover{background:hsl(var(--danger)/.08)}
+.rail .logout{justify-content:center;padding:0}
+
+.decisions{margin-top:48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px 36px;max-width:1100px}
+.decisions h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--page-mute);margin:0 0 8px;font-weight:600}
+.decisions p,.decisions li{font-size:14px;line-height:1.55;color:var(--page-soft)}
+.decisions ul,.decisions ol{padding-left:18px;margin:0}
+.decisions li{margin:4px 0}
+.decisions b{color:var(--page-fg)}
+</style>
+
+<div class="wrap">
+  <p class="kicker">FineApp · propozycja · pasek boczny (06 §2, 15 §4)</p>
+  <h1>Pasek boczny z profilem</h1>
+  <div class="lead">
+    <p>Na wzór pliku Figma „Sidebar Dashboard": u góry <b>profil</b> (inicjały w kółku, nad imieniem nazwa
+    gospodarstwa), pod nim nawigacja w nazwanych grupach, <b>Ustawienia</b> w osobnej grupie,
+    a na dole <b>przełącznik motywu</b> i <b>Wyloguj</b>. Kolory, kroje i promienie zostają z design systemu
+    FineApp — zmienia się układ, nie paleta.</p>
+    <p>Pierwsza ramka działa: kliknij pozycję, przełącz motyw albo zwiń pasek okrągłym przyciskiem na krawędzi.</p>
+  </div>
+
+  <div class="frames">
+    <figure>
+      <figcaption>① jasny · rozwinięty — działa</figcaption>
+      <div class="app t-light" id="a"></div>
+      <div class="note">
+        <b>Profil</b> prowadzi do <code>/settings</code> (imię, PIN, urządzenia). Inicjały zamiast zdjęcia —
+        zdjęć w aplikacji nie ma. Kółko ma kolor akcentu z tokenów; własny kolor awatara (<code>avatarColor</code>)
+        dojdzie razem z paletą awatarów (Z-43).
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>② jasny · zwinięty, najechanie</figcaption>
+      <div class="app t-light" id="b"></div>
+      <div class="note">
+        <b>Szyna 76 px.</b> Nagłówki grup zastępują linie, nazwy pokazuje dymek po najechaniu
+        (i przy fokusie z klawiatury). Przełącznik motywu staje się jednym przyciskiem ze słońcem / księżycem.
+        Stan zwinięcia pamięta przeglądarka, jak dziś.
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>③ ciemny · rozwinięty, „Budżet" aktywny</figcaption>
+      <div class="app t-dark" id="c"></div>
+      <div class="note">
+        <b>Przełącznik motywu</b> — dwa pola z przesuwanym podkładem, stan widać od razu, bez czytania ikony.
+        „Systemowy" zostaje w Ustawieniach → Wygląd; przełącznik w pasku ustawia jawnie jasny albo ciemny.
+      </div>
+    </figure>
+  </div>
+
+  <section class="decisions">
+    <div>
+      <h2>Grupy</h2>
+      <ol>
+        <li><b>Miesiąc</b> — Miesiąc, Historia, Cele, Skan (to, co w dolnym pasku na telefonie).</li>
+        <li><b>Planowanie</b> — Konta, Zobowiązania, Cykliczne, Planowane, Budżet, Rozkład docelowy. Zastępuje „Więcej".</li>
+        <li><b>Na dole, bez nagłówka</b> — Kategorie i Ustawienia, oddzielone linią od nawigacji, tuż nad motywem i Wyloguj. Osobne miejscem, nie podwójnym napisem „Ustawienia”.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>Drobne poprawki</h2>
+      <ul>
+        <li>„Rozkład docelowy" dostaje ikonę wykresu kołowego — dziś ma tę samą tarczę co „Cele".</li>
+        <li>Nazwa „FineApp" znika z paska: miejsce marki zajmuje profil, tytuł karty przeglądarki zostaje.</li>
+        <li>„Wyloguj" w kolorze <code>--danger</code> bez potwierdzenia — to nie jest operacja nieodwracalna; logowanie wraca jednym PIN-em.</li>
+        <li>Cele dotykowe 44 px; okrągły przycisk zwijania ma 28 px, ale obszar kliknięcia 44 px.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Rozstrzygnięte</h2>
+      <ul>
+        <li><b>Nad imieniem</b>: nazwa gospodarstwa — przyjęte.</li>
+        <li><b>Telefon</b>: ekran „Więcej" dostaje profil, Planowanie, Kategorie i Ustawienia, motyw i Wyloguj — przyjęte.</li>
+        <li><b>Drugi domownik</b>: małe kółko z inicjałem przy awatarze — przyjęte.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+const I = {
+  cal:'<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/>',
+  receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M13 16H8"/>',
+  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  bank:'<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
+  card:'<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  repeat:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  note:'<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
+  clip:'<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  pie:'<path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>',
+  tags:'<path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="6.5" cy="9.5" r=".5" fill="currentColor"/>',
+  gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  out:'<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  left:'<path d="m15 18-6-6 6-6"/>',
+};
+const svg = (n, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${(1.5 * 24 / s).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
+const GROUPS = [
+  ['Miesiąc', [['cal','Miesiąc'],['receipt','Historia'],['target','Cele'],['camera','Skan']]],
+  ['Planowanie', [['bank','Konta'],['card','Zobowiązania'],['repeat','Cykliczne'],['note','Planowane'],['clip','Budżet'],['pie','Rozkład docelowy']]],
+];
+const SETTINGS = ['', [['tags','Kategorie'],['gear','Ustawienia']]];
+
+function sidebar(opts) {
+  const group = ([title, items], extraDivider) => `<div class="group">
+      <span class="h-rail" aria-hidden="true"></span>
+      ${title === '' ? '' : `<p class="h">${title}</p>`}
+      ${items.map(([icon, label]) => `<button class="link${label === opts.active ? ' on' : ''}" ${label === opts.active ? 'aria-current="page"' : ''} data-label="${label}">
+        ${svg(icon)}<span class="label">${label}</span><span class="tip${opts.tip === label ? ' show' : ''}" role="tooltip">${label}</span></button>`).join('')}
+    </div>`;
+  const dark = opts.theme === 'dark';
+  return `<nav class="side${opts.rail ? ' rail' : ''}" aria-label="Nawigacja główna">
+    <button class="profile" aria-label="Profil: Adam, gospodarstwo Dom, razem z: Basia">
+      <span class="avatars"><span class="avatar">AK</span><span class="avatar2" title="Basia">B</span></span>
+      <span class="who"><span class="over">Dom</span><span class="name">Adam</span></span>
+    </button>
+    <button class="collapse" aria-label="${opts.rail ? 'Rozwiń pasek boczny' : 'Zwiń pasek boczny'}" aria-expanded="${!opts.rail}">${svg('left', 16)}</button>
+    <div class="div"></div>
+    ${GROUPS.map((g) => group(g)).join('')}
+    <div class="bottom">
+      <div class="div" style="margin:0"></div>
+      ${group(SETTINGS)}
+      <div class="div" style="margin:0"></div>
+      <div class="seg" role="group" aria-label="Motyw">
+        <span class="thumb" aria-hidden="true"></span>
+        <button aria-pressed="${!dark}" data-theme-set="light" aria-label="Motyw jasny">${svg('sun', 18)}<span class="seg-text">Jasny</span></button>
+        <button aria-pressed="${dark}" data-theme-set="dark" aria-label="Motyw ciemny">${svg('moon', 18)}<span class="seg-text">Ciemny</span></button>
+      </div>
+      <button class="logout">${svg('out')}<span>Wyloguj</span></button>
+    </div>
+  </nav>
+  <div class="content" aria-hidden="true"><i style="width:70px"></i><i style="width:90px"></i><i style="width:56px"></i><i style="width:84px;margin-top:20px"></i><i style="width:64px"></i></div>`;
+}
+
+function mount(id, opts) {
+  const host = document.getElementById(id);
+  const render = () => {
+    host.className = `app t-${opts.theme}`;
+    host.innerHTML = sidebar(opts);
+  };
+  render();
+  if (!opts.live) return;
+  host.addEventListener('click', (event) => {
+    const t = event.target.closest('button');
+    if (!t) return;
+    if (t.dataset.label) opts.active = t.dataset.label;
+    else if (t.dataset.themeSet) opts.theme = t.dataset.themeSet;
+    else if (t.classList.contains('collapse')) opts.rail = !opts.rail;
+    else if (t.closest('.rail .seg')) opts.theme = opts.theme === 'dark' ? 'light' : 'dark';
+    else return;
+    const focus = t.dataset.label ? `[data-label="${t.dataset.label}"]` : t.classList.contains('collapse') ? '.collapse' : null;
+    render();
+    if (focus) host.querySelector(focus)?.focus();
+  });
+}
+mount('a', { theme: 'light', active: 'Miesiąc', live: true, rail: false });
+mount('b', { theme: 'light', active: 'Miesiąc', rail: true, tip: 'Cykliczne' });
+mount('c', { theme: 'dark', active: 'Budżet', rail: false });
+</script>

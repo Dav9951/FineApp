@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FineApp · kierunek 1 — Grafit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --doc-font: 'Inter', system-ui, sans-serif;
+  --ui-font: 'Inter', system-ui, sans-serif;
+  --num-font: 'IBM Plex Mono', ui-monospace, monospace;
+  --num-ls: -0.01em;
+  --num-weight-big: 500;
+  --radius: 14px;
+}
+.t-light {
+  --background: 210 20% 98%;
+  --foreground: 220 30% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 30% 12%;
+  --muted: 215 25% 94%;
+  --muted-foreground: 218 14% 40%;
+  --border: 216 18% 88%;
+  --input: 216 14% 52%;
+  --ring: 205 90% 38%;
+  --primary: 220 30% 14%;
+  --primary-foreground: 0 0% 100%;
+  --income: 168 52% 33%;
+  --expense: 22 28% 24%;
+  --savings: 208 80% 42%;
+  --investment: 276 52% 35%;
+  --debt: 326 58% 40%;
+  --warning: 40 89% 32%;
+  --success: 162 68% 28%;
+  --danger: 356 70% 42%;
+}
+
+.t-dark {
+  --background: 220 16% 9%;
+  --foreground: 210 20% 95%;
+  --card: 220 15% 13%;
+  --card-foreground: 210 20% 95%;
+  --muted: 220 14% 19%;
+  --muted-foreground: 215 14% 66%;
+  --border: 220 13% 23%;
+  --input: 218 12% 46%;
+  --ring: 205 90% 62%;
+  --primary: 210 20% 95%;
+  --primary-foreground: 220 30% 12%;
+  --income: 168 62% 68%;
+  --expense: 22 26% 58%;
+  --savings: 208 83% 59%;
+  --investment: 276 62% 83%;
+  --debt: 326 66% 68%;
+  --warning: 42 88% 62%;
+  --success: 162 58% 54%;
+  --danger: 356 78% 68%;
+}
+.t-light,.t-dark{--radius:14px}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#232528;color:#e7e9ec;font-family:var(--doc-font);
+     font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1220px;margin:0 auto;padding:40px 24px 96px}
+a{color:inherit}
+h1{font-size:34px;line-height:1.15;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#9aa0a8;
+   margin:56px 0 18px;font-weight:600}
+h3{font-size:17px;margin:0 0 6px;font-weight:600}
+p{margin:0 0 12px;color:#c3c7cd;max-width:70ch}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;
+     background:#16181b;padding:1px 5px;border-radius:4px;color:#d7dbe0}
+.lead{font-size:18px;color:#e7e9ec;max-width:62ch;line-height:1.5}
+.kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#8b9198;margin:0 0 14px}
+.forwhom{margin-top:14px;padding:12px 16px;border-left:3px solid #4d525a;color:#b9bec5;
+         font-size:14px;max-width:62ch}
+.note{background:#1b1d20;border:1px solid #303338;border-radius:10px;padding:14px 16px;
+      font-size:13.5px;color:#b9bec5;max-width:82ch}
+.note b{color:#e7e9ec}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.panel{background:#1b1d20;border:1px solid #303338;border-radius:14px;padding:18px}
+.panel>h4{margin:0 0 14px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#9aa0a8}
+
+/* --- swatche --- */
+.sw{display:flex;align-items:center;gap:11px;padding:6px 0}
+.sw .chip{width:34px;height:34px;border-radius:8px;flex:0 0 34px;
+          border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.sw .meta{min-width:0;flex:1}
+.sw .name{font-family:ui-monospace,monospace;font-size:12.5px;color:#e7e9ec}
+.sw .val{font-family:ui-monospace,monospace;font-size:11.5px;color:#868c94}
+.sw .ratio{font-family:ui-monospace,monospace;font-size:11.5px;color:#868c94;white-space:nowrap}
+.sw .ratio b{color:#9fd2a4;font-weight:600}
+.sw .ratio.low b{color:#e0b062}
+.swgroup{margin-bottom:14px}
+.swgroup>span{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+              color:#7c828a;margin:10px 0 4px}
+
+/* --- symulacja daltonizmu --- */
+.cvd{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.cvd .col>span{display:block;font-size:11px;color:#8b9198;margin-bottom:6px;text-align:center}
+.cvd .pair{display:flex;height:34px;border-radius:7px;overflow:hidden;margin-bottom:6px}
+.cvd .pair i{flex:1}
+.cvd .lbl{font-size:10.5px;color:#7c828a;text-align:center;font-family:ui-monospace,monospace}
+
+/* --- typografia --- */
+.scale{border-collapse:collapse;width:100%}
+.scale td{border-top:1px solid #303338;padding:12px 8px;vertical-align:baseline}
+.scale td:first-child{width:74px;font-family:ui-monospace,monospace;font-size:12px;color:#868c94;
+                      white-space:nowrap}
+.scale td:last-child{width:210px;font-size:12.5px;color:#868c94;text-align:right}
+.specimen{background:#1b1d20;border:1px solid #303338;border-radius:14px;padding:22px 20px}
+
+/* --- ramka telefonu --- */
+.frames{display:flex;gap:30px;flex-wrap:wrap}
+.frameset{flex:0 0 auto}
+.frameset>span{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+               color:#8b9198;margin:0 0 10px}
+.phone{width:390px;border-radius:26px;overflow:hidden;border:1px solid #3a3e44;
+       background:hsl(var(--background));color:hsl(var(--foreground));
+       font-family:var(--ui-font);box-shadow:0 18px 40px rgba(0,0,0,.34)}
+.phone .pad{padding:16px}
+.caption{font-size:12.5px;color:#8b9198;margin:10px 0 0;max-width:390px}
+
+/* --- prymitywy makiety --- */
+.num{font-family:var(--num-font);font-variant-numeric:tabular-nums;
+     font-feature-settings:"tnum" 1,"lnum" 1;letter-spacing:var(--num-ls)}
+.card{background:hsl(var(--card));color:hsl(var(--card-foreground));
+      border:1px solid hsl(var(--border));border-radius:var(--radius);padding:16px}
+.card+.card{margin-top:12px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;
+          min-height:24px;margin-bottom:14px;gap:12px}
+.sec-label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
+           color:hsl(var(--muted-foreground));margin:0}
+.link{background:none;border:0;padding:8px;margin:-8px;font:inherit;font-size:13px;
+      color:hsl(var(--primary));cursor:pointer;min-height:44px;display:inline-flex;
+      align-items:center;font-weight:500}
+.rings{display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center}
+.ringwrap{position:relative;width:96px;height:96px;margin:0 auto 10px}
+.ringwrap svg{display:block}
+.ringmid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+         justify-content:center;gap:1px}
+.ringpct{font-family:var(--num-font);font-variant-numeric:tabular-nums;font-size:20px;
+         font-weight:var(--num-weight-big);line-height:1;letter-spacing:var(--num-ls)}
+.ringtarget{font-size:11px;color:hsl(var(--muted-foreground));display:flex;align-items:center;
+            gap:3px;font-variant-numeric:tabular-nums}
+.ringtarget svg{width:8px;height:8px}
+.ringname{font-size:13px;font-weight:500;margin-bottom:2px}
+.ringamt{font-size:13px;font-family:var(--num-font);font-variant-numeric:tabular-nums;
+         letter-spacing:var(--num-ls);color:hsl(var(--muted-foreground))}
+.ringamt b{font-weight:600}
+.ok{color:hsl(var(--success));font-weight:700}
+.notice{display:flex;align-items:flex-start;gap:9px;margin-top:16px;padding:11px 12px;
+        border-radius:calc(var(--radius) - 4px);font-size:13px;line-height:1.45;
+        background:hsl(var(--warning) / .12);border:1px solid hsl(var(--warning) / .34);
+        color:hsl(var(--card-foreground))}
+.notice .ic{flex:0 0 auto;color:hsl(var(--warning));font-size:14px;line-height:1.35}
+.notice .body{flex:1;min-width:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;
+     padding:0 16px;border-radius:calc(var(--radius) - 4px);border:1px solid transparent;
+     background:hsl(var(--primary));color:hsl(var(--primary-foreground));font:inherit;
+     font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-ghost{background:transparent;color:hsl(var(--primary));border-color:hsl(var(--border))}
+/* Akcja w ostrzezeniu jest drugorzedna: uwage niesie juz sam baner. */
+.btn-soft{background:hsl(var(--muted));color:hsl(var(--primary));border-color:hsl(var(--border));
+          font-weight:600}
+/* Kwota przy pierscieniu w wariancie kompaktowym (bez groszy) — 06 §3.1 pisze ja tak samo. */
+.ringamt{white-space:nowrap}
+.hint{display:flex;gap:7px;align-items:flex-start;margin:12px 0 0;font-size:12px;
+      color:hsl(var(--muted-foreground));line-height:1.45}
+.hint .ic{flex:0 0 auto}
+.noticerow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+/* wiersze listy — patrz rows.py */
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.row{display:flex;align-items:center;gap:11px;min-height:52px;padding:5px 0}
+.row+.row{border-top:1px solid hsl(var(--border))}
+.rowic{flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:hsl(var(--muted));
+       color:hsl(var(--muted-foreground));display:flex;align-items:center;justify-content:center}
+.rowic svg{width:18px;height:18px}
+.rowtxt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.rowtxt b{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rowtxt em{font-size:12px;font-style:normal;color:hsl(var(--muted-foreground))}
+.rowamt{flex:0 0 auto;font-family:var(--num-font);font-variant-numeric:tabular-nums;
+        letter-spacing:var(--num-ls);font-size:15px;font-weight:600;text-align:right}
+.amt-income{color:hsl(var(--income))}
+.amt-expense{color:hsl(var(--expense))}
+
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">FineApp · F0-9 · kierunek 1 z 3</p>
+  <h1>Grafit</h1>
+  <p class="lead">Chłodny grafit, w którym wydatek nie jest czerwony — kolor dostaje tylko to, co jest wyjątkiem albo pulą; reszta ekranu to atrament.</p>
+  <div class="forwhom">Dla kogoś, kto chce, żeby narzędzie zniknęło: po roku używania nic nie krzyczy, a wzrok sam siada na kwocie.</div>
+
+  <h2>Na czym polega</h2>
+  <div style="margin-bottom:16px"><h3>Wydatek traci barwę</h3><p>Większość kwot na ekranie to wydatki. Pomalowanie ich na czerwono sprawia, że cały ekran alarmuje — a przecież czynsz to nie awaria. <code>--expense</code> jest tu ciepłym popiołem o nasyceniu 16–20%: widać, że to kolor, ale nie konkuruje. Znak <b>−</b> niesie informację (zasada 2.4).</p></div><div style="margin-bottom:16px"><h3>Czerwień zarezerwowana</h3><p>Skoro wydatek jej nie zużywa, <code>--danger</code> może być prawdziwą czerwienią i znaczyć dokładnie jedno: operację nieodwracalną.</p></div><div style="margin-bottom:16px"><h3>Akcja główna to atrament</h3><p><code>--primary</code> nie jest kolorowym akcentem, tylko niemal czarnym (jasny motyw) / niemal białym (ciemny). Aplikacja nie ma marki, którą trzeba by pokazać — ma mieć przycisk, który widać.</p></div>
+  <div class="note"><b>Kompromis palety.</b> Wydatek oddaje odcień. Zyskujemy spokój i wolną strefę czerwieni; tracimy szybkie „czerwone = minus” z peryferii wzroku.</div>
+
+  <h2>Kafel „Cele procentowe" — 390 px</h2>
+  <p>Układ i treść wprost z <code>06 §3.1</code>: pierścienie wykonania, znacznik celu
+     <span style="font-family:ui-monospace">○</span>/<span style="font-family:ui-monospace">●</span>,
+     kwota wykonania przy kwocie planu, ostrzeżenie o brakującej kwocie i przypomnienie
+     o liczeniu netto. Dane: wpływy września 11&nbsp;650,00&nbsp;zł, plan 20% oszczędności
+     i 10% inwestycji.</p>
+  <div class="frames">
+    <div class="frameset">
+  <span>ciemny (domyślny)</span>
+  <div class="phone t-dark"><div class="pad"><section class="card">
+    <div class="sec-head">
+      <h3 class="sec-label">Cele procentowe</h3>
+      <button class="link" type="button">ustaw</button>
+    </div>
+    <div class="rings">
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Oszczędności: wykonanie 17% przy celu 20%, 1 750,00 zł z 2 080,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 1 1 13.22 23.57" fill="none" stroke="hsl(var(--savings))" stroke-width="9" stroke-linecap="round"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--savings))">17%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="2.9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>20%</span>
+          </div>
+        </div>
+        <div class="ringname">Oszczędności</div>
+        <div class="ringamt"><b style="color:hsl(var(--card-foreground))">1 750</b> / 2 080zł</div>
+      </div>
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Inwestycje: wykonanie 10% przy celu 10%, 1 040,00 zł z 1 040,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 1 1 47.93 5.50" fill="none" stroke="hsl(var(--investment))" stroke-width="9" stroke-linecap="round"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--investment))">10%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3.4" fill="currentColor"/></svg>10%</span>
+          </div>
+        </div>
+        <div class="ringname">Inwestycje</div>
+        <div class="ringamt"><b style="color:hsl(var(--card-foreground))">1 040</b> / 1 040zł <span class="ok" aria-label="cel zrealizowany">✓</span></div>
+      </div>
+    </div>
+    <div class="notice"><span class="ic" aria-hidden="true">⚠</span><div class="body">Brakuje <b>330,00 zł</b> do planu miesiąca<div class="noticerow"><span></span><button class="btn btn-soft" type="button">Uzupełnij →</button></div></div></div>
+    <p class="hint"><span class="ic" aria-hidden="true">ⓘ</span>
+       Wykonanie netto: wpłaty minus wypłaty</p>
+  </section><section class="card">
+    <div class="sec-head">
+      <h3 class="sec-label">Ostatnie</h3>
+      <button class="link" type="button">historia</button>
+    </div>
+      <div class="row">
+        <span class="rowic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h2.2l2 9.4h9.1l1.9-6.9H6.1"/><circle cx="8.4" cy="16.5" r="1.4"/><circle cx="15.1" cy="16.5" r="1.4"/></svg></span>
+        <span class="rowtxt"><b>Lidl</b><em>18 wrz · ROR · AK</em></span>
+        <span class="rowamt amt-expense">−115,99 zł</span>
+      </div>
+      <div class="row">
+        <span class="rowic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 11.6 4.8 7a1.8 1.8 0 0 1 1.7-1.2h7a1.8 1.8 0 0 1 1.7 1.2l1.6 4.6"/><path d="M2.6 11.6h14.8v3.6H2.6z"/><circle cx="5.9" cy="15.2" r="1.2"/><circle cx="14.1" cy="15.2" r="1.2"/></svg></span>
+        <span class="rowtxt"><b>Ubezpieczenie OC/AC</b><em>15 wrz · ROR · BN</em></span>
+        <span class="rowamt amt-expense">−1 690,00 zł</span>
+      </div>
+      <div class="row">
+        <span class="rowic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 6.4h14.8v8.4H2.6z"/><path d="M2.6 9.2h14.8"/><circle cx="10" cy="12" r="1.6"/></svg></span>
+        <span class="rowtxt"><b>Wynagrodzenie</b><em>10 wrz · ROR · AK</em></span>
+        <span class="rowamt amt-income">+8 650,00 zł</span>
+      </div>
+  </section></div></div>
+</div>
+    <div class="frameset">
+  <span>jasny</span>
+  <div class="phone t-light"><div class="pad"><section class="card">
+    <div class="sec-head">
+      <h3 class="sec-label">Cele procentowe</h3>
+      <button class="link" type="button">ustaw</button>
+    </div>
+    <div class="rings">
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Oszczędności: wykonanie 17% przy celu 20%, 1 750,00 zł z 2 080,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 1 1 13.22 23.57" fill="none" stroke="hsl(var(--savings))" stroke-width="9" stroke-linecap="round"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--savings))">17%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="2.9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>20%</span>
+          </div>
+        </div>
+        <div class="ringname">Oszczędności</div>
+        <div class="ringamt"><b style="color:hsl(var(--card-foreground))">1 750</b> / 2 080zł</div>
+      </div>
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Inwestycje: wykonanie 10% przy celu 10%, 1 040,00 zł z 1 040,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 1 1 47.93 5.50" fill="none" stroke="hsl(var(--investment))" stroke-width="9" stroke-linecap="round"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--investment))">10%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3.4" fill="currentColor"/></svg>10%</span>
+          </div>
+        </div>
+        <div class="ringname">Inwestycje</div>
+        <div class="ringamt"><b style="color:hsl(var(--card-foreground))">1 040</b> / 1 040zł <span class="ok" aria-label="cel zrealizowany">✓</span></div>
+      </div>
+    </div>
+    <div class="notice"><span class="ic" aria-hidden="true">⚠</span><div class="body">Brakuje <b>330,00 zł</b> do planu miesiąca<div class="noticerow"><span></span><button class="btn btn-soft" type="button">Uzupełnij →</button></div></div></div>
+    <p class="hint"><span class="ic" aria-hidden="true">ⓘ</span>
+       Wykonanie netto: wpłaty minus wypłaty</p>
+  </section><section class="card">
+    <div class="sec-head">
+      <h3 class="sec-label">Ostatnie</h3>
+      <button class="link" type="button">historia</button>
+    </div>
+      <div class="row">
+        <span class="rowic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h2.2l2 9.4h9.1l1.9-6.9H6.1"/><circle cx="8.4" cy="16.5" r="1.4"/><circle cx="15.1" cy="16.5" r="1.4"/></svg></span>
+        <span class="rowtxt"><b>Lidl</b><em>18 wrz · ROR · AK</em></span>
+        <span class="rowamt amt-expense">−115,99 zł</span>
+      </div>
+      <div class="row">
+        <span class="rowic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 11.6 4.8 7a1.8 1.8 0 0 1 1.7-1.2h7a1.8 1.8 0 0 1 1.7 1.2l1.6 4.6"/><path d="M2.6 11.6h14.8v3.6H2.6z"/><circle cx="5.9" cy="15.2" r="1.2"/><circle cx="14.1" cy="15.2" r="1.2"/></svg></span>
+        <span class="rowtxt"><b>Ubezpieczenie OC/AC</b><em>15 wrz · ROR · BN</em></span>
+        <span class="rowamt amt-expense">−1 690,00 zł</span>
+      </div>
+      <div class="row">
+        <span class="rowic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 6.4h14.8v8.4H2.6z"/><path d="M2.6 9.2h14.8"/><circle cx="10" cy="12" r="1.6"/></svg></span>
+        <span class="rowtxt"><b>Wynagrodzenie</b><em>10 wrz · ROR · AK</em></span>
+        <span class="rowamt amt-income">+8 650,00 zł</span>
+      </div>
+  </section></div></div>
+</div>
+  </div>
+
+  <h2>Ten sam kafel z wykonaniem ujemnym (ADR-011)</h2>
+  <p>Najtrudniejszy przypadek tej aplikacji, dlatego stoi już w próbce kierunku, a nie dopiero
+     w makiecie. We wrześniu z oszczędności wypłacono więcej, niż wpłacono: wykonanie netto
+     wynosi <b>−310,00 zł</b>. Pierścień nie pokazuje zera — pokazuje
+     <b>ubytek</b>: łuk biegnie w lewo od godziny dwunastej, kreskowany, w kolorze
+     <code>--expense</code>. Kwota ma minus typograficzny, a ostrzeżenie mówi wprost, co się stało.</p>
+  <div class="frames">
+    <div class="frameset">
+  <span>ciemny (domyślny)</span>
+  <div class="phone t-dark"><div class="pad"><section class="card">
+    <div class="sec-head">
+      <h3 class="sec-label">Cele procentowe</h3>
+      <button class="link" type="button">ustaw</button>
+    </div>
+    <div class="rings">
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Oszczędności: wykonanie −3% przy celu 20%, −310,00 zł z 2 080,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 0 0 14.57 21.76" fill="none" stroke="hsl(var(--expense))" stroke-width="9" stroke-linecap="round" stroke-dasharray="0.1 17.1"/><circle cx="48.0" cy="5.5" r="3.8" fill="hsl(var(--expense))"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--expense))">−3%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="2.9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>20%</span>
+          </div>
+        </div>
+        <div class="ringname">Oszczędności</div>
+        <div class="ringamt"><b style="color:hsl(var(--expense))">−310</b> / 2 080zł</div>
+      </div>
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Inwestycje: wykonanie 10% przy celu 10%, 1 040,00 zł z 1 040,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 1 1 47.93 5.50" fill="none" stroke="hsl(var(--investment))" stroke-width="9" stroke-linecap="round"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--investment))">10%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3.4" fill="currentColor"/></svg>10%</span>
+          </div>
+        </div>
+        <div class="ringname">Inwestycje</div>
+        <div class="ringamt"><b style="color:hsl(var(--card-foreground))">1 040</b> / 1 040zł <span class="ok" aria-label="cel zrealizowany">✓</span></div>
+      </div>
+    </div>
+    <div class="notice"><span class="ic" aria-hidden="true">⚠</span><div class="body">Z oszczędności wypłacono więcej, niż wpłacono. Do planu brakuje <b>2 390,00 zł</b><div class="noticerow"><span></span><button class="btn btn-soft" type="button">Uzupełnij →</button></div></div></div>
+    <p class="hint"><span class="ic" aria-hidden="true">ⓘ</span>
+       Wykonanie netto: wpłaty minus wypłaty</p>
+  </section></div></div>
+</div>
+    <div class="frameset">
+  <span>jasny</span>
+  <div class="phone t-light"><div class="pad"><section class="card">
+    <div class="sec-head">
+      <h3 class="sec-label">Cele procentowe</h3>
+      <button class="link" type="button">ustaw</button>
+    </div>
+    <div class="rings">
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Oszczędności: wykonanie −3% przy celu 20%, −310,00 zł z 2 080,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 0 0 14.57 21.76" fill="none" stroke="hsl(var(--expense))" stroke-width="9" stroke-linecap="round" stroke-dasharray="0.1 17.1"/><circle cx="48.0" cy="5.5" r="3.8" fill="hsl(var(--expense))"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--expense))">−3%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="2.9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>20%</span>
+          </div>
+        </div>
+        <div class="ringname">Oszczędności</div>
+        <div class="ringamt"><b style="color:hsl(var(--expense))">−310</b> / 2 080zł</div>
+      </div>
+      <div class="ringcell">
+        <div class="ringwrap" role="img" aria-label="Inwestycje: wykonanie 10% przy celu 10%, 1 040,00 zł z 1 040,00 zł">
+          <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48.0" cy="48.0" r="42.5" fill="none" stroke="hsl(var(--muted-foreground) / .45)" stroke-width="9"/><path d="M 48.00 5.50 A 42.5 42.5 0 1 1 47.93 5.50" fill="none" stroke="hsl(var(--investment))" stroke-width="9" stroke-linecap="round"/></svg>
+          <div class="ringmid">
+            <span class="ringpct" style="color:hsl(var(--investment))">10%</span>
+            <span class="ringtarget"><svg viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3.4" fill="currentColor"/></svg>10%</span>
+          </div>
+        </div>
+        <div class="ringname">Inwestycje</div>
+        <div class="ringamt"><b style="color:hsl(var(--card-foreground))">1 040</b> / 1 040zł <span class="ok" aria-label="cel zrealizowany">✓</span></div>
+      </div>
+    </div>
+    <div class="notice"><span class="ic" aria-hidden="true">⚠</span><div class="body">Z oszczędności wypłacono więcej, niż wpłacono. Do planu brakuje <b>2 390,00 zł</b><div class="noticerow"><span></span><button class="btn btn-soft" type="button">Uzupełnij →</button></div></div></div>
+    <p class="hint"><span class="ic" aria-hidden="true">ⓘ</span>
+       Wykonanie netto: wpłaty minus wypłaty</p>
+  </section></div></div>
+</div>
+  </div>
+
+  <h2>Paleta</h2>
+  <p>Liczba przy każdym tokenie to zmierzony kontrast względem <code>--card</code> w tym
+     motywie (dla <code>--primary-foreground</code> — względem <code>--primary</code>).
+     Próg 4,5:1 dla tekstu, 3:1 dla elementów interfejsu; wszystkie wartości przeszły audyt.</p>
+  <div class="grid2">
+    <div class="panel"><h4>Ciemny (domyślny)</h4>
+<div class="swgroup"><span>powierzchnie i tekst</span>
+<div class="sw"><span class="chip" style="background:#13161b"></span><span class="meta"><span class="name">--background</span><br><span class="val">#13161b · hsl(220 16% 9%) · tło aplikacji</span></span><span class="ratio low"><b>—</b></span></div>
+<div class="sw"><span class="chip" style="background:#f0f2f5"></span><span class="meta"><span class="name">--foreground</span><br><span class="val">#f0f2f5 · hsl(210 20% 95%) · tekst podstawowy</span></span><span class="ratio"><b>14.65:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#1c1f26"></span><span class="meta"><span class="name">--card</span><br><span class="val">#1c1f26 · hsl(220 15% 13%) · tło kafla i arkusza</span></span><span class="ratio low"><b>—</b></span></div>
+<div class="sw"><span class="chip" style="background:#f0f2f5"></span><span class="meta"><span class="name">--card-foreground</span><br><span class="val">#f0f2f5 · hsl(210 20% 95%) · tekst na kaflu</span></span><span class="ratio"><b>14.65:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#2a2e37"></span><span class="meta"><span class="name">--muted</span><br><span class="val">#2a2e37 · hsl(220 14% 19%) · tło drugorzędne, separatory</span></span><span class="ratio low"><b>—</b></span></div>
+<div class="sw"><span class="chip" style="background:#9ca6b4"></span><span class="meta"><span class="name">--muted-foreground</span><br><span class="val">#9ca6b4 · hsl(215 14% 66%) · tekst drugorzędny, podpisy</span></span><span class="ratio"><b>6.69:1</b></span></div>
+</div><div class="swgroup"><span>obramowania, fokus, akcja</span>
+<div class="sw"><span class="chip" style="background:#333842"></span><span class="meta"><span class="name">--border</span><br><span class="val">#333842 · hsl(220 13% 23%) · separatory (dekoracyjny)</span></span><span class="ratio"><b>1.40:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#677283"></span><span class="meta"><span class="name">--input</span><br><span class="val">#677283 · hsl(218 12% 46%) · obramowanie pól</span></span><span class="ratio"><b>3.36:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#47adf5"></span><span class="meta"><span class="name">--ring</span><br><span class="val">#47adf5 · hsl(205 90% 62%) · pierścień fokusu</span></span><span class="ratio"><b>6.68:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#f0f2f5"></span><span class="meta"><span class="name">--primary</span><br><span class="val">#f0f2f5 · hsl(210 20% 95%) · akcja główna</span></span><span class="ratio"><b>14.65:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#151c28"></span><span class="meta"><span class="name">--primary-foreground</span><br><span class="val">#151c28 · hsl(220 30% 12%) · tekst na akcji głównej</span></span><span class="ratio"><b>15.30:1</b></span></div>
+</div><div class="swgroup"><span>semantyka finansowa</span>
+<div class="sw"><span class="chip" style="background:#7be0cc"></span><span class="meta"><span class="name">--income</span><br><span class="val">#7be0cc · hsl(168 62% 68%) · wpływy</span></span><span class="ratio"><b>10.45:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#b08c78"></span><span class="meta"><span class="name">--expense</span><br><span class="val">#b08c78 · hsl(22 26% 58%) · wydatki</span></span><span class="ratio"><b>5.39:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#409ced"></span><span class="meta"><span class="name">--savings</span><br><span class="val">#409ced · hsl(208 83% 59%) · oszczędności</span></span><span class="ratio"><b>5.64:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#d9b9ef"></span><span class="meta"><span class="name">--investment</span><br><span class="val">#d9b9ef · hsl(276 62% 83%) · inwestycje</span></span><span class="ratio"><b>9.47:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#e378b5"></span><span class="meta"><span class="name">--debt</span><br><span class="val">#e378b5 · hsl(326 66% 68%) · zobowiązania</span></span><span class="ratio"><b>5.94:1</b></span></div>
+</div><div class="swgroup"><span>komunikaty</span>
+<div class="sw"><span class="chip" style="background:#f3c049"></span><span class="meta"><span class="name">--warning</span><br><span class="val">#f3c049 · hsl(42 88% 62%) · ostrzeżenie</span></span><span class="ratio"><b>9.75:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#46cea5"></span><span class="meta"><span class="name">--success</span><br><span class="val">#46cea5 · hsl(162 58% 54%) · cel zrealizowany</span></span><span class="ratio"><b>8.29:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#ed6e76"></span><span class="meta"><span class="name">--danger</span><br><span class="val">#ed6e76 · hsl(356 78% 68%) · akcja nieodwracalna</span></span><span class="ratio"><b>5.54:1</b></span></div>
+</div></div>
+    <div class="panel"><h4>Jasny</h4>
+<div class="swgroup"><span>powierzchnie i tekst</span>
+<div class="sw"><span class="chip" style="background:#f9fafb"></span><span class="meta"><span class="name">--background</span><br><span class="val">#f9fafb · hsl(210 20% 98%) · tło aplikacji</span></span><span class="ratio low"><b>—</b></span></div>
+<div class="sw"><span class="chip" style="background:#151c28"></span><span class="meta"><span class="name">--foreground</span><br><span class="val">#151c28 · hsl(220 30% 12%) · tekst podstawowy</span></span><span class="ratio"><b>17.14:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#ffffff"></span><span class="meta"><span class="name">--card</span><br><span class="val">#ffffff · hsl(0 0% 100%) · tło kafla i arkusza</span></span><span class="ratio low"><b>—</b></span></div>
+<div class="sw"><span class="chip" style="background:#151c28"></span><span class="meta"><span class="name">--card-foreground</span><br><span class="val">#151c28 · hsl(220 30% 12%) · tekst na kaflu</span></span><span class="ratio"><b>17.14:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#eceff4"></span><span class="meta"><span class="name">--muted</span><br><span class="val">#eceff4 · hsl(215 25% 94%) · tło drugorzędne, separatory</span></span><span class="ratio low"><b>—</b></span></div>
+<div class="sw"><span class="chip" style="background:#586274"></span><span class="meta"><span class="name">--muted-foreground</span><br><span class="val">#586274 · hsl(218 14% 40%) · tekst drugorzędny, podpisy</span></span><span class="ratio"><b>6.14:1</b></span></div>
+</div><div class="swgroup"><span>obramowania, fokus, akcja</span>
+<div class="sw"><span class="chip" style="background:#dbdfe6"></span><span class="meta"><span class="name">--border</span><br><span class="val">#dbdfe6 · hsl(216 18% 88%) · separatory (dekoracyjny)</span></span><span class="ratio"><b>1.33:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#738196"></span><span class="meta"><span class="name">--input</span><br><span class="val">#738196 · hsl(216 14% 52%) · obramowanie pól</span></span><span class="ratio"><b>3.95:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#0a6fb8"></span><span class="meta"><span class="name">--ring</span><br><span class="val">#0a6fb8 · hsl(205 90% 38%) · pierścień fokusu</span></span><span class="ratio"><b>5.25:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#19202e"></span><span class="meta"><span class="name">--primary</span><br><span class="val">#19202e · hsl(220 30% 14%) · akcja główna</span></span><span class="ratio"><b>16.29:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#ffffff"></span><span class="meta"><span class="name">--primary-foreground</span><br><span class="val">#ffffff · hsl(0 0% 100%) · tekst na akcji głównej</span></span><span class="ratio"><b>16.29:1</b></span></div>
+</div><div class="swgroup"><span>semantyka finansowa</span>
+<div class="sw"><span class="chip" style="background:#28806e"></span><span class="meta"><span class="name">--income</span><br><span class="val">#28806e · hsl(168 52% 33%) · wpływy</span></span><span class="ratio"><b>4.77:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#4e392c"></span><span class="meta"><span class="name">--expense</span><br><span class="val">#4e392c · hsl(22 28% 24%) · wydatki</span></span><span class="ratio"><b>10.82:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#1571c1"></span><span class="meta"><span class="name">--savings</span><br><span class="val">#1571c1 · hsl(208 80% 42%) · oszczędności</span></span><span class="ratio"><b>5.05:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#632b88"></span><span class="meta"><span class="name">--investment</span><br><span class="val">#632b88 · hsl(276 52% 35%) · inwestycje</span></span><span class="ratio"><b>9.45:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#a12b6e"></span><span class="meta"><span class="name">--debt</span><br><span class="val">#a12b6e · hsl(326 58% 40%) · zobowiązania</span></span><span class="ratio"><b>6.80:1</b></span></div>
+</div><div class="swgroup"><span>komunikaty</span>
+<div class="sw"><span class="chip" style="background:#9a6a09"></span><span class="meta"><span class="name">--warning</span><br><span class="val">#9a6a09 · hsl(40 89% 32%) · ostrzeżenie</span></span><span class="ratio"><b>4.73:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#17785b"></span><span class="meta"><span class="name">--success</span><br><span class="val">#17785b · hsl(162 68% 28%) · cel zrealizowany</span></span><span class="ratio"><b>5.43:1</b></span></div>
+<div class="sw"><span class="chip" style="background:#b6202a"></span><span class="meta"><span class="name">--danger</span><br><span class="val">#b6202a · hsl(356 70% 42%) · akcja nieodwracalna</span></span><span class="ratio"><b>6.50:1</b></span></div>
+</div></div>
+  </div>
+
+  <h2>Pary krytyczne przy daltonizmie</h2>
+  <p>Symulacja macierzami Machado (2009), nasilenie pełne. Wpływy i wydatki muszą być
+     rozróżnialne przy deuteranopii — to wymóg briefu. Oszczędności i inwestycje sąsiadują
+     na pierścieniach. Zobowiązanie i ostrzeżenie spotykają się przy zaległej racie.</p>
+  <div class="grid2">
+    <div class="panel"><h4>Ciemny</h4><div class="cvd"><div class="col"><span>widzenie typowe</span><div class="pair"><i style="background:#7be0cc"></i><i style="background:#b08c78"></i></div><div class="lbl">wpływy / wydatki</div><div class="pair"><i style="background:#409ced"></i><i style="background:#d9b9ef"></i></div><div class="lbl">oszcz. / inwest.</div><div class="pair"><i style="background:#e378b5"></i><i style="background:#f3c049"></i></div><div class="lbl">zobow. / ostrzeżenie</div></div><div class="col"><span>deuteranopia</span><div class="pair"><i style="background:#c8c9cd"></i><i style="background:#9e9778"></i></div><div class="lbl">wpływy / wydatki</div><div class="pair"><i style="background:#5e90ec"></i><i style="background:#b7c5ed"></i></div><div class="lbl">oszcz. / inwest.</div><div class="pair"><i style="background:#9da2b2"></i><i style="background:#e3cd4e"></i></div><div class="lbl">zobow. / ostrzeżenie</div></div><div class="col"><span>protanopia</span><div class="pair"><i style="background:#d9d5cb"></i><i style="background:#968f77"></i></div><div class="lbl">wpływy / wydatki</div><div class="pair"><i style="background:#77a0f1"></i><i style="background:#b1c3f1"></i></div><div class="lbl">oszcz. / inwest.</div><div class="pair"><i style="background:#8190b7"></i><i style="background:#d7c039"></i></div><div class="lbl">zobow. / ostrzeżenie</div></div></div></div>
+    <div class="panel"><h4>Jasny</h4><div class="cvd"><div class="col"><span>widzenie typowe</span><div class="pair"><i style="background:#28806e"></i><i style="background:#4e392c"></i></div><div class="lbl">wpływy / wydatki</div><div class="pair"><i style="background:#1571c1"></i><i style="background:#632b88"></i></div><div class="lbl">oszcz. / inwest.</div><div class="pair"><i style="background:#a12b6e"></i><i style="background:#9a6a09"></i></div><div class="lbl">zobow. / ostrzeżenie</div></div><div class="col"><span>deuteranopia</span><div class="pair"><i style="background:#6f6f70"></i><i style="background:#443f2c"></i></div><div class="lbl">wpływy / wydatki</div><div class="pair"><i style="background:#2a68bf"></i><i style="background:#1a4786"></i></div><div class="lbl">oszcz. / inwest.</div><div class="pair"><i style="background:#60636b"></i><i style="background:#87780f"></i></div><div class="lbl">zobow. / ostrzeżenie</div></div><div class="col"><span>protanopia</span><div class="pair"><i style="background:#7b786e"></i><i style="background:#3f3b2b"></i></div><div class="lbl">wpływy / wydatki</div><div class="pair"><i style="background:#4877c4"></i><i style="background:#00448a"></i></div><div class="lbl">oszcz. / inwest.</div><div class="pair"><i style="background:#3e4e70"></i><i style="background:#7c6c00"></i></div><div class="lbl">zobow. / ostrzeżenie</div></div></div></div>
+  </div>
+
+  <h2>Typografia — Inter + IBM Plex Mono</h2>
+  
+<p>Inter na interfejs — neutralny grotesk bez charakteru, dokładnie o to chodzi. Kwoty w IBM Plex Mono: cyfry o stałej szerokości z natury, wyraźne przekreślone zero, a monospace czyta się jak „to jest liczba, nie tekst”. Dwa koszty tego wyboru widać w makiecie: mono jest szersze, więc kwota siedmiocyfrowa to realny test szerokości, a spacja niełamliwa rozdzielająca tysiące ma w monospace pełną szerokość znaku — „1 850,00” oddycha bardziej niż w kroju proporcjonalnym.</p>
+<div class="grid2" style="margin-top:20px">
+  <div class="specimen">
+    <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#8b9198;margin-bottom:14px">Skala</div>
+    <table class="scale"><tbody><tr><td>40 px / 700</td><td><span style="font-family:var(--num-font);font-size:40px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums;">−1 690,00 zł</span></td><td>Duża liczba na ekranie startowym</td></tr><tr><td>32 px / 600</td><td><span style="font-family:var(--num-font);font-size:32px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;">−1 690,00 zł</span></td><td>Kwota główna na dashboardzie</td></tr><tr><td>24 px / 600</td><td><span style="font-family:var(--ui-font);font-size:24px;font-weight:600;line-height:1.2;">Ubezpieczenie OC/AC</span></td><td>Nagłówek ekranu</td></tr><tr><td>20 px / 600</td><td><span style="font-family:var(--ui-font);font-size:20px;font-weight:600;line-height:1.3;">Ubezpieczenie OC/AC</span></td><td>Nagłówek kafla, kwota w arkuszu</td></tr><tr><td>16 px / 500</td><td><span style="font-family:var(--ui-font);font-size:16px;font-weight:500;line-height:1.5;">Ubezpieczenie OC/AC</span></td><td>Tekst podstawowy, kwoty na listach</td></tr><tr><td>14 px / 400</td><td><span style="font-family:var(--ui-font);font-size:14px;font-weight:400;line-height:1.45;">Ubezpieczenie OC/AC</span></td><td>Podpis pod pozycją listy</td></tr><tr><td>13 px / 400</td><td><span style="font-family:var(--ui-font);font-size:13px;font-weight:400;line-height:1.4;">Ubezpieczenie OC/AC</span></td><td>Metadane wiersza (konto · autor)</td></tr><tr><td>12 px / 600</td><td><span style="font-family:var(--ui-font);font-size:12px;font-weight:600;line-height:1.35;letter-spacing:.1em;text-transform:uppercase">Ubezpieczenie OC/AC</span></td><td>Nagłówek sekcji — wersaliki, +0,1 em</td></tr></tbody></table>
+  </div>
+  <div class="specimen">
+    <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#8b9198;margin-bottom:14px">
+      Cyfry tabelaryczne — kolumna kwot</div>
+    <div style="max-width:260px;margin-left:auto"><div style="font-family:var(--num-font);font-variant-numeric:tabular-nums;font-size:16px;font-weight:500;text-align:right;letter-spacing:var(--num-ls)">+8 650,00 zł</div><div style="font-family:var(--num-font);font-variant-numeric:tabular-nums;font-size:16px;font-weight:500;text-align:right;letter-spacing:var(--num-ls)">−1 690,00 zł</div><div style="font-family:var(--num-font);font-variant-numeric:tabular-nums;font-size:16px;font-weight:500;text-align:right;letter-spacing:var(--num-ls)">−115,99 zł</div><div style="font-family:var(--num-font);font-variant-numeric:tabular-nums;font-size:16px;font-weight:500;text-align:right;letter-spacing:var(--num-ls)">1 284 500,00 zł</div><div style="font-family:var(--num-font);font-variant-numeric:tabular-nums;font-size:16px;font-weight:500;text-align:right;letter-spacing:var(--num-ls)">0,00 zł</div></div>
+    <p style="font-size:12.5px;margin-top:16px;color:#8b9198">
+      Przecinki muszą stać w jednej pionowej linii mimo różnej liczby cyfr —
+      od zera po kwotę siedmiocyfrową. To jest test pary krojów, nie ozdoba.</p>
+    <div style="margin-top:20px;font-family:var(--num-font);font-size:32px;font-weight:500;
+                font-variant-numeric:tabular-nums;letter-spacing:var(--num-ls)">−1 690,00 zł</div>
+    <div style="font-family:var(--ui-font);font-size:13px;color:#8b9198;margin-top:4px">
+      Ubezpieczenie OC/AC · 15 września · ROR</div>
+  </div>
+</div>
+
+  <p style="margin-top:60px;font-size:12.5px;color:#7c828a">
+    Materiał historyczny etapu F0-9. Wartości tokenów po wyborze kierunku trafiają do
+    <code>apps/web/src/styles/tokens.css</code> i <code>plans/15-design-system.md §3</code>.</p>
+</div>
+</body>
+</html>

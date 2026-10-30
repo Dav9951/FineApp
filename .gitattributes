@@ -1,0 +1,21 @@
+# Normalizacja końców linii.
+# Windows jest maszyną deweloperską, ale obraz Dockera to Linux — skrypt powłoki
+# z CRLF kończy się błędem "bad interpreter". Dlatego wymuszamy LF w repozytorium.
+* text=auto eol=lf
+
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.md        text eol=lf
+
+# Pliki binarne — bez normalizacji.
+*.png  binary
+*.jpg  binary
+*.webp binary
+*.pdf  binary
+*.db   binary

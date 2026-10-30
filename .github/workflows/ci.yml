@@ -1,0 +1,74 @@
+name: CI
+
+# Bramka z CLAUDE.md („Koniec sesji") uruchamiana na każdym PR-ze,
+# plus budowa obrazu Dockera — ten sam Dockerfile, który trafia na produkcję.
+# `main` pokrywa deploy-prod.yml, który woła ten workflow. Bez wyzwalacza `push` na
+# gałęziach: każda praca idzie przez PR, a podwójny przebieg (push + PR) zjadałby
+# minuty Actions prywatnego repozytorium. Gałąź bez PR-a — Run workflow ręcznie.
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      skip_image:
+        description: Pomiń budowę obrazu (deploy-prod.yml buduje go sam, z wypchnięciem)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · format · test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # Wersja pnpm z pola `packageManager` w package.json.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+  image:
+    name: docker build
+    # Na PR-ach i gałęziach sprawdza, że obraz się buduje (ADR-062: nie dało się tego
+    # zrobić w środowisku sesji). Wywołany z deploy-prod.yml — pomijany.
+    if: ${{ !inputs.skip_image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
