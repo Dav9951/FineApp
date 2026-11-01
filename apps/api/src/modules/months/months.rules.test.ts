@@ -1,3 +1,4 @@
+import { MAX_DELTA_BPS, MonthComparisonDtoSchema } from '@fineapp/shared';
 import { describe, expect, it } from 'vitest';
 
 import type {
@@ -87,6 +88,29 @@ describe('compareMonths', () => {
       expenseDeltaMinor: -41_200,
       expenseDeltaBps: -603,
     });
+  });
+
+  it('wzrost względem małej podstawy obcięty do +1000% (ADR-084)', () => {
+    // 50 zł wpływów w październiku, 6 000 zł w listopadzie: +11 900%.
+    const comparison = compareMonths(
+      { ...ZERO, transactionCount: 3, incomeMinor: 600_000, expenseMinor: 1_200_000 },
+      { ...ZERO, transactionCount: 2, incomeMinor: 5_000, expenseMinor: 10_000 },
+      '2026-10',
+    );
+    expect(comparison.incomeDeltaMinor).toBe(595_000);
+    expect(comparison.incomeDeltaBps).toBe(MAX_DELTA_BPS);
+    expect(comparison.expenseDeltaBps).toBe(MAX_DELTA_BPS);
+    expect(() => MonthComparisonDtoSchema.parse(comparison)).not.toThrow();
+  });
+
+  it('dokładnie +1000% przechodzi bez zmian, spadek do −100% też', () => {
+    const comparison = compareMonths(
+      { ...ZERO, transactionCount: 1, incomeMinor: 110_000 },
+      { ...ZERO, transactionCount: 1, incomeMinor: 10_000, expenseMinor: 10_000 },
+      '2026-10',
+    );
+    expect(comparison.incomeDeltaBps).toBe(100_000);
+    expect(comparison.expenseDeltaBps).toBe(-10_000);
   });
 
   it('zerowa podstawa: procent 0 zamiast NaN, flaga braku danych', () => {

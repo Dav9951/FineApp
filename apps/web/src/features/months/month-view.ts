@@ -1,4 +1,5 @@
 import {
+  MAX_DELTA_BPS,
   formatDateOnly,
   isValidMonthKey,
   shiftMonth,
@@ -47,7 +48,8 @@ export function percentLabel(bps: number): string {
  * Kierunek niesie strzałka **i** słowo w etykiecie dostępności, nie kolor (15 §2.4).
  * Bez danych z poprzedniego miesiąca — `null`: strzałka „↑ 0%" w pierwszym miesiącu
  * używania aplikacji byłaby fałszywa (07 §12.3). Przy zerowej podstawie (wydatki
- * sierpnia = 0) procent nie istnieje — zostaje sama strzałka.
+ * sierpnia = 0) procent nie istnieje — zostaje sama strzałka. Wzrost na sufitcie
+ * `MAX_DELTA_BPS` to „>1000%" (ADR-084).
  *
  * @param deltaMinor - Różnica kwot.
  * @param deltaBps - Różnica w punktach bazowych (0 przy zerowej podstawie).
@@ -67,6 +69,14 @@ export function deltaLabel(
   if (deltaMinor === 0) return { text: `→ ${to}`, label: `tyle samo co ${inPrevious}` };
   const arrow = deltaMinor > 0 ? '↑' : '↓';
   const word = deltaMinor > 0 ? 'więcej' : 'mniej';
+  if (deltaBps >= MAX_DELTA_BPS) {
+    // Sufit z 07 §12.3: serwer obciął wzrost, więc „1000%" byłoby nieprawdą.
+    const capped = percentLabel(MAX_DELTA_BPS);
+    return {
+      text: `${arrow} >${capped} ${to}`,
+      label: `o ponad ${capped} ${word} niż ${inPrevious}`,
+    };
+  }
   const percent = deltaBps === 0 ? null : percentLabel(deltaBps);
   return {
     text: percent === null ? `${arrow} ${to}` : `${arrow} ${percent} ${to}`,

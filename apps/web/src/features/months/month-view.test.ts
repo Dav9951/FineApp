@@ -48,6 +48,13 @@ describe('deltaLabel', () => {
     });
   });
 
+  it('wzrost na sufitcie pokazuje „>1000%" (ADR-084)', () => {
+    expect(deltaLabel(595_000, 100_000, true, '2026-10')).toEqual({
+      text: '↑ >1000% do października',
+      label: 'o ponad 1000% więcej niż w październiku',
+    });
+  });
+
   it('bez zmian', () => {
     expect(deltaLabel(0, 0, true, '2026-08')?.text).toBe('→ do sierpnia');
   });

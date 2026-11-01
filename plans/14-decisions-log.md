@@ -4272,3 +4272,27 @@ a makieta planera — pozycje i kwoty przepisane z prawdziwego szkicu budżetu.
 **Konsekwencje.** Liczby w makietach (np. wpływy 10 400 zł) nie są już identyczne
 z przykładem obliczeniowym w 04 §10–11 (wpływy 11 800 zł); makiety są materiałem
 projektowym, nie specyfikacją, więc rozjazd jest akceptowalny.
+
+<a id="adr-084"></a>
+
+## ADR-084 — Porównanie miesięcy: sufit wzrostu +1000%
+
+**Data:** 2026-11-01 · **Zadanie:** błąd produkcyjny (poza roadmapą) · **Status:** przyjęte
+
+**Kontekst.** Ekran listopada kończył się „Nie udało się wczytać miesiąca" (HTTP 500,
+`FST_ERR_RESPONSE_SERIALIZATION`). `comparison.incomeDeltaBps` przekroczyło 100 000 —
+granicę `SignedBpsSchema`. W październiku wpływów prawie nie było (mała, niezerowa kwota),
+w listopadzie doszła pensja. 07 §12.3 opisywało zerową podstawę, ale nie małą: spadek
+kończy się na −100%, wzrost nie ma górnej granicy. Ten sam błąd groził `expenseDeltaBps`.
+
+**Decyzja.** `compareMonths` obcina oba procenty do `MAX_DELTA_BPS = 100 000` (+1000%,
+stała w `packages/shared`, ta sama, która ogranicza `SignedBpsSchema`). Front przy
+wartości na sufitcie pokazuje „↑ >1000% do października", dla czytnika „o ponad 1000%
+więcej niż w październiku". Zmienione: 07 §12.3, 06 §3.1, 05 (`MonthComparisonDto`).
+
+**Odrzucone.** Zdjęcie górnej granicy ze schematu dla różnic — „↑ 11 900%" niczego nie
+mówi więcej niż „>1000%", a kontrakt zostałby bez sufitu. Ukrywanie procentu powyżej
+progu — strzałka bez liczby wygląda jak zerowa podstawa, którą UI pokazuje inaczej.
+
+**Konsekwencje.** Procent na sufitcie nie jest dokładny; dokładną różnicę niesie
+`incomeDeltaMinor` / `expenseDeltaMinor`.
