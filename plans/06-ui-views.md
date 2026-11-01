@@ -219,7 +219,8 @@ tak, żeby domknięcie planu było jednym dotknięciem.
   edycji). Cele procentowe, cele, „Do zrobienia" i „Nadchodzące" dochodzą z Fazami 4–6.
 - Porównanie bez danych z poprzedniego miesiąca — bez strzałki i procentu; przy zerowej
   podstawie sama strzałka. Kierunek w tekście dla czytnika ekranu („o 6% mniej niż
-  w sierpniu").
+  w sierpniu"). Wzrost na sufitcie 100 000 bps — „↑ >1000% do sierpnia", dla czytnika
+  „o ponad 1000% więcej niż w sierpniu" (07 §12.3, ADR-084).
 - Baner nad treścią: miesiąc przyszły („Podgląd…") i zamknięty („Miesiąc zamknięty —
   księgowanie… od 1 sierpnia 2026"); w obu brak „Dodaj wydatek".
 - Kroki startowe tylko przy pierwszym uruchomieniu (brak kont i transakcji); pusty

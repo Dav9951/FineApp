@@ -1,4 +1,5 @@
 import {
+  MAX_DELTA_BPS,
   toBps,
   type CategorySpendingDto,
   type CategorySpendingTreeDto,
@@ -55,6 +56,21 @@ export function buildMonthTotals(row: MonthTotalsRow): MonthTotalsDto {
 }
 
 /**
+ * Zmiana procentowa z sufitem `MAX_DELTA_BPS` (07 §12.3, ADR-084).
+ *
+ * Spadek kończy się na −100%, ale wzrost względem małej podstawy nie ma granicy:
+ * 50 zł wpływów w październiku i pensja w listopadzie to +11 900%. Taka liczba nic nie
+ * mówi, a wynik spoza `SignedBpsSchema` wysypywał całą odpowiedź błędem 500.
+ *
+ * @param deltaMinor - Różnica kwot.
+ * @param baseMinor - Kwota poprzedniego miesiąca.
+ * @returns Punkty bazowe, najwyżej `MAX_DELTA_BPS`.
+ */
+function deltaBps(deltaMinor: number, baseMinor: number): number {
+  return Math.min(toBps(deltaMinor, baseMinor), MAX_DELTA_BPS);
+}
+
+/**
  * Porównuje miesiąc z poprzednim (06 §1, zasada 4: „liczba zawsze z kontekstem").
  *
  * Zmiana procentowa odnosi się do poprzedniego miesiąca. Gdy tam było zero, procent
@@ -77,9 +93,9 @@ export function compareMonths(
     previousMonth,
     hasPreviousData: previous.transactionCount > 0,
     incomeDeltaMinor,
-    incomeDeltaBps: toBps(incomeDeltaMinor, previous.incomeMinor),
+    incomeDeltaBps: deltaBps(incomeDeltaMinor, previous.incomeMinor),
     expenseDeltaMinor,
-    expenseDeltaBps: toBps(expenseDeltaMinor, previous.expenseMinor),
+    expenseDeltaBps: deltaBps(expenseDeltaMinor, previous.expenseMinor),
   };
 }
 

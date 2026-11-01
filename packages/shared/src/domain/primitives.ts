@@ -56,12 +56,21 @@ export const BpsSchema = z
 /** Udział w punktach bazowych. Dozwolone wartości ustala schemat powyżej. */
 export type Bps = z.infer<typeof BpsSchema>;
 
+/**
+ * Sufit zmiany miesiąc do miesiąca: +1000%.
+ *
+ * Wzrost względem małej podstawy nie ma górnej granicy (50 zł → 6 000 zł to +11 900%),
+ * a schemat niżej ją ma. Porównanie obcina wynik do tej wartości, UI pokazuje „>1000%"
+ * (07 §12.3, ADR-084).
+ */
+export const MAX_DELTA_BPS = 100_000;
+
 /** Udział, który może być ujemny — wykonanie liczone netto (ADR-011). */
 export const SignedBpsSchema = z
   .number()
   .int('Udział musi być liczbą całkowitą punktów bazowych')
-  .min(-100_000)
-  .max(100_000);
+  .min(-MAX_DELTA_BPS)
+  .max(MAX_DELTA_BPS);
 
 /**
  * Data biznesowa w formacie `YYYY-MM-DD`.

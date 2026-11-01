@@ -1217,11 +1217,17 @@ W Fazie 5 `progress = daysElapsed / daysInMonth` z §2.5.
 
 ```
 expenseDelta    = expense(M) − expense(M−1)
-expenseDeltaBps = toBps(expenseDelta, expense(M−1))      -- 0 przy zerowej podstawie
+expenseDeltaBps = min(toBps(expenseDelta, expense(M−1)), 100 000)
+                                       -- 0 przy zerowej podstawie; sufit +1000% (ADR-084)
 hasPreviousData = w M−1 jest jakakolwiek transakcja (poza koszem)
 ```
 
 Wpływy analogicznie. Przy `hasPreviousData = false` UI nie pokazuje strzałki ani procentu.
+
+Wzrost nie ma naturalnej górnej granicy (spadek kończy się na −100%): 50 zł wpływów
+w M−1 i 6 000 zł w M to +11 900%. Wynik obcinamy do **100 000 bps**, czyli granicy
+`SignedBpsSchema`; UI pokazuje wtedy „↑ >1000%". Przy takiej skali dokładny procent
+nic nie mówi, a odpowiedź spoza schematu kończyła się błędem 500 (ADR-084).
 
 ### 12.4 Rozbicie po kategoriach
 

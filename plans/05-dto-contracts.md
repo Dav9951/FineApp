@@ -1514,7 +1514,10 @@ export const MonthComparisonDtoSchema = z.object({
   /** Czy poprzedni miesiąc ma jakąkolwiek transakcję — bez niej różnice nic nie mówią. */
   hasPreviousData: z.boolean(),
   incomeDeltaMinor: AmountMinorSchema,
-  /** Zmiana względem poprzedniego miesiąca; `0`, gdy tam było zero (07 §3, `toBps`). */
+  /**
+   * Zmiana względem poprzedniego miesiąca; `0`, gdy tam było zero (07 §3, `toBps`).
+   * Wzrost obcięty do `MAX_DELTA_BPS` (+1000%) — 07 §12.3, ADR-084.
+   */
   incomeDeltaBps: SignedBpsSchema,
   expenseDeltaMinor: AmountMinorSchema,
   expenseDeltaBps: SignedBpsSchema,
