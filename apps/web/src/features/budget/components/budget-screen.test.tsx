@@ -660,6 +660,9 @@ describe('BudgetScreen — grupy i „Układaj" (ADR-081)', () => {
     recurringRuleId: null,
     sourceAmountMinor: null,
     sourceState: null,
+    // Dzień musi leżeć w miesiącu planu (walidacja arkusza), a NEXT zależy od dzisiejszej
+    // daty — stała z fixture'a („2026-11-10") od 1 listopada blokowała zapis.
+    dueOn: `${NEXT}-10`,
   });
   const grouped = budgetDraftFixture({
     month: NEXT,
