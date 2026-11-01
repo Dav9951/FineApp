@@ -660,6 +660,9 @@ describe('BudgetScreen — grupy i „Układaj" (ADR-081)', () => {
     recurringRuleId: null,
     sourceAmountMinor: null,
     sourceState: null,
+    // Domyślne `dueOn` fixture'a to sztywne 2026-11-10, a szkic jest na NEXT (liczone
+    // od dziś) — data spoza miesiąca planu blokowałaby zapis arkusza.
+    dueOn: null,
   });
   const grouped = budgetDraftFixture({
     month: NEXT,
