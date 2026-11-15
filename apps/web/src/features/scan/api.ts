@@ -1,4 +1,6 @@
 import type {
+  AiLogEntryDto,
+  AiModelId,
   AiUsageDto,
   CommitDocumentRequest,
   CommitDocumentResponse,
@@ -202,4 +204,33 @@ export async function deleteDocument(accessToken: string, id: string): Promise<v
  */
 export function fetchAiUsage(accessToken: string): Promise<AiUsageDto> {
   return apiRequest<AiUsageDto>('/settings/ai-usage', { accessToken });
+}
+
+/**
+ * Dziennik odczytu dokumentów (ADR-086).
+ *
+ * @param accessToken - Token dostępu.
+ * @param documentId - Tylko wpisy jednego dokumentu.
+ * @returns Wpisy od najnowszych.
+ */
+export function fetchAiLog(accessToken: string, documentId?: string): Promise<AiLogEntryDto[]> {
+  return apiRequest<AiLogEntryDto[]>('/documents/log', {
+    accessToken,
+    query: documentId === undefined ? { limit: 100 } : { documentId, limit: 100 },
+  });
+}
+
+/**
+ * Zmienia model odczytu dokumentów (ADR-085).
+ *
+ * @param accessToken - Token dostępu.
+ * @param model - Model z katalogu `AI_MODELS`.
+ * @returns Zużycie z nowym modelem.
+ */
+export function updateAiModel(accessToken: string, model: AiModelId): Promise<AiUsageDto> {
+  return apiRequest<AiUsageDto>('/settings/ai-model', {
+    method: 'PATCH',
+    accessToken,
+    body: { model },
+  });
 }

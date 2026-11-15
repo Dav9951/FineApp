@@ -292,6 +292,11 @@ właściwą formą do porównania wielkości ([ADR-063](./14-decisions-log.md#ad
   „Pokaż sierpień" zamiast automatycznego przeskoku.
 - Panel filtrów: konto, kategoria (wielokrotny wybór), zakres kwot, źródło, tekst.
   Aktywne filtry są w URL, więc dają się zapisać w zakładce.
+- Na górze panelu pole **„Szukaj kategorii"**: zawęża listy kategorii po fragmencie nazwy
+  (bez wielkości liter i ogonków); pasujący rodzic zostaje z dziećmi, pasujące dziecko —
+  pod rodzicem. W trakcie szukania kategorie stoją tuż pod polem, nad kwotą i kontami;
+  brak wyników — „Nic nie pasuje do „…"". Tekst nie jest filtrem i nie trafia do adresu
+  ([ADR-087](./14-decisions-log.md#adr-087)).
 
 **Ustalone przy `F2-8`** ([ADR-038](./14-decisions-log.md#adr-038)):
 
@@ -506,7 +511,9 @@ Kluczowe decyzje projektowe:
 - Wyciąg: „Okres" zamiast sprzedawcy, „Data zapisu" (dla operacji bez daty), podpis
   operacji „11 wrz · NETFLIX.COM", plakietka „Możliwy duplikat" i odznaczenie.
 - Nieudany odczyt: komunikat, „Spróbuj ponownie" (bez niego przy wyczerpanym limicie),
-  „Dodaj wydatek ręcznie", „Usuń dokument". Zero pozycji: „Nie rozpoznano pozycji"
+  „Dodaj wydatek ręcznie", „Usuń dokument", a pod nimi sekcja **„Dziennik odczytu"**
+  z wpisami tego dokumentu (ADR-086). Ta sama sekcja, odświeżana co 1,5 s, stoi pod
+  podglądem w trakcie analizy. Zero pozycji: „Nie rozpoznano pozycji"
   z miniaturą i „Wpisz kwotę ręcznie". Zapisany / odrzucony — stan z „Wróć do skanu".
 - Po zatwierdzeniu: toast „Zapisano: N transakcji" i przejście do miesiąca daty zapisu.
 
@@ -1019,6 +1026,13 @@ księgowania wstecz), **Użytkownicy** (dwie osoby, zmiana PIN-u, aktywne sesje)
 - **Odczyt dokumentów (AI)** — koszt w miesiącu z limitem i procentem, liczba
   dokumentów, model; wyczerpany limit — ostrzeżenie; `AI_ENABLED=false` — wyjaśnienie.
   Sekcja ma własne stany, żeby awaria zużycia nie zasłaniała ustawień.
+  **Model odczytu** — siatka opcji Haiku 5.5 / Sonnet 5.5 z jednozdaniowym opisem,
+  zapis od razu po wyborze, toast „Odczyt dokumentów: Haiku 5.5"; model spoza listy
+  (`AI_MODEL`) — żaden kafel nie zaznaczony, podpis z nazwą ([ADR-085](./14-decisions-log.md#adr-085)).
+  **Dziennik odczytu** — wiersz otwierający arkusz z wpisami od najnowszych: plakietka
+  wagi, godzina z sekundami, plik (odnośnik do dokumentu), zdanie i szczegóły
+  podpis–wartość (czas w s, tokeny, wymiary obrazu, status HTTP); cztery stany
+  ([ADR-086](./14-decisions-log.md#adr-086)).
 - **O aplikacji** — wersja, „Zainstaluj aplikację" (gdy przeglądarka daje
   `beforeinstallprompt`; na iPhonie instrukcja „Udostępnij → Do ekranu początkowego"),
   „Wyloguj".

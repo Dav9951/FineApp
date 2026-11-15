@@ -6,6 +6,7 @@ import {
   DocumentStatusSchema,
   ReviewStatusSchema,
 } from '../domain/enums.js';
+import { AiModelIdSchema } from '../domain/ai-models.js';
 import {
   AmountMinorSchema,
   CurrencySchema,
@@ -262,6 +263,7 @@ export const CommitDocumentMetaSchema = TransactionMutationMetaSchema;
 export const AiUsageDtoSchema = z.object({
   /** `AI_ENABLED` — gdy `false`, UI ukrywa zakładkę *Skan*. */
   enabled: z.boolean(),
+  /** Model używany do odczytu: wybrany w ustawieniach albo `AI_MODEL` (ADR-085). */
   model: z.string(),
   monthKey: MonthKeySchema,
   documentCount: z.number().int().nonnegative(),
@@ -275,3 +277,57 @@ export const AiUsageDtoSchema = z.object({
 });
 /** Zużycie OCR. */
 export type AiUsageDto = z.infer<typeof AiUsageDtoSchema>;
+
+/** Zmiana modelu odczytu — `PATCH /settings/ai-model` (ADR-085). */
+export const UpdateAiModelRequestSchema = z.object({ model: AiModelIdSchema });
+/** Zmiana modelu odczytu. */
+export type UpdateAiModelRequest = z.infer<typeof UpdateAiModelRequestSchema>;
+
+/** Waga wpisu dziennika odczytu. */
+export const AiLogLevelSchema = z.enum(['info', 'warn', 'error']);
+/** Waga wpisu dziennika. */
+export type AiLogLevel = z.infer<typeof AiLogLevelSchema>;
+
+/**
+ * Etap odczytu, którego dotyczy wpis (08 §16):
+ * `started` → `prepared` → `parsed` albo `failed`; `upload_rejected` — plik odrzucony
+ * przy wrzuceniu (rozmiar, typ, liczba stron) albo zapisany bez analizy (limit kosztów).
+ */
+export const AiLogEventSchema = z.enum([
+  'started',
+  'prepared',
+  'parsed',
+  'failed',
+  'upload_rejected',
+]);
+/** Etap odczytu. */
+export type AiLogEvent = z.infer<typeof AiLogEventSchema>;
+
+/** Wartość szczegółu — tylko liczby i krótkie napisy, nigdy treść dokumentu. */
+const AiLogDetailValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
+/** Wpis dziennika odczytu dokumentów — `GET /documents/log` (ADR-086). */
+export const AiLogEntryDtoSchema = z.object({
+  id: IdSchema,
+  /** `null`, gdy dokument został usunięty. */
+  documentId: IdSchema.nullable(),
+  /** Nazwa pliku z chwili wpisu — zostaje po usunięciu dokumentu. */
+  documentName: z.string().nullable(),
+  level: AiLogLevelSchema,
+  event: AiLogEventSchema,
+  /** Zdanie po polsku dla człowieka. */
+  message: z.string(),
+  /** Liczby i kody do diagnozy: czas, tokeny, wymiary obrazu, status HTTP. */
+  details: z.record(AiLogDetailValueSchema),
+  createdAt: TimestampSchema,
+});
+/** Wpis dziennika odczytu. */
+export type AiLogEntryDto = z.infer<typeof AiLogEntryDtoSchema>;
+
+/** Parametry `GET /documents/log`. */
+export const AiLogQuerySchema = z.object({
+  documentId: IdSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+/** Parametry dziennika odczytu. */
+export type AiLogQuery = z.infer<typeof AiLogQuerySchema>;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  filterCategoryTree,
+  fullCategoryNode,
   hasAnyFilter,
   historyFiltersToParams,
   historyQuery,
@@ -170,5 +172,74 @@ describe('toggleCategory', () => {
     const on = toggleCategory(['J', 'K', 'R'], { id: 'K', children: [] });
     expect([...on].sort()).toEqual(['J', 'R']);
     expect([...toggleCategory(['X'], { id: 'K', children: [] })].sort()).toEqual(['K', 'X']);
+  });
+});
+
+describe('filterCategoryTree', () => {
+  const tree = [
+    {
+      id: 'transport',
+      name: 'Transport',
+      children: [
+        { id: 'rower', name: 'Rower' },
+        { id: 'paliwo', name: 'Paliwo' },
+      ],
+    },
+    { id: 'zakupy', name: 'Żabka i drobne', children: [] },
+    {
+      id: 'sport',
+      name: 'Sport',
+      children: [{ id: 'rower-serwis', name: 'Serwis roweru' }],
+    },
+  ];
+
+  it('pusty tekst — drzewo bez zmian', () => {
+    expect(filterCategoryTree(tree, '  ')).toEqual(tree);
+  });
+
+  it('pasujące dziecko zostaje pod rodzicem, bez niepasującego rodzeństwa', () => {
+    expect(filterCategoryTree(tree, 'rower')).toEqual([
+      { id: 'transport', name: 'Transport', children: [{ id: 'rower', name: 'Rower' }] },
+      { id: 'sport', name: 'Sport', children: [{ id: 'rower-serwis', name: 'Serwis roweru' }] },
+    ]);
+  });
+
+  it('pasujący rodzic zostaje ze wszystkimi dziećmi', () => {
+    expect(filterCategoryTree(tree, 'TRANS')).toEqual([tree[0]]);
+  });
+
+  it('bez ogonków i wielkości liter', () => {
+    expect(filterCategoryTree(tree, 'zabka').map((node) => node.id)).toEqual(['zakupy']);
+  });
+
+  it('nic nie pasuje — pusta lista', () => {
+    expect(filterCategoryTree(tree, 'kino')).toEqual([]);
+  });
+});
+
+describe('fullCategoryNode', () => {
+  const tree = [
+    {
+      id: 'jedzenie',
+      name: 'Jedzenie',
+      children: [
+        { id: 'kawa', name: 'Kawa' },
+        { id: 'restauracje', name: 'Restauracje' },
+      ],
+    },
+  ];
+
+  it('rodzic z zawężonego drzewa przełącza wszystkie podkategorie', () => {
+    const [narrowed] = filterCategoryTree(tree, 'kawa');
+    expect(narrowed?.children.map((child) => child.id)).toEqual(['kawa']);
+    const node = fullCategoryNode(tree, narrowed ?? tree[0]!);
+    const selected = toggleCategory([], node);
+    expect(selected).toEqual(['jedzenie', 'kawa', 'restauracje']);
+    expect(toggleCategory(selected, node)).toEqual([]);
+  });
+
+  it('nieznany węzeł — zwraca go bez zmian', () => {
+    const lone = { id: 'inny', name: 'Inny', children: [] };
+    expect(fullCategoryNode(tree, lone)).toBe(lone);
   });
 });

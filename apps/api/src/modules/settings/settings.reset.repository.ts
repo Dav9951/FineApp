@@ -6,6 +6,7 @@ import { accounts } from '../../db/schema/accounts.js';
 import { allocationTargets } from '../../db/schema/allocation-targets.js';
 import { budgetDraftGroups, budgetDraftLines, budgetDrafts } from '../../db/schema/budget.js';
 import { categories } from '../../db/schema/categories.js';
+import { documentLogs } from '../../db/schema/document-logs.js';
 import { documentItems, documents } from '../../db/schema/documents.js';
 import { goals } from '../../db/schema/goals.js';
 import { households } from '../../db/schema/households.js';
@@ -123,6 +124,8 @@ export function deleteHouseholdData(handle: DbHandle, householdId: string, now: 
     // Klucze idempotencji pamiętają odpowiedzi z identyfikatorami usuniętych wierszy —
     // powtórzone żądanie oddałoby transakcję, której już nie ma.
     db.delete(idempotencyKeys).where(eq(idempotencyKeys.householdId, householdId)).run();
+    // Dziennik odczytu niesie nazwy plików usuniętych dokumentów (ADR-086).
+    db.delete(documentLogs).where(eq(documentLogs.householdId, householdId)).run();
     db.update(households)
       .set({ defaultExpenseAccountId: null, updatedAt: now })
       .where(eq(households.id, householdId))

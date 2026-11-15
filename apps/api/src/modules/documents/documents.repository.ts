@@ -15,6 +15,11 @@ import {
 import type { DbHandle } from '../../db/client.js';
 import { appMeta } from '../../db/schema/app-meta.js';
 import {
+  documentLogs,
+  type DocumentLogInsert,
+  type DocumentLogRow,
+} from '../../db/schema/document-logs.js';
+import {
   documentItems,
   documents,
   type DocumentInsert,
@@ -204,9 +209,13 @@ export function deleteDocumentRow(handle: DbHandle, householdId: string, id: str
  * @param handle - Uchwyt bazy.
  * @param olderThan - Granica `updated_at` (epoch ms).
  * @param now - Chwila zapisu.
- * @returns Liczba oznaczonych dokumentów.
+ * @returns Oznaczone dokumenty — gospodarstwo i nazwa pliku do wpisu w dzienniku (ADR-086).
  */
-export function failStaleProcessing(handle: DbHandle, olderThan: number, now: number): number {
+export function failStaleProcessing(
+  handle: DbHandle,
+  olderThan: number,
+  now: number,
+): { id: string; householdId: string; originalFilename: string }[] {
   return handle.db
     .update(documents)
     .set({
@@ -216,7 +225,12 @@ export function failStaleProcessing(handle: DbHandle, olderThan: number, now: nu
       updatedAt: now,
     })
     .where(and(eq(documents.status, 'processing'), lt(documents.updatedAt, olderThan)))
-    .run().changes;
+    .returning({
+      id: documents.id,
+      householdId: documents.householdId,
+      originalFilename: documents.originalFilename,
+    })
+    .all();
 }
 
 /**
@@ -404,4 +418,75 @@ export function reassignItemsCategory(
       ),
     )
     .run();
+}
+
+/**
+ * Dopisuje wpis dziennika odczytu (ADR-086).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param row - Wpis (bez `householdId`).
+ */
+export function insertDocumentLog(
+  handle: DbHandle,
+  householdId: string,
+  row: Omit<DocumentLogInsert, 'householdId'>,
+): void {
+  handle.db
+    .insert(documentLogs)
+    .values({ ...row, householdId })
+    .run();
+}
+
+/**
+ * Usuwa wpisy dziennika gospodarstwa starsze niż `olderThan` (ADR-086).
+ *
+ * Wołane raz na analizę, nie przy każdym wpisie — analiza dopisuje 3–4 wiersze, a jedno
+ * usunięcie po indeksie `(household_id, created_at)` wystarcza.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param olderThan - Wpisy sprzed tej chwili (epoch ms) są usuwane.
+ * @returns Liczba usuniętych wpisów.
+ */
+export function pruneDocumentLogs(
+  handle: DbHandle,
+  householdId: string,
+  olderThan: number,
+): number {
+  return handle.db
+    .delete(documentLogs)
+    .where(and(eq(documentLogs.householdId, householdId), lt(documentLogs.createdAt, olderThan)))
+    .run().changes;
+}
+
+/**
+ * Wpisy dziennika odczytu od najnowszych.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param filter - Opcjonalny dokument i limit.
+ * @param filter.documentId - Tylko wpisy tego dokumentu.
+ * @param filter.limit - Najwięcej wierszy.
+ * @returns Wiersze dziennika.
+ */
+export function findDocumentLogs(
+  handle: DbHandle,
+  householdId: string,
+  filter: { readonly documentId?: string; readonly limit: number },
+): DocumentLogRow[] {
+  const conditions: SQL[] = [eq(documentLogs.householdId, householdId)];
+  if (filter.documentId !== undefined) {
+    conditions.push(eq(documentLogs.documentId, filter.documentId));
+  }
+  return (
+    handle.db
+      .select()
+      .from(documentLogs)
+      .where(and(...conditions))
+      // Ten sam znacznik czasu (dwa wpisy w jednej milisekundzie) — ULID rośnie w czasie.
+      .orderBy(desc(documentLogs.createdAt), desc(documentLogs.id))
+      .limit(filter.limit)
+      .all()
+  );
 }

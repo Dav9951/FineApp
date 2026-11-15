@@ -7,6 +7,7 @@ import {
   ResetDataRequestSchema,
   ResetDataResultSchema,
   SettingsDtoSchema,
+  UpdateAiModelRequestSchema,
   UpdateHouseholdRequestSchema,
   UpdateProfileRequestSchema,
   UserDtoSchema,
@@ -17,7 +18,7 @@ import type { Clock } from '../../core/clock.js';
 import type { Config } from '../../core/config.js';
 import type { DbHandle } from '../../db/client.js';
 import { authContext, requireAuth } from '../../http/middleware/require-auth.js';
-import { getAiUsage } from '../documents/documents.service.js';
+import { changeAiModel, getAiUsage } from '../documents/documents.service.js';
 import {
   changeHousehold,
   changeProfile,
@@ -150,6 +151,23 @@ export const settingsRoutes: FastifyPluginCallbackZod<{
     schema: { response: { 200: apiResponse(AiUsageDtoSchema) } },
     handler: (request) => ({
       data: getAiUsage({ db, config, clock }, authContext(request).householdId),
+    }),
+  });
+
+  app.route({
+    ...protectedRoute,
+    method: 'PATCH',
+    url: '/ai-model',
+    schema: {
+      body: UpdateAiModelRequestSchema,
+      response: { 200: apiResponse(AiUsageDtoSchema) },
+    },
+    handler: (request) => ({
+      data: changeAiModel(
+        { db, config, clock },
+        authContext(request).householdId,
+        request.body.model,
+      ),
     }),
   });
 

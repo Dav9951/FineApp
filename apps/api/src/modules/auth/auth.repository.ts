@@ -491,6 +491,8 @@ export interface HouseholdChanges {
   backPostingLimitMonths?: number;
   monthStartDay?: number;
   defaultExpenseAccountId?: string | null;
+  /** Model odczytu dokumentów (ADR-085); `null` — `AI_MODEL` z konfiguracji. */
+  aiModel?: string | null;
 }
 
 /**

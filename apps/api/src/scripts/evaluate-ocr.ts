@@ -119,6 +119,7 @@ async function main(): Promise<void> {
     const normalized = await normalizeUpload(bytes, mediaType);
     try {
       const result = await extractor.extract({
+        model: config.ai.model,
         kind: 'receipt',
         parts: await prepareForVision(normalized.bytes, normalized.mimeType),
         categories: buildCategoryContext(handle, householdId, 'receipt', today),

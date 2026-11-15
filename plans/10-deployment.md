@@ -307,7 +307,7 @@ export const ConfigSchema = z.object({
 
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_ENABLED: z.coerce.boolean().default(true),
-  AI_MODEL: z.string().default('claude-sonnet-5-5'),
+  AI_MODEL: z.string().default('claude-haiku-5-5'), // domyślny; przełącznik w Ustawieniach (ADR-085)
   AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().default(16_000),
   AI_MONTHLY_BUDGET_MINOR: z.coerce.number().int().default(5000),
   // Stawki szacunku kosztu — grosze za milion tokenów (ADR-059)

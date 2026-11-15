@@ -1,5 +1,7 @@
 import multipart from '@fastify/multipart';
 import {
+  AiLogEntryDtoSchema,
+  AiLogQuerySchema,
   apiResponse,
   CommitDocumentRequestSchema,
   CommitDocumentResponseSchema,
@@ -32,8 +34,10 @@ import {
   discardDocument,
   getDocument,
   getDocumentFile,
+  listAiLog,
   listDocuments,
   reanalyzeDocument,
+  recordRejectedUpload,
   updateDocument,
   updateDocumentItem,
   uploadDocument,
@@ -86,18 +90,23 @@ function householdKey(request: FastifyRequest): string {
  * Czyta żądanie `multipart`: jeden plik w polu `file` i pola tekstowe.
  *
  * @param request - Żądanie.
+ * @param seen - Tu trafia nazwa pliku, gdy tylko nagłówek części dotrze.
+ * @param seen.filename - Nazwa pliku od klienta.
  * @returns Plik i pola.
  * @throws {FileTooLargeError} Gdy plik przekracza `UPLOAD_MAX_BYTES`.
  * @throws {ValidationError} Gdy żądanie nie jest `multipart` albo nie ma pliku.
  */
 async function readUpload(
   request: FastifyRequest,
+  seen: { filename: string | null },
 ): Promise<{ file: UploadedFile; fields: Record<string, string> }> {
   const fields: Record<string, string> = {};
   let file: UploadedFile | undefined;
   try {
     for await (const part of request.parts()) {
       if (part.type === 'file') {
+        // Nazwa znana, zanim limit rozmiaru przerwie strumień — trafia do dziennika.
+        if (part.fieldname === 'file') seen.filename = part.filename;
         const bytes = await part.toBuffer();
         if (part.fieldname === 'file' && file === undefined) {
           file = { bytes, filename: part.filename };
@@ -170,18 +179,25 @@ export const documentsRoutes: FastifyPluginAsyncZod<{
     schema: { response: { 202: apiResponse(UploadDocumentResponseSchema) } },
     handler: async (request, reply) => {
       const { householdId, userId } = authContext(request);
-      const { file, fields } = await readUpload(request);
-      const parsed = UploadDocumentFieldsSchema.safeParse(fields);
-      if (!parsed.success) {
-        throw new ValidationError(
-          'Żądanie zawiera nieprawidłowe dane.',
-          parsed.error.issues.map((issue) => ({
-            path: issue.path.join('.'),
-            message: issue.message,
-          })),
-        );
+      const seen: { filename: string | null } = { filename: null };
+      let result;
+      try {
+        const { file, fields } = await readUpload(request, seen);
+        const parsed = UploadDocumentFieldsSchema.safeParse(fields);
+        if (!parsed.success) {
+          throw new ValidationError(
+            'Żądanie zawiera nieprawidłowe dane.',
+            parsed.error.issues.map((issue) => ({
+              path: issue.path.join('.'),
+              message: issue.message,
+            })),
+          );
+        }
+        result = await uploadDocument(deps, householdId, userId, file, parsed.data);
+      } catch (error) {
+        recordRejectedUpload(deps, householdId, seen.filename, error);
+        throw error;
       }
-      const result = await uploadDocument(deps, householdId, userId, file, parsed.data);
       void reply.status(202).header('location', `/api/v1/documents/${result.id}`);
       return { data: result };
     },
@@ -197,6 +213,19 @@ export const documentsRoutes: FastifyPluginAsyncZod<{
     },
     handler: (request) => ({
       data: listDocuments(db, authContext(request).householdId, request.query),
+    }),
+  });
+
+  app.route({
+    ...protectedRoute,
+    method: 'GET',
+    url: '/log',
+    schema: {
+      querystring: AiLogQuerySchema,
+      response: { 200: apiResponse(AiLogEntryDtoSchema.array()) },
+    },
+    handler: (request) => ({
+      data: listAiLog(db, authContext(request).householdId, request.query),
     }),
   });
 

@@ -1,12 +1,16 @@
 import {
+  AiLogEntryDtoSchema,
+  AiLogEventSchema,
   collectCategoryProposals,
   DocumentSummaryDtoSchema,
+  type AiLogEntryDto,
   type DocumentDto,
   type DocumentItemDto,
   type DocumentListItemDto,
   type DocumentSummaryDto,
 } from '@fineapp/shared';
 
+import type { DocumentLogRow } from '../../db/schema/document-logs.js';
 import type { DocumentItemRow, DocumentRow } from '../../db/schema/documents.js';
 import type { DocumentListRow } from './documents.repository.js';
 
@@ -125,6 +129,36 @@ export function toDocumentListItemDto(row: DocumentListRow): DocumentListItemDto
     totalMinor: summary?.totalMinor ?? null,
     itemCount: row.itemCount,
     errorMessage: row.errorMessage,
+    createdAt: row.createdAt,
+  };
+}
+
+/**
+ * Wiersz dziennika odczytu jako DTO.
+ *
+ * `details` w bazie to JSON zapisany przez nas, ale wiersz mógł przeżyć zmianę kodu —
+ * zepsuty albo nieobiektowy JSON daje pusty obiekt zamiast `500` na całej liście.
+ *
+ * @param row - Wiersz `document_logs`.
+ * @returns DTO wpisu.
+ */
+export function toAiLogEntryDto(row: DocumentLogRow): AiLogEntryDto {
+  let details: AiLogEntryDto['details'] = {};
+  try {
+    const parsed: unknown = JSON.parse(row.details);
+    const checked = AiLogEntryDtoSchema.shape.details.safeParse(parsed);
+    if (checked.success) details = checked.data;
+  } catch {
+    details = {};
+  }
+  return {
+    id: row.id,
+    documentId: row.documentId,
+    documentName: row.documentName,
+    level: row.level,
+    event: AiLogEventSchema.catch('failed').parse(row.event),
+    message: row.message,
+    details,
     createdAt: row.createdAt,
   };
 }

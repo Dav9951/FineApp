@@ -262,6 +262,24 @@ describe('prepareForVision', () => {
     expect(meta.exif).toBeUndefined();
   });
 
+  it('wymiary oryginału uwzględniają orientację EXIF (5–8 zamienia boki)', async () => {
+    // 600 × 200 pikseli z orientacją 6 (obrót o 90°) to paragon 200 × 600, jak widzi człowiek.
+    const rotated = await sharp({
+      create: { width: 600, height: 200, channels: 3, background: '#fff' },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    const [part] = await prepareForVision(rotated, 'image/jpeg');
+    expect(part).toMatchObject({
+      kind: 'image',
+      sourceWidth: 200,
+      sourceHeight: 600,
+      width: 200,
+      height: 600,
+    });
+  });
+
   it('małego nie powiększa; PDF idzie w całości', async () => {
     const small = await sharp({
       create: { width: 100, height: 50, channels: 3, background: '#fff' },
@@ -290,8 +308,19 @@ describe('createAnthropicExtractor', () => {
     outputCostMinorPerMTok: 4000,
   };
   const input: ExtractInput = {
+    model: 'claude-sonnet-5',
     kind: 'receipt',
-    parts: [{ kind: 'image', mediaType: 'image/jpeg', base64: 'AAAA' }],
+    parts: [
+      {
+        kind: 'image',
+        mediaType: 'image/jpeg',
+        base64: 'AAAA',
+        width: 10,
+        height: 10,
+        sourceWidth: 10,
+        sourceHeight: 10,
+      },
+    ],
     categories: CATEGORIES.filter((category) => category.kind === 'expense'),
     timezone: 'Europe/Warsaw',
     currency: 'PLN',

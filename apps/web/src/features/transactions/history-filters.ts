@@ -1,4 +1,5 @@
 import {
+  foldForSearch,
   IdSchema,
   NonNegativeAmountMinorSchema,
   parseAmountToMinor,
@@ -233,4 +234,59 @@ export function toggleCategory(selected: readonly string[], node: CategoryNode):
   if (next.has(node.id)) for (const id of ids) next.delete(id);
   else for (const id of ids) next.add(id);
   return [...next];
+}
+
+/** Kategoria w drzewie z nazwą — to, czego potrzebuje wyszukiwanie w panelu. */
+export interface NamedCategoryNode {
+  readonly id: string;
+  readonly name: string;
+  readonly children: readonly { readonly id: string; readonly name: string }[];
+}
+
+/**
+ * Zawęża drzewo kategorii do pasujących do wpisanego tekstu (pole „Szukaj kategorii").
+ *
+ * Pasuje fragment nazwy, bez wielkości liter i ogonków („rower" znajdzie „Rower",
+ * „zabka" — „Żabkę"). Kategoria główna, która pasuje, zostaje **ze wszystkimi**
+ * podkategoriami — wybór rodzica i tak zaznacza dzieci (`toggleCategory`), więc ukrycie
+ * ich wyglądałoby, jakby zaznaczało się coś niewidocznego. Gdy pasuje tylko dziecko,
+ * zostaje rodzic z samymi pasującymi dziećmi — jako kontekst, gdzie kategoria leży.
+ *
+ * @param tree - Drzewo jednego rodzaju.
+ * @param query - Wpisany tekst; pusty — drzewo bez zmian.
+ * @returns Zawężone drzewo.
+ */
+export function filterCategoryTree<T extends NamedCategoryNode>(
+  tree: readonly T[],
+  query: string,
+): T[] {
+  const needle = foldForSearch(query.trim());
+  if (needle === '') return [...tree];
+  const matches = (name: string): boolean => foldForSearch(name).includes(needle);
+  const result: T[] = [];
+  for (const root of tree) {
+    if (matches(root.name)) {
+      result.push(root);
+      continue;
+    }
+    const children = root.children.filter((child) => matches(child.name));
+    if (children.length > 0) result.push({ ...root, children });
+  }
+  return result;
+}
+
+/**
+ * Pełny węzeł kategorii głównej z niezawężonego drzewa.
+ *
+ * Przy szukaniu panel pokazuje rodzica tylko z pasującymi dziećmi, ale zaznaczenie
+ * rodzica ma działać jak zawsze — na **wszystkich** podkategoriach (`toggleCategory`).
+ * Inaczej „Jedzenie" zaznaczone przy szukaniu „kawa" pominęłoby „Restauracje",
+ * a odznaczone — zostawiłoby je w wyborze, niewidoczne.
+ *
+ * @param tree - Pełne drzewo jednego rodzaju.
+ * @param node - Węzeł z drzewa zawężonego.
+ * @returns Węzeł z pełnego drzewa o tym samym `id`; gdy go nie ma — `node`.
+ */
+export function fullCategoryNode<T extends CategoryNode>(tree: readonly T[], node: T): T {
+  return tree.find((root) => root.id === node.id) ?? node;
 }

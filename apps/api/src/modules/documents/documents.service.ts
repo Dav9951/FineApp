@@ -3,10 +3,16 @@ import { createHash } from 'node:crypto';
 import {
   addDays,
   currentMonthKey,
+  findAiModel,
   findDuplicates,
   monthKeyOf,
   shiftMonth,
   todayInTimezone,
+  type AiLogEntryDto,
+  type AiLogEvent,
+  type AiLogLevel,
+  type AiLogQuery,
+  type AiModelId,
   type AiUsageDto,
   type DocumentDto,
   type DocumentListItemDto,
@@ -18,14 +24,17 @@ import {
 } from '@fineapp/shared';
 import type { Logger } from 'pino';
 
-import { estimateCostMinor } from '../../ai/cost.js';
+import { estimateCostMinor, type TokenRates } from '../../ai/cost.js';
 import {
   ExtractionError,
   type CategoryContextEntry,
   type DocumentExtractor,
+  type ExtractionDiagnostics,
   type ExtractionKind,
   type ExtractResult,
+  type PreparedPart,
 } from '../../ai/document-extractor.js';
+import { errorDiagnostics } from '../../ai/diagnostics.js';
 import { prepareForVision } from '../../ai/prepare-for-vision.js';
 import { CATEGORY_CONTEXT_LIMIT } from '../../ai/prompts/extraction-prompt.js';
 import type { Clock } from '../../core/clock.js';
@@ -35,6 +44,7 @@ import {
   ConflictError,
   DomainRuleViolationError,
   ExternalServiceError,
+  FileTooLargeError,
   NotFoundError,
   UnsupportedMediaTypeError,
 } from '../../core/errors.js';
@@ -42,11 +52,16 @@ import { newId } from '../../core/id.js';
 import type { DbHandle } from '../../db/client.js';
 import type { DocumentItemInsert, DocumentRow } from '../../db/schema/documents.js';
 import { lookupAccount } from '../accounts/accounts.service.js';
-import { getHousehold } from '../auth/auth.service.js';
+import {
+  getHousehold,
+  getHouseholdWithAiModel,
+  setHouseholdAiModel,
+} from '../auth/auth.service.js';
 import { listCategoriesFlat, lookupCategory } from '../categories/categories.service.js';
 import { categoriesUsedSince, duplicateCandidates } from '../transactions/transactions.ledger.js';
 import {
   normalizeUpload,
+  PDF_MAX_PAGES,
   readStoredFile,
   removeStoredFiles,
   sniffMediaType,
@@ -56,6 +71,7 @@ import {
 import type { DocumentJobs } from './documents.jobs.js';
 import {
   storedSummary,
+  toAiLogEntryDto,
   toDocumentDto,
   toDocumentListItemDto,
   type StoredSummary,
@@ -67,8 +83,11 @@ import {
   findDocumentById,
   findDocumentBySha,
   findDocumentItems,
+  findDocumentLogs,
   findDocuments,
   insertDocument,
+  insertDocumentLog,
+  pruneDocumentLogs,
   patchDocument,
   patchDocumentItem,
   readAiSpend,
@@ -114,6 +133,100 @@ const AI_DISABLED_MESSAGE = 'Odczyt dokumentów jest wyłączony. Dodaj wydatek 
 /** Komunikat przy wyczerpanym limicie (08 §9). */
 const BUDGET_MESSAGE =
   'Wyczerpano miesięczny limit OCR. Dodaj wydatek ręcznie albo zwiększ limit w ustawieniach.';
+
+/** Jak długo trzymamy wpisy dziennika odczytu (ADR-086). */
+export const LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/**
+ * Krótszy bok obrazu po skalowaniu, poniżej którego drobny druk przestaje być czytelny.
+ *
+ * Długi paragon (np. 1000 × 6000 px) po zmniejszeniu do 1568 px dłuższego boku ma
+ * ~260 px szerokości — cyfry mają wtedy po kilka pikseli. Dziennik ostrzega, bo taki
+ * odczyt bywa pusty albo zmyślony, a z zewnątrz wygląda jak zwykła awaria.
+ */
+export const NARROW_IMAGE_PX = 500;
+
+/**
+ * Model odczytu gospodarstwa: wybrany w ustawieniach albo `AI_MODEL` (ADR-085).
+ *
+ * @param aiModel - `households.ai_model` (`null` — brak wyboru).
+ * @param config - Konfiguracja AI.
+ * @returns Identyfikator modelu.
+ */
+export function resolveAiModel(aiModel: string | null, config: Config['ai']): string {
+  return aiModel ?? config.model;
+}
+
+/**
+ * Stawki kosztu modelu: z katalogu `AI_MODELS`, a dla modelu spoza katalogu (ustawionego
+ * zmienną `AI_MODEL`) — z konfiguracji (ADR-085).
+ *
+ * @param model - Identyfikator modelu.
+ * @param config - Konfiguracja AI.
+ * @returns Stawki w groszach za milion tokenów.
+ */
+export function ratesFor(model: string, config: Config['ai']): TokenRates {
+  return findAiModel(model) ?? config;
+}
+
+/** Wpis do dziennika odczytu. */
+interface LogInput {
+  readonly document: { readonly id: string; readonly name: string } | null;
+  readonly level: AiLogLevel;
+  readonly event: AiLogEvent;
+  readonly message: string;
+  readonly details?: ExtractionDiagnostics;
+}
+
+/**
+ * Zapisuje wpis dziennika odczytu (ADR-086). Nigdy nie rzuca.
+ *
+ * Dziennik jest narzędziem diagnozy — jego awaria nie może przerwać analizy ani zamienić
+ * udanego odczytu w nieudany. Błąd zapisu ląduje w logu procesu.
+ *
+ * @param deps - Zależności.
+ * @param householdId - Gospodarstwo.
+ * @param entry - Wpis.
+ */
+function writeLog(
+  deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log'>,
+  householdId: string,
+  entry: LogInput,
+): void {
+  const now = deps.clock.now().getTime();
+  try {
+    insertDocumentLog(deps.db, householdId, {
+      id: newId(),
+      documentId: entry.document?.id ?? null,
+      documentName: entry.document?.name ?? null,
+      level: entry.level,
+      event: entry.event,
+      message: entry.message,
+      details: JSON.stringify(entry.details ?? {}),
+      createdAt: now,
+    });
+  } catch (error) {
+    deps.log.warn({ err: error, event: entry.event }, 'Nie udało się zapisać dziennika odczytu');
+  }
+}
+
+/**
+ * Sprząta wpisy dziennika starsze niż `LOG_RETENTION_MS` — raz na analizę (ADR-086).
+ * Jak zapis wpisu, nigdy nie rzuca.
+ *
+ * @param deps - Zależności.
+ * @param householdId - Gospodarstwo.
+ */
+function pruneOldLogs(
+  deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log'>,
+  householdId: string,
+): void {
+  try {
+    pruneDocumentLogs(deps.db, householdId, deps.clock.now().getTime() - LOG_RETENTION_MS);
+  } catch (error) {
+    deps.log.warn({ err: error }, 'Nie udało się posprzątać dziennika odczytu');
+  }
+}
 
 /**
  * Zwraca dokument gospodarstwa albo rzuca `404`.
@@ -294,11 +407,75 @@ export async function uploadDocument(
       errorMessage: BUDGET_MESSAGE,
       updatedAt: now.getTime(),
     });
+    writeLog(deps, householdId, {
+      document: { id, name: file.filename.slice(0, 200) || 'dokument' },
+      level: 'warn',
+      event: 'upload_rejected',
+      message: 'Dokument zapisany bez odczytu — wyczerpany miesięczny limit kosztów.',
+      details: {
+        errorCode: 'AI_BUDGET_EXCEEDED',
+        budgetMinor: deps.config.ai.monthlyBudgetMinor,
+        byteSize: normalized.bytes.length,
+      },
+    });
     throw new AiBudgetExceededError(BUDGET_MESSAGE, [{ path: 'documentId', message: id }]);
   }
 
   startAnalysis(deps, extractor, householdId, id, ['uploaded']);
   return { id, status: 'processing', pollAfterMs: POLL_AFTER_MS };
+}
+
+/**
+ * Zapisuje w dzienniku odrzucenie pliku przy wrzuceniu (ADR-086).
+ *
+ * Dotyczy odrzuceń, których przyczyna nie jest oczywista z ekranu: plik za duży
+ * (`UPLOAD_MAX_BYTES`), typ nie do odczytania (np. HEIC bez dekodera), PDF ponad limit
+ * stron. Duplikat i wyłączone OCR mają własne, jasne komunikaty — ich nie zapisujemy.
+ *
+ * @param deps - Zależności.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param filename - Nazwa pliku od klienta, jeśli dotarła.
+ * @param error - Błąd wrzucenia.
+ */
+export function recordRejectedUpload(
+  deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log' | 'config'>,
+  householdId: string,
+  filename: string | null,
+  error: unknown,
+): void {
+  const logged =
+    error instanceof FileTooLargeError ||
+    error instanceof UnsupportedMediaTypeError ||
+    isPdfPageLimitError(error);
+  if (!logged) return;
+  writeLog(deps, householdId, {
+    document: null,
+    level: 'warn',
+    event: 'upload_rejected',
+    message: `Plik${filename === null ? '' : ` „${filename.slice(0, 200)}”`} odrzucony: ${error.message}`,
+    details: {
+      errorCode: error.code,
+      ...(error instanceof FileTooLargeError ? { maxBytes: deps.config.uploads.maxBytes } : {}),
+      ...(error instanceof DomainRuleViolationError ? { maxPages: PDF_MAX_PAGES } : {}),
+    },
+  });
+}
+
+/**
+ * Czy to odrzucenie PDF-u ponad limit stron (08 §3).
+ *
+ * Wrzucenie rzuca `DomainRuleViolationError` w dwóch miejscach: limit stron (szczegół
+ * na polu `file`) i zarchiwizowane konto (pole `accountId`). Do dziennika trafia tylko
+ * pierwsze — zarchiwizowane konto ma jasny komunikat przy polu formularza.
+ *
+ * @param error - Błąd wrzucenia.
+ * @returns `true` dla PDF-u ponad limit stron.
+ */
+function isPdfPageLimitError(error: unknown): error is DomainRuleViolationError {
+  return (
+    error instanceof DomainRuleViolationError &&
+    error.details?.some((detail) => detail.path === 'file') === true
+  );
 }
 
 /**
@@ -317,8 +494,17 @@ export function reanalyzeDocument(
   id: string,
 ): UploadDocumentResponse {
   const extractor = requireExtractor(deps);
-  requireDocument(deps.db, householdId, id);
-  if (budgetExhausted(deps, householdId)) throw new AiBudgetExceededError(BUDGET_MESSAGE);
+  const row = requireDocument(deps.db, householdId, id);
+  if (budgetExhausted(deps, householdId)) {
+    writeLog(deps, householdId, {
+      document: { id, name: row.originalFilename },
+      level: 'warn',
+      event: 'upload_rejected',
+      message: 'Ponowna analiza odrzucona — wyczerpany miesięczny limit kosztów.',
+      details: { errorCode: 'AI_BUDGET_EXCEEDED', budgetMinor: deps.config.ai.monthlyBudgetMinor },
+    });
+    throw new AiBudgetExceededError(BUDGET_MESSAGE);
+  }
   startAnalysis(deps, extractor, householdId, id, ['uploaded', 'parsed', 'failed']);
   return { id, status: 'processing', pollAfterMs: POLL_AFTER_MS };
 }
@@ -473,21 +659,45 @@ async function analyzeDocument(
 ): Promise<void> {
   const row = findDocumentById(deps.db, householdId, id);
   if (row?.status !== 'processing') return;
-  const household = getHousehold(deps.db, householdId);
+  const { household, aiModel } = getHouseholdWithAiModel(deps.db, householdId);
   const today = todayInTimezone(household.timezone, deps.clock.now());
   const kind: ExtractionKind = row.kind === 'bank_statement' ? 'bank_statement' : 'receipt';
-  const month = budgetMonth(deps, householdId);
+  const month = currentMonthKey(household.timezone, deps.clock.now());
+  const model = resolveAiModel(aiModel, deps.config.ai);
+  const rates = ratesFor(model, deps.config.ai);
+  const document = { id, name: row.originalFilename };
+  const log = (entry: Omit<LogInput, 'document'>): void => {
+    writeLog(deps, householdId, { document, ...entry });
+  };
+  pruneOldLogs(deps, householdId);
+
+  log({
+    level: 'info',
+    event: 'started',
+    message: `Analiza rozpoczęta — model ${model}.`,
+    details: {
+      model,
+      kind: row.kind,
+      mimeType: row.mimeType,
+      byteSize: row.byteSize,
+      pageCount: row.pageCount,
+    },
+  });
 
   try {
     const bytes = await readStoredFile(deps.config.uploads.dir, row.storagePath);
+    const parts = await prepareForVision(bytes, row.mimeType);
+    const categories = buildCategoryContext(deps.db, householdId, kind, today);
+    logPrepared(log, parts, categories.length);
     const result = await extractor.extract({
+      model,
       kind,
-      parts: await prepareForVision(bytes, row.mimeType),
-      categories: buildCategoryContext(deps.db, householdId, kind, today),
+      parts,
+      categories,
       timezone: household.timezone,
       currency: household.baseCurrency,
     });
-    const costMinor = estimateCostMinor(result.usage, deps.config.ai);
+    const costMinor = estimateCostMinor(result.usage, rates);
     const now = deps.clock.now().getTime();
     const summary: StoredSummary = { ...result.header };
     const detectedMonthKey =
@@ -515,16 +725,33 @@ async function analyzeDocument(
       if (saved !== undefined) replaceDocumentItems(deps.db, id, itemRows(deps, saved, result));
       addAiSpend(deps.db, month, costMinor, now);
     })();
+    log({
+      level: result.items.length === 0 ? 'warn' : 'info',
+      event: 'parsed',
+      message:
+        result.items.length === 0
+          ? 'Model odpowiedział, ale nie odczytał żadnej pozycji.'
+          : `Odczytano pozycji: ${String(result.items.length)}.`,
+      details: {
+        ...result.diagnostics,
+        itemCount: result.items.length,
+        costMinor,
+        requestId: result.requestId,
+      },
+    });
   } catch (error) {
     const now = deps.clock.now().getTime();
     const extraction = error instanceof ExtractionError ? error : null;
     const usage = extraction?.details.usage;
-    const costMinor = usage === undefined ? 0 : estimateCostMinor(usage, deps.config.ai);
+    const costMinor = usage === undefined ? 0 : estimateCostMinor(usage, rates);
     if (extraction === null) {
       deps.log.error({ err: error, documentId: id }, 'Analiza dokumentu nie powiodła się');
     } else {
       // Bez treści odpowiedzi — surowa odpowiedź jest w bazie, log nie ma danych finansowych.
-      deps.log.warn({ documentId: id, code: extraction.code }, 'Odczyt dokumentu odrzucony');
+      deps.log.warn(
+        { documentId: id, code: extraction.code, ...extraction.details.diagnostics },
+        'Odczyt dokumentu odrzucony',
+      );
     }
     deps.db.sqlite.transaction(() => {
       transitionDocument(deps.db, householdId, id, ['processing'], {
@@ -536,26 +763,109 @@ async function analyzeDocument(
         aiInputTokens: usage?.inputTokens ?? null,
         aiOutputTokens: usage?.outputTokens ?? null,
         aiCostMinor: usage === undefined ? null : costMinor,
-        aiModel: usage === undefined ? null : extractor.model,
+        aiModel: usage === undefined ? null : model,
         aiProvider: usage === undefined ? null : extractor.provider,
         processedAt: usage === undefined ? null : now,
         updatedAt: now,
       });
       if (costMinor > 0) addAiSpend(deps.db, month, costMinor, now);
     })();
+    const code = extraction?.code ?? 'INTERNAL_ERROR';
+    log({
+      level: 'error',
+      event: 'failed',
+      message: FAILURE_EXPLANATION[code],
+      details: {
+        errorCode: code,
+        ...(extraction === null ? errorDiagnostics(error) : extraction.details.diagnostics),
+        ...(usage === undefined ? {} : { costMinor }),
+        requestId: extraction?.details.requestId ?? null,
+      },
+    });
   }
+}
+
+/** Wyjaśnienie przyczyny w dzienniku — dokładniejsze niż komunikat dla użytkownika. */
+const FAILURE_EXPLANATION: Readonly<Record<ExtractionError['code'] | 'INTERNAL_ERROR', string>> = {
+  AI_UNAVAILABLE:
+    'Usługa AI nie odpowiedziała poprawnie (błąd HTTP, przekroczony czas albo zerwane połączenie) — po ponowieniach.',
+  AI_SCHEMA_MISMATCH: 'Odpowiedź modelu nie pasuje do schematu odczytu.',
+  AI_OUTPUT_TRUNCATED:
+    'Odpowiedź ucięta na limicie tokenów wyjścia (AI_MAX_OUTPUT_TOKENS) — myślenie i pozycje się nie zmieściły.',
+  AI_REFUSED: 'Model odmówił odczytu dokumentu.',
+  INTERNAL_ERROR: 'Błąd aplikacji przed wywołaniem albo przy zapisie wyniku.',
+};
+
+/**
+ * Wpis „przygotowano plik" — wymiary obrazu przed i po skalowaniu, rozmiar wysyłki.
+ *
+ * @param log - Zapis do dziennika dokumentu.
+ * @param parts - Części wysyłane do modelu.
+ * @param categoryCount - Ile kategorii idzie w kontekście.
+ */
+function logPrepared(
+  log: (entry: Omit<LogInput, 'document'>) => void,
+  parts: readonly PreparedPart[],
+  categoryCount: number,
+): void {
+  const [part] = parts;
+  if (part === undefined) return;
+  // Base64 ma 4 znaki na 3 bajty — rozmiar wysyłki w KB, nie długość napisu.
+  const sentKb = Math.round((part.base64.length * 3) / 4 / 1024);
+  if (part.kind === 'pdf') {
+    log({
+      level: 'info',
+      event: 'prepared',
+      message: 'PDF wysłany w całości.',
+      details: { sentKb, categoryCount },
+    });
+    return;
+  }
+  const narrow = Math.min(part.width, part.height) < NARROW_IMAGE_PX;
+  const scaled = part.width !== part.sourceWidth || part.height !== part.sourceHeight;
+  log({
+    level: narrow ? 'warn' : 'info',
+    event: 'prepared',
+    message: narrow
+      ? `Bardzo długi obraz: po zmniejszeniu ma ${String(part.width)} × ${String(part.height)} px — drobny druk może być nieczytelny dla modelu.`
+      : scaled
+        ? `Obraz zmniejszony do ${String(part.width)} × ${String(part.height)} px.`
+        : `Obraz wysłany bez zmniejszania (${String(part.width)} × ${String(part.height)} px).`,
+    details: {
+      sourceWidth: part.sourceWidth,
+      sourceHeight: part.sourceHeight,
+      width: part.width,
+      height: part.height,
+      sentKb,
+      categoryCount,
+    },
+  });
 }
 
 /**
  * Oznacza przerwane analizy jako nieudane — wołane przy starcie (08 §2).
  *
- * @param handle - Uchwyt bazy.
- * @param clock - Źródło czasu.
+ * Każdy oznaczony dokument dostaje wpis `failed` w dzienniku (ADR-086): bez niego
+ * dziennik kończyłby się na `started` / `prepared` i wyglądał, jakby analiza wciąż trwała.
+ *
+ * @param deps - Zależności.
  * @returns Liczba oznaczonych dokumentów.
  */
-export function failInterruptedDocuments(handle: DbHandle, clock: Clock): number {
-  const now = clock.now().getTime();
-  return failStaleProcessing(handle, now - STALE_PROCESSING_MS, now);
+export function failInterruptedDocuments(
+  deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log'>,
+): number {
+  const now = deps.clock.now().getTime();
+  const failed = failStaleProcessing(deps.db, now - STALE_PROCESSING_MS, now);
+  for (const document of failed) {
+    writeLog(deps, document.householdId, {
+      document: { id: document.id, name: document.originalFilename },
+      level: 'error',
+      event: 'failed',
+      message: 'Analiza przerwana restartem serwera.',
+      details: { errorCode: 'INTERRUPTED', staleAfterMs: STALE_PROCESSING_MS },
+    });
+  }
+  return failed.length;
 }
 
 /**
@@ -842,7 +1152,7 @@ export function getAiUsage(
   deps: Pick<DocumentsDeps, 'db' | 'config' | 'clock'>,
   householdId: string,
 ): AiUsageDto {
-  const household = getHousehold(deps.db, householdId);
+  const { household, aiModel } = getHouseholdWithAiModel(deps.db, householdId);
   const now = deps.clock.now();
   const monthKey = currentMonthKey(household.timezone, now);
   const spentMinor = readAiSpend(deps.db, monthKey);
@@ -852,13 +1162,52 @@ export function getAiUsage(
   const range = monthEpochRange(monthKey, household.timezone);
   return {
     enabled: deps.config.ai.enabled,
-    model: deps.config.ai.model,
+    model: resolveAiModel(aiModel, deps.config.ai),
     monthKey,
     ...sumAiUsage(deps.db, householdId, range.from, range.to),
     spentMinor,
     budgetMinor,
     remainingMinor: budgetMinor === 0 ? null : Math.max(0, budgetMinor - spentMinor),
   };
+}
+
+/**
+ * Zmienia model odczytu gospodarstwa (`PATCH /settings/ai-model`, ADR-085).
+ *
+ * Dotyczy kolejnych analiz — także ponowionych; dokument już odczytany zachowuje model,
+ * którym go odczytano (`documents.ai_model`).
+ *
+ * @param deps - Zależności.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param model - Model z katalogu.
+ * @returns Zużycie z nowym modelem.
+ */
+export function changeAiModel(
+  deps: Pick<DocumentsDeps, 'db' | 'config' | 'clock'>,
+  householdId: string,
+  model: AiModelId,
+): AiUsageDto {
+  setHouseholdAiModel(deps.db, deps.clock, householdId, model);
+  return getAiUsage(deps, householdId);
+}
+
+/**
+ * Dziennik odczytu dokumentów od najnowszych (`GET /documents/log`, ADR-086).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param query - Dokument i limit.
+ * @returns Wpisy dziennika.
+ */
+export function listAiLog(
+  handle: DbHandle,
+  householdId: string,
+  query: AiLogQuery,
+): AiLogEntryDto[] {
+  return findDocumentLogs(handle, householdId, {
+    ...(query.documentId === undefined ? {} : { documentId: query.documentId }),
+    limit: query.limit,
+  }).map(toAiLogEntryDto);
 }
 
 /**

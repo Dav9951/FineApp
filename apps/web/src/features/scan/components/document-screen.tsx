@@ -62,6 +62,7 @@ import {
   selectionSummary,
   type CommitMode,
 } from '../scan-view.js';
+import { AiLogList } from './ai-log-list.js';
 import { ItemSheet, type ItemSheetTarget } from './item-sheet.js';
 import { ReviewItemRow } from './review-item-row.js';
 
@@ -719,6 +720,9 @@ export default function DocumentScreen(): ReactNode {
           </p>
           <div className="mt-4">{back}</div>
         </Section>
+        <Section title="Dziennik odczytu">
+          <AiLogList documentId={document.id} live />
+        </Section>
       </main>
     );
   }
@@ -774,6 +778,11 @@ export default function DocumentScreen(): ReactNode {
               Usuń dokument
             </Button>
           </div>
+        </Section>
+        {/* Przyczyna z dziennika (ADR-086): komunikat wyżej jest dla każdego, tu są liczby
+            — czas, tokeny, status HTTP — po których widać, co naprawdę poszło nie tak. */}
+        <Section title="Dziennik odczytu">
+          <AiLogList documentId={document.id} />
         </Section>
       </main>
     );

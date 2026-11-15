@@ -296,6 +296,50 @@ describe('filtry w adresie', () => {
     expect(screen.getByRole('button', { name: 'Filtry, aktywne: 3' })).toBeInTheDocument();
   });
 
+  it('panel: „Szukaj kategorii" — rodzic zaznacza też podkategorie ukryte wyszukiwaniem', async () => {
+    const restaurants = '01JC0000000000000000000009';
+    const [food] = TREE;
+    const coffee = food?.children[0];
+    if (food === undefined || coffee === undefined) throw new Error('brak drzewa testowego');
+    const tree: CategoryTreeDto[] = [
+      {
+        ...food,
+        children: [
+          coffee,
+          { ...coffee, id: restaurants, name: 'Restauracje', slug: 'jedzenie-restauracje' },
+        ],
+      },
+    ];
+    stubPage();
+    vi.spyOn(accountsApi, 'fetchAccounts').mockResolvedValue([]);
+    vi.spyOn(categoriesApi, 'fetchCategoryTree').mockImplementation((_token, kind) =>
+      Promise.resolve(kind === 'expense' ? tree : []),
+    );
+    vi.spyOn(incomeSourcesApi, 'fetchIncomeSources').mockResolvedValue([]);
+    const router = renderHistory();
+    await screen.findByText('Lidl');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filtry' }));
+    const panel = await screen.findByRole('dialog', { name: 'Filtry' });
+    await userEvent.type(within(panel).getByRole('textbox', { name: 'Szukaj kategorii' }), 'kawa');
+    expect(within(panel).queryByRole('checkbox', { name: 'Restauracje' })).toBeNull();
+
+    // Odznaczenie przy szukaniu też czyści ukryte dziecko — sprawdzamy po wyczyszczeniu pola.
+    await userEvent.click(await within(panel).findByRole('checkbox', { name: 'Jedzenie' }));
+    await userEvent.click(within(panel).getByRole('checkbox', { name: 'Jedzenie' }));
+    await userEvent.clear(within(panel).getByRole('textbox', { name: 'Szukaj kategorii' }));
+    expect(within(panel).getByRole('checkbox', { name: 'Restauracje' })).not.toBeChecked();
+
+    await userEvent.type(within(panel).getByRole('textbox', { name: 'Szukaj kategorii' }), 'kawa');
+    await userEvent.click(within(panel).getByRole('checkbox', { name: 'Jedzenie' }));
+    await userEvent.click(within(panel).getByRole('button', { name: 'Pokaż wyniki' }));
+    await waitFor(() => {
+      expect(router.state.location.search).toBe(
+        `?categoryId=${FOOD}&categoryId=${COFFEE}&categoryId=${restaurants}`,
+      );
+    });
+  });
+
   it('panel: nieczytelna kwota zatrzymuje zatwierdzenie z komunikatem przy polu', async () => {
     stubPage();
     vi.spyOn(accountsApi, 'fetchAccounts').mockResolvedValue([]);

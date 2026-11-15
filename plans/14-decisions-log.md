@@ -4296,3 +4296,109 @@ progu — strzałka bez liczby wygląda jak zerowa podstawa, którą UI pokazuje
 
 **Konsekwencje.** Procent na sufitcie nie jest dokładny; dokładną różnicę niesie
 `incomeDeltaMinor` / `expenseDeltaMinor`.
+
+<a id="adr-085"></a>
+
+## ADR-085 — Model odczytu wybierany w Ustawieniach: Haiku 5.5 domyślnie, Sonnet 5.5 na zawołanie
+
+**Data:** 2026-11-15 · **Zadanie:** zgłoszenie właściciela (poza roadmapą) · **Status:** przyjęte
+
+**Kontekst.** Model był wyłącznie zmienną `AI_MODEL` (ADR-071: `claude-sonnet-5-5`).
+Właściciel chce przejść na tańszy `claude-haiku-5-5` i wracać na Sonnet bez edycji `.env`
+i restartu kontenera, jeśli Haiku nie da rady. Haiku 5.5 przyjmuje to samo żądanie co
+Sonnet 5.5: structured outputs (`output_config.format`), bez parametrów próbkowania,
+myślenie adaptacyjne domyślnie (effort `medium`).
+
+**Decyzja.**
+1. Katalog `AI_MODELS` w `packages/shared` (`claude-haiku-5-5`, `claude-sonnet-5-5`) —
+   identyfikator, podpis, opis i **stawki** (Haiku 40 / 200, Sonnet 800 / 4000 groszy za
+   MTok). Lista zamknięta: każdy model ma inne ceny, a licznik limitu musi wiedzieć, ile
+   liczyć.
+2. Wybór per gospodarstwo w `households.ai_model` (03 §3.1); `NULL` = `AI_MODEL`.
+   `PATCH /settings/ai-model` (04 §15) przyjmuje tylko model z katalogu. Pole nie trafia
+   do `HouseholdDto` — ten idzie w odpowiedzi logowania, a model obchodzi tylko OCR.
+3. Model trafia do ekstraktora w `ExtractInput.model` przy każdym odczycie; dokument
+   zapisuje model, którym go odczytano (`documents.ai_model`).
+4. Stawki z env (`AI_*_COST_MINOR_PER_MTOK`) obowiązują już tylko model spoza katalogu.
+5. Domyślny `AI_MODEL` → `claude-haiku-5-5`. Migracja `0007` **świadomie** wpisuje
+   `claude-haiku-5-5` do `households.ai_model` istniejących gospodarstw (prośba
+   właściciela), zamiast zostawić `NULL`: produkcyjny `.env` ma jawnie
+   `AI_MODEL=claude-sonnet-5-5` (z dawnego `.env.example`), więc przy `NULL` nic by się
+   nie zmieniło. Skutek: od tej migracji `AI_MODEL` z env **nie działa** dla istniejących
+   gospodarstw — liczy się wybór w Ustawieniach; `AI_MODEL` obowiązuje tylko gospodarstwo
+   bez wyboru (nowe z seeda). Powrót na Sonnet — jeden kafel w Ustawieniach.
+6. Przełącznik w sekcji „Odczyt dokumentów (AI)" (06 §3.12): zapis od razu po wyborze.
+
+**Odrzucone.** Dowolny napis w przełączniku — bez stawek koszt liczyłby się stawkami
+Sonneta (przeszacowanie ×20) albo wcale. `CHECK` w bazie na liście modeli — dopisanie
+modelu wymagałoby migracji. Model jako zmienna z restartem — o to właśnie chodziło, żeby
+nie trzeba było.
+
+**Konsekwencje.** `AI_MODEL` w `.env` produkcji nie wygrywa z wyborem w Ustawieniach,
+a po migracji `0007` wybór jest ustawiony — zmiana `AI_MODEL` nic nie da (napisane też
+w `.env.example`).
+Zmienione: 03 §3.1, 04 §15, 05 §12, 06 §3.12, 08 §8–§9, 10 (domyślny `AI_MODEL`).
+
+<a id="adr-086"></a>
+
+## ADR-086 — Dziennik odczytu dokumentów widoczny w aplikacji
+
+**Data:** 2026-11-15 · **Zadanie:** zgłoszenie właściciela (poza roadmapą) · **Status:** przyjęte
+
+**Kontekst.** Duże paragony kończyły się „Nie udało się odczytać dokumentu. Spróbuj
+ponownie." bez widocznej przyczyny. Dokument trzymał tylko `error_code`, a dla
+`AI_UNAVAILABLE` surowa odpowiedź to `status: brak` — nie dało się odróżnić przekroczenia
+czasu (120 s × 3 próby), uciętej odpowiedzi (`max_tokens`) i obrazu tak wąskiego po
+skalowaniu do 1568 px, że model nie widzi cyfr. Log procesu miał jeszcze mniej, a do
+niego właściciel z telefonu i tak nie zajrzy.
+
+**Decyzja.**
+1. Tabela `document_logs` (03 §3.22): wpis na każdy etap analizy (`started`, `prepared`,
+   `parsed`, `failed`) i na odrzucony plik (`upload_rejected`) — zdanie po polsku plus
+   `details` z liczbami i kodami (08 §16).
+2. Ekstraktor zwraca diagnostykę: czas wywołania z ponowieniami, `stop_reason`, tokeny,
+   limit tokenów; przy błędzie — status HTTP, klasę błędu SDK i komunikat usługi
+   (≤ 300 znaków). `prepareForVision` zwraca wymiary przed i po skalowaniu; obraz
+   o krótszym boku < 500 px po skalowaniu dostaje ostrzeżenie.
+3. `GET /documents/log?documentId=&limit=` (04 §13). Widok: arkusz „Dziennik odczytu"
+   w Ustawieniach (całe gospodarstwo) i sekcja na ekranie dokumentu w trakcie analizy
+   i po niepowodzeniu (06 §3.4, §3.12).
+4. Bez treści dokumentu w dzienniku (reguła 12). Wpisy żyją 90 dni, sprzątane na
+   starcie każdej analizy (raz, nie przy każdym wpisie); usunięcie dokumentu zostawia
+   wpisy (`SET NULL` + `document_name`);
+   „Usuń wszystkie dane" czyści dziennik.
+5. Zapis wpisu nigdy nie rzuca — dziennik nie może zepsuć odczytu.
+6. Analiza przerwana restartem (`INTERRUPTED`, oznaczana przy starcie) dostaje wpis
+   `failed` „Analiza przerwana restartem serwera."; ponowna analiza odrzucona przez
+   wyczerpany limit — wpis `upload_rejected`. Z `DomainRuleViolationError` przy wrzuceniu
+   trafia do dziennika tylko PDF ponad limit stron, nie zarchiwizowane konto.
+
+**Odrzucone.** Szczegóły w `documents.error_message` — jedna linia na dokument, bez
+historii prób i bez odrzuconych wrzuceń, które dokumentu nie mają. Podgląd logów
+kontenera w aplikacji — wymagałby dostępu do Dockera i pokazywałby wszystko, nie OCR.
+
+**Konsekwencje.** Każda analiza to 3–4 wiersze więcej w bazie (pomijalne). Zmienione:
+03 §3.22, 04 §13, 05 §12, 06 §3.4 i §3.12, 08 §14 i §16.
+
+<a id="adr-087"></a>
+
+## ADR-087 — Pole „Szukaj kategorii" w panelu filtrów historii
+
+**Data:** 2026-11-15 · **Zadanie:** zgłoszenie właściciela (poza roadmapą) · **Status:** przyjęte
+
+**Kontekst.** Żeby przejrzeć wydatki z kategorii „Rower", trzeba było przewinąć panel
+filtrów za kwotą i kontami i szukać pozycji na długiej liście pól wyboru.
+
+**Decyzja.** Na górze panelu pole „Szukaj kategorii" (06 §3.2). Zawęża listy kategorii
+po fragmencie nazwy, bez wielkości liter i ogonków (`foldForSearch`). Pasujący rodzic
+zostaje ze wszystkimi dziećmi (wybór rodzica i tak zaznacza dzieci), pasujące dziecko —
+pod rodzicem. W trakcie szukania sekcje kategorii przenoszą się tuż pod pole. Tekst
+nie jest filtrem: nie trafia do adresu i znika z zamknięciem panelu; zaznaczenia
+zrobione przy szukaniu zostają w szkicu.
+
+**Odrzucone.** Filtrowanie po nazwie kategorii w API — wybór i tak jest po
+identyfikatorach, a drzewo jest już w pamięci. Osobny ekran wyboru kategorii — o krok
+więcej niż wpisanie czterech liter.
+
+**Konsekwencje.** Funkcja `filterCategoryTree` w `history-filters.ts` z testami.
+Zmienione: 06 §3.2.

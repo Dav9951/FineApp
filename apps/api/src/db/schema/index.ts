@@ -22,6 +22,7 @@ export * from './allocation-targets.js';
 export * from './recurring.js';
 export * from './planned-expenses.js';
 export * from './documents.js';
+export * from './document-logs.js';
 export * from './budget.js';
 export * from './transactions.js';
 export * from './app-meta.js';

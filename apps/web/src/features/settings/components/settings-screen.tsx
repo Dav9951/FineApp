@@ -1,8 +1,11 @@
 import {
+  AI_MODELS,
   currentMonthKey,
   exportFileName,
+  findAiModel,
   todayInTimezone,
   toBps,
+  type AiModelId,
   type AiUsageDto,
   type HouseholdMemberDto,
   type SettingsDto,
@@ -21,6 +24,7 @@ import {
   Monitor,
   MonitorDown,
   Moon,
+  ScrollText,
   Smartphone,
   Sun,
   Tags,
@@ -39,6 +43,7 @@ import {
   Money,
   OptionGrid,
   Section,
+  Sheet,
   SkeletonList,
   useToast,
 } from '../../../components/ui/index.js';
@@ -51,7 +56,8 @@ import { useAuth } from '../../auth/auth-context.js';
 import { requireToken, useAccessToken } from '../../auth/use-token.js';
 import { lastUpdatedLabel } from '../../accounts/components/accounts-screen.js';
 import { useAccountList } from '../../accounts/hooks/use-accounts.js';
-import { useAiUsage } from '../../scan/hooks/use-documents.js';
+import { AiLogList } from '../../scan/components/ai-log-list.js';
+import { useAiUsage, useUpdateAiModel } from '../../scan/hooks/use-documents.js';
 import { initials } from '../../transactions/history-view.js';
 import { fetchExportCsv, fetchExportJson } from '../api.js';
 import { useSettings } from '../hooks/use-settings.js';
@@ -140,10 +146,12 @@ function SettingsSkeleton(): ReactNode {
  *
  * @param props - Właściwości komponentu.
  * @param props.month - Bieżący miesiąc gospodarstwa (podpis).
+ * @param props.timezone - Strefa gospodarstwa — godziny w dzienniku odczytu.
  * @returns Element sekcji.
  */
-function AiSection({ month }: { month: string }): ReactNode {
+function AiSection({ month, timezone }: { month: string; timezone: string }): ReactNode {
   const usage = useAiUsage();
+  const [logOpen, setLogOpen] = useState(false);
 
   let content: ReactNode;
   if (usage.isPending) {
@@ -167,10 +175,80 @@ function AiSection({ month }: { month: string }): ReactNode {
       </p>
     );
   } else {
-    content = <AiUsageRows month={month} usage={usage.data} />;
+    content = (
+      <>
+        <AiUsageRows month={month} usage={usage.data} />
+        <AiModelSwitch model={usage.data.model} />
+        <ul className="mt-2">
+          <li>
+            <ListRow
+              caption="Przebieg odczytów: czas, tokeny, wymiary obrazu, przyczyny błędów"
+              first
+              icon={<RowIcon icon={ScrollText} />}
+              name="Dziennik odczytu"
+              onClick={() => {
+                setLogOpen(true);
+              }}
+            />
+          </li>
+        </ul>
+        <Sheet onOpenChange={setLogOpen} open={logOpen} title="Dziennik odczytu">
+          <AiLogList enabled={logOpen} timezone={timezone} />
+        </Sheet>
+      </>
+    );
   }
 
   return <Section title="Odczyt dokumentów (AI)">{content}</Section>;
+}
+
+/** Opcje przełącznika modelu — z katalogu `AI_MODELS`. */
+const MODEL_OPTIONS = AI_MODELS.map((option) => ({ value: option.id, label: option.label }));
+
+/**
+ * Przełącznik modelu odczytu (ADR-085). Zapis od razu po wyborze — to jedno pole,
+ * a „Zapisz" przy dwóch kaflach byłby krokiem bez treści.
+ *
+ * Model ustawiony zmienną `AI_MODEL` spoza katalogu nie ma kafla: wtedy żaden nie jest
+ * zaznaczony, a podpis mówi, który model działa.
+ *
+ * @param props - Właściwości komponentu.
+ * @param props.model - Model w użyciu.
+ * @returns Element przełącznika.
+ */
+function AiModelSwitch({ model }: { model: string }): ReactNode {
+  const update = useUpdateAiModel();
+  const toast = useToast();
+  const current = findAiModel(model);
+  const pending = update.isPending ? update.variables : undefined;
+  const shown = pending ?? current?.id;
+  return (
+    <div className="mt-4">
+      <OptionGrid<AiModelId | ''>
+        legend="Model odczytu"
+        onChange={(next) => {
+          if (next === '' || next === model) return;
+          update.mutate(next, {
+            onSuccess: (usage) => {
+              const label = findAiModel(usage.model)?.label;
+              toast.show({ message: `Odczyt dokumentów: ${label ?? usage.model}` });
+            },
+            onError: (error) => {
+              toast.show({ message: error.message });
+            },
+          });
+        }}
+        options={MODEL_OPTIONS}
+        value={shown ?? ''}
+      />
+      <p className="mt-2 text-caption text-muted-foreground">
+        {current === undefined
+          ? `Działa model ${model} z konfiguracji serwera (AI_MODEL).`
+          : current.description}{' '}
+        Dotyczy kolejnych odczytów, także ponowionych.
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -554,7 +632,7 @@ function SettingsContent({ settings }: { settings: SettingsDto }): ReactNode {
         </Button>
       </Section>
 
-      <AiSection month={monthLabel} />
+      <AiSection month={monthLabel} timezone={household.timezone} />
 
       <Section title="O aplikacji">
         <p className="text-sm">

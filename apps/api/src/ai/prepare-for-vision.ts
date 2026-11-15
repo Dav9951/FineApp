@@ -23,13 +23,18 @@ export const VISION_MAX_EDGE_PX = 1568;
  *
  * @param bytes - Zapisany plik (JPEG po normalizacji albo PDF).
  * @param mimeType - Typ zapisanego pliku.
- * @returns Części gotowe do wysłania.
+ * @returns Części gotowe do wysłania; obraz z wymiarami przed i po skalowaniu.
  */
 export async function prepareForVision(bytes: Buffer, mimeType: string): Promise<PreparedPart[]> {
   if (mimeType === 'application/pdf') {
     return [{ kind: 'pdf', base64: bytes.toString('base64') }];
   }
-  const jpeg = await sharp(bytes)
+  // `width` / `height` z metadanych to piksele przed obrotem; `autoOrient` uwzględnia
+  // znacznik EXIF (orientacje 5–8 zamieniają boki), tak jak robi to `.rotate()` niżej.
+  // Plik po normalizacji jest już obrócony, ale wymiary mają być prawdziwe także dla
+  // pliku, który przyszedł inną drogą (np. `ocr:evaluate`).
+  const source = (await sharp(bytes).metadata()).autoOrient;
+  const { data, info } = await sharp(bytes)
     .rotate()
     .resize({
       width: VISION_MAX_EDGE_PX,
@@ -38,6 +43,16 @@ export async function prepareForVision(bytes: Buffer, mimeType: string): Promise
       withoutEnlargement: true,
     })
     .jpeg({ quality: 80 })
-    .toBuffer();
-  return [{ kind: 'image', mediaType: 'image/jpeg', base64: jpeg.toString('base64') }];
+    .toBuffer({ resolveWithObject: true });
+  return [
+    {
+      kind: 'image',
+      mediaType: 'image/jpeg',
+      base64: data.toString('base64'),
+      width: info.width,
+      height: info.height,
+      sourceWidth: source.width,
+      sourceHeight: source.height,
+    },
+  ];
 }

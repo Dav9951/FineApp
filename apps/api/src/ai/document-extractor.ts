@@ -11,7 +11,16 @@ export type ExtractionKind = 'receipt' | 'bank_statement';
 
 /** Część dokumentu gotowa do wysłania. */
 export type PreparedPart =
-  | { readonly kind: 'image'; readonly mediaType: 'image/jpeg'; readonly base64: string }
+  | {
+      readonly kind: 'image';
+      readonly mediaType: 'image/jpeg';
+      readonly base64: string;
+      /** Wymiary wysłanego obrazu i oryginału — do dziennika odczytu (ADR-086). */
+      readonly width: number;
+      readonly height: number;
+      readonly sourceWidth: number;
+      readonly sourceHeight: number;
+    }
   | { readonly kind: 'pdf'; readonly base64: string };
 
 /** Kategoria widoczna dla modelu (08 §4). */
@@ -26,6 +35,8 @@ export interface CategoryContextEntry {
 
 /** Wejście ekstraktora. */
 export interface ExtractInput {
+  /** Model do tego odczytu — z ustawień gospodarstwa albo `AI_MODEL` (ADR-085). */
+  readonly model: string;
   readonly kind: ExtractionKind;
   readonly parts: readonly PreparedPart[];
   readonly categories: readonly CategoryContextEntry[];
@@ -69,6 +80,14 @@ export interface TokenUsage {
   readonly outputTokens: number;
 }
 
+/**
+ * Szczegóły do dziennika odczytu (ADR-086) — liczby i kody, nigdy treść dokumentu.
+ *
+ * Klucze są stabilne, bo czyta je człowiek w dzienniku: `durationMs`, `httpStatus`,
+ * `errorType`, `apiMessage`, `stopReason`, `outputTokens`, `maxOutputTokens`, `reason`.
+ */
+export type ExtractionDiagnostics = Readonly<Record<string, string | number | boolean | null>>;
+
 /** Wynik ekstrakcji. */
 export interface ExtractResult {
   readonly header: ExtractedHeader;
@@ -79,6 +98,8 @@ export interface ExtractResult {
   readonly requestId: string | null;
   /** Surowa odpowiedź modelu — do diagnozy złego odczytu (`ai_raw_response`). */
   readonly rawResponse: string;
+  /** Czas wywołania razem z ponowieniami SDK, `stop_reason` itd. */
+  readonly diagnostics: ExtractionDiagnostics;
 }
 
 /** Przyczyna nieudanej ekstrakcji — zapisywana w `documents.error_code`. */
@@ -99,6 +120,7 @@ export class ExtractionError extends Error {
    * @param details.usage - Zużycie tokenów.
    * @param details.rawResponse - Surowa odpowiedź.
    * @param details.requestId - Identyfikator żądania u dostawcy.
+   * @param details.diagnostics - Szczegóły do dziennika odczytu.
    */
   constructor(
     readonly code: ExtractionErrorCode,
@@ -107,6 +129,7 @@ export class ExtractionError extends Error {
       readonly usage?: TokenUsage;
       readonly rawResponse?: string;
       readonly requestId?: string | null;
+      readonly diagnostics?: ExtractionDiagnostics;
     } = {},
   ) {
     super(message);
@@ -118,7 +141,7 @@ export class ExtractionError extends Error {
 export interface DocumentExtractor {
   /** Dostawca zapisywany w `documents.ai_provider`. */
   readonly provider: string;
-  /** Model zapisywany w `documents.ai_model`. */
+  /** Model domyślny (`AI_MODEL`); właściwy model każdego odczytu idzie w `ExtractInput`. */
   readonly model: string;
   /**
    * Odczytuje dokument i zwraca propozycje pozycji.

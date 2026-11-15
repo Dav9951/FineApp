@@ -58,7 +58,7 @@ async function main(): Promise<void> {
 
   // Analiza biegnie w tle procesu, więc restart w jej trakcie zostawia dokument
   // w `processing` na zawsze — przy starcie oznaczamy go jako przerwany (08 §2).
-  const interrupted = failInterruptedDocuments(db, systemClock);
+  const interrupted = failInterruptedDocuments({ db, clock: systemClock, log: app.log });
   if (interrupted > 0) {
     app.log.warn({ interrupted }, 'Oznaczono przerwane analizy dokumentów');
   }

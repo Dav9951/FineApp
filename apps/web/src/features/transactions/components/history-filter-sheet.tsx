@@ -13,11 +13,18 @@ import {
 import { useAccountList } from '../../accounts/hooks/use-accounts.js';
 import { useCategoryTree } from '../../categories/hooks/use-categories.js';
 import { useIncomeSources } from '../../income-sources/hooks/use-income-sources.js';
-import { parseAmountBound, toggleCategory, type HistoryFilters } from '../history-filters.js';
+import {
+  filterCategoryTree,
+  fullCategoryNode,
+  parseAmountBound,
+  toggleCategory,
+  type HistoryFilters,
+} from '../history-filters.js';
 
 /**
- * Panel filtrów historii (06 §3.2): konto, kategoria (wybór wielokrotny), źródło
- * przychodu, zakres kwot, kosz (ADR-038). Tekst i typ są na samym ekranie.
+ * Panel filtrów historii (06 §3.2): konto, kategoria (wybór wielokrotny) z polem
+ * „Szukaj kategorii" (ADR-087), źródło przychodu, zakres kwot, kosz (ADR-038). Tekst
+ * i typ są na samym ekranie.
  *
  * Panel pracuje na **szkicu**: zmiany trafiają do adresu dopiero po „Pokaż wyniki".
  * Filtrowanie przy każdym kliknięciu pole wyboru wysyłałoby żądanie za żądaniem
@@ -78,31 +85,43 @@ const KIND_TITLE: Readonly<Record<CategoryKind, string>> = {
  * @param props.kind - Rodzaj kategorii.
  * @param props.selected - Wybrane identyfikatory.
  * @param props.onChange - Zmiana wyboru.
+ * @param props.query - Tekst z pola „Szukaj kategorii".
  * @returns Element sekcji.
  */
 function CategoryChecklist({
   kind,
   selected,
   onChange,
+  query,
 }: {
   kind: CategoryKind;
   selected: readonly string[];
   onChange: (next: readonly string[]) => void;
+  query: string;
 }): ReactNode {
   const tree = useCategoryTree(kind);
   let content: ReactNode;
+  const visible = tree.data === undefined ? [] : filterCategoryTree(tree.data, query);
   if (tree.isPending) content = <SkeletonList rows={3} />;
   else if (tree.isError)
     content = <p className="text-caption text-danger">Nie udało się wczytać.</p>;
-  else {
+  else if (visible.length === 0) {
+    content = (
+      <p className="text-caption text-muted-foreground">
+        {query.trim() === '' ? 'Brak kategorii.' : `Nic nie pasuje do „${query.trim()}”.`}
+      </p>
+    );
+  } else {
     content = (
       <ul>
-        {tree.data.map((root: CategoryTreeDto) => (
+        {visible.map((root: CategoryTreeDto) => (
           <li key={root.id}>
             <Checkbox
               checked={selected.includes(root.id)}
               onCheckedChange={() => {
-                onChange(toggleCategory(selected, root));
+                // Pełny węzeł z drzewa, nie zawężony wyszukiwaniem — rodzic przełącza
+                // wszystkie podkategorie, także te ukryte przez „Szukaj kategorii".
+                onChange(toggleCategory(selected, fullCategoryNode(tree.data, root)));
               }}
             >
               <span className="font-medium">{root.name}</span>
@@ -182,6 +201,9 @@ function FilterPanel({
   onApply: (filters: HistoryFilters) => void;
 }): ReactNode {
   const [draft, setDraft] = useState<Draft>(() => draftOf(filters));
+  // Szukanie nie jest filtrem — zawęża tylko listę kategorii w panelu, nie trafia do adresu.
+  const [categoryQuery, setCategoryQuery] = useState('');
+  const searching = categoryQuery.trim() !== '';
   const [errors, setErrors] = useState<{ min?: string; max?: string }>({});
   const accounts = useAccountList(true);
   const showIncomeSources = filters.type === undefined || filters.type === 'income';
@@ -214,9 +236,39 @@ function FilterPanel({
     });
   };
 
+  const categorySections = kinds.map((kind) => (
+    <CategoryChecklist
+      key={kind}
+      kind={kind}
+      onChange={(categoryIds) => {
+        setDraft({ ...draft, categoryIds, uncategorized: false });
+      }}
+      query={categoryQuery}
+      selected={draft.categoryIds}
+    />
+  ));
+
   return (
     <div>
-      <Section first title="Kwota">
+      <div className="pt-2">
+        <TextField
+          hint={
+            draft.categoryIds.length > 0
+              ? `Zaznaczone kategorie: ${String(draft.categoryIds.length)}`
+              : undefined
+          }
+          label="Szukaj kategorii"
+          onChange={setCategoryQuery}
+          placeholder="np. rower"
+          value={categoryQuery}
+        />
+      </div>
+
+      {/* W trakcie szukania kategorie idą na górę — wynik ma być pod polem, a nie
+          pod kwotą i kontami, do których trzeba by przewinąć. */}
+      {searching ? categorySections : null}
+
+      <Section first={!searching} title="Kwota">
         <div className="grid grid-cols-2 gap-3">
           <TextField
             error={errors.min}
@@ -267,16 +319,7 @@ function FilterPanel({
         )}
       </Section>
 
-      {kinds.map((kind) => (
-        <CategoryChecklist
-          key={kind}
-          kind={kind}
-          onChange={(categoryIds) => {
-            setDraft({ ...draft, categoryIds, uncategorized: false });
-          }}
-          selected={draft.categoryIds}
-        />
-      ))}
+      {searching ? null : categorySections}
 
       {showIncomeSources ? (
         <Section title="Źródło przychodu">

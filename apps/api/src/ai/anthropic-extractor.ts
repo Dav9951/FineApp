@@ -4,11 +4,13 @@ import type { Config } from '../core/config.js';
 import {
   ExtractionError,
   type DocumentExtractor,
+  type ExtractionDiagnostics,
   type ExtractInput,
   type ExtractResult,
   type PreparedPart,
   type TokenUsage,
 } from './document-extractor.js';
+import { API_MESSAGE_MAX, errorDiagnostics } from './diagnostics.js';
 import { EXTRACTION_SYSTEM_PROMPT, extractionUserText } from './prompts/extraction-prompt.js';
 import { extractionSchema, parseExtraction } from './schemas/extraction.js';
 
@@ -73,9 +75,43 @@ function tokenUsage(usage: Anthropic.Usage): TokenUsage {
 }
 
 /**
+ * Status HTTP błędu usługi; `null`, gdy odpowiedzi nie było (timeout, zerwane połączenie).
+ *
+ * @param error - Błąd rzucony przez SDK.
+ * @returns Status albo `null`.
+ */
+function httpStatusOf(error: unknown): number | null {
+  if (!(error instanceof Anthropic.APIError)) return null;
+  const status: unknown = error.status;
+  return typeof status === 'number' ? status : null;
+}
+
+/**
+ * Diagnostyka błędu wywołania — do dziennika odczytu (ADR-086).
+ *
+ * Komunikat błędu z SDK zawiera typ i opis błędu usługi (np. `overloaded_error`,
+ * „Request timed out"), nigdy treść dokumentu ani klucz — dlatego może trafić do
+ * dziennika. Klasa błędu odróżnia przekroczenie czasu od zerwanego połączenia i od
+ * odpowiedzi `4xx/5xx`.
+ *
+ * @param error - Błąd rzucony przez SDK.
+ * @param durationMs - Czas od wysłania do błędu, razem z ponowieniami.
+ * @returns Szczegóły do dziennika.
+ */
+function failureDiagnostics(error: unknown, durationMs: number): ExtractionDiagnostics {
+  return {
+    durationMs,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    maxRetries: MAX_RETRIES,
+    httpStatus: httpStatusOf(error),
+    ...errorDiagnostics(error),
+  };
+}
+
+/**
  * Tworzy ekstraktor Anthropic.
  *
- * @param config - Konfiguracja AI (klucz, model, limit tokenów wyjścia).
+ * @param config - Konfiguracja AI (klucz, model domyślny, limit tokenów wyjścia).
  * @param client - Klient SDK; testy mogą podstawić własny.
  * @returns Ekstraktor dokumentów.
  */
@@ -92,10 +128,11 @@ export function createAnthropicExtractor(
     model: config.model,
     async extract(input: ExtractInput): Promise<ExtractResult> {
       const categoryIds = input.categories.map((category) => category.id);
+      const startedAt = Date.now();
       let message: Anthropic.Message & { _request_id?: string | null };
       try {
         message = await client.messages.create({
-          model: config.model,
+          model: input.model,
           max_tokens: config.maxOutputTokens,
           system: EXTRACTION_SYSTEM_PROMPT,
           messages: [
@@ -123,10 +160,18 @@ export function createAnthropicExtractor(
         const status = error instanceof Anthropic.APIError ? String(error.status) : 'brak';
         throw new ExtractionError('AI_UNAVAILABLE', UNAVAILABLE_MESSAGE, {
           rawResponse: `status: ${status}`,
+          diagnostics: failureDiagnostics(error, Date.now() - startedAt),
         });
       }
 
       const usage = tokenUsage(message.usage);
+      const diagnostics: ExtractionDiagnostics = {
+        durationMs: Date.now() - startedAt,
+        stopReason: message.stop_reason,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        maxOutputTokens: config.maxOutputTokens,
+      };
       const requestId = message._request_id ?? null;
       const text = message.content
         .filter((block): block is Anthropic.TextBlock => block.type === 'text')
@@ -138,6 +183,7 @@ export function createAnthropicExtractor(
           usage,
           rawResponse: text,
           requestId,
+          diagnostics,
         });
       }
       if (message.stop_reason === 'max_tokens') {
@@ -145,7 +191,7 @@ export function createAnthropicExtractor(
         throw new ExtractionError(
           'AI_OUTPUT_TRUNCATED',
           'Dokument jest za długi do odczytu naraz. Podziel go na mniejsze części.',
-          { usage, rawResponse: text, requestId },
+          { usage, rawResponse: text, requestId, diagnostics },
         );
       }
 
@@ -155,6 +201,7 @@ export function createAnthropicExtractor(
           usage,
           rawResponse: text,
           requestId,
+          diagnostics: { ...diagnostics, reason: parsed.reason.slice(0, API_MESSAGE_MAX) },
         });
       }
 
@@ -166,6 +213,7 @@ export function createAnthropicExtractor(
         model: message.model,
         requestId,
         rawResponse: text,
+        diagnostics,
       };
     },
   };
