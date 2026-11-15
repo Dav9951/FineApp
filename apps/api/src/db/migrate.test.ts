@@ -59,7 +59,7 @@ function configFor(path: string): Config {
 }
 
 describe('runMigrations', () => {
-  it('tworzy komplet 21 tabel na pustej bazie', () => {
+  it('tworzy komplet 22 tabel na pustej bazie', () => {
     const path = join(workDir, 'fineapp.db');
     const result = runMigrations(configFor(path));
     expect(result.applied).toBeGreaterThan(0);
@@ -71,7 +71,7 @@ describe('runMigrations', () => {
       )
       .all();
     handle.close();
-    expect(tables).toHaveLength(21);
+    expect(tables).toHaveLength(22);
   });
 
   it('jest idempotentny — drugi przebieg nie stosuje niczego', () => {

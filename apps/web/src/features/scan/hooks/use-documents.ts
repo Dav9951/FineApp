@@ -1,4 +1,6 @@
 import type {
+  AiLogEntryDto,
+  AiModelId,
   AiUsageDto,
   CommitDocumentRequest,
   DocumentDto,
@@ -97,6 +99,46 @@ export function useAiUsage(): UseQueryResult<AiUsageDto> {
     queryFn: () => documentsApi.fetchAiUsage(requireToken(accessToken)),
     enabled: accessToken !== null,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Zmiana modelu odczytu (ADR-085). Odpowiedź to nowe zużycie — trafia od razu do
+ * `qk.aiUsage()`, bez drugiego zapytania.
+ *
+ * @returns Mutacja.
+ */
+export function useUpdateAiModel(): UseMutationResult<AiUsageDto, Error, AiModelId> {
+  const accessToken = useAccessToken();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (model) => documentsApi.updateAiModel(requireToken(accessToken), model),
+    onSuccess: (usage) => {
+      client.setQueryData(qk.aiUsage(), usage);
+    },
+  });
+}
+
+/**
+ * Dziennik odczytu (ADR-086).
+ *
+ * @param options - Ustawienia zapytania.
+ * @param options.documentId - Tylko wpisy jednego dokumentu.
+ * @param options.enabled - Czy pytać (np. arkusz otwarty).
+ * @param options.live - Odświeżaj co chwilę — dokument jest właśnie analizowany.
+ * @returns Wynik zapytania.
+ */
+export function useAiLog(options: {
+  documentId?: string;
+  enabled?: boolean;
+  live?: boolean;
+}): UseQueryResult<AiLogEntryDto[]> {
+  const accessToken = useAccessToken();
+  return useQuery({
+    queryKey: qk.aiLog(options.documentId),
+    queryFn: () => documentsApi.fetchAiLog(requireToken(accessToken), options.documentId),
+    enabled: accessToken !== null && options.enabled !== false,
+    refetchInterval: options.live === true ? POLL_INTERVAL_MS : false,
   });
 }
 

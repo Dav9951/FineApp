@@ -585,6 +585,42 @@ export function getHousehold(handle: DbHandle, householdId: string): HouseholdDt
 }
 
 /**
+ * Model odczytu dokumentów wybrany w ustawieniach gospodarstwa (ADR-085).
+ *
+ * Nie należy do `HouseholdDto`: ten idzie w odpowiedzi logowania, a model obchodzi tylko
+ * moduł dokumentów i sekcję AI w ustawieniach.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @returns Identyfikator modelu albo `null`, gdy obowiązuje `AI_MODEL`.
+ * @throws {UnauthorizedError} Gdy gospodarstwa z tokenu nie ma w bazie.
+ */
+export function getHouseholdAiModel(handle: DbHandle, householdId: string): string | null {
+  const household = findHouseholdById(handle, householdId);
+  if (household === undefined) throw new UnauthorizedError('Sesja wygasła. Zaloguj się ponownie.');
+  return household.aiModel;
+}
+
+/**
+ * Zapisuje model odczytu dokumentów gospodarstwa (ADR-085).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param clock - Źródło czasu.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param model - Model z katalogu `AI_MODELS` (sprawdzony w kontrakcie).
+ * @throws {UnauthorizedError} Gdy gospodarstwa z tokenu nie ma w bazie.
+ */
+export function setHouseholdAiModel(
+  handle: DbHandle,
+  clock: Clock,
+  householdId: string,
+  model: string,
+): void {
+  getHousehold(handle, householdId);
+  updateHousehold(handle, householdId, { aiModel: model }, clock.now().getTime());
+}
+
+/**
  * Zwraca profil zalogowanego użytkownika wraz z gospodarstwem.
  *
  * `householdId` **nie jest** argumentem: bierze się z wiersza użytkownika, a ten

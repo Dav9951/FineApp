@@ -134,15 +134,17 @@ const envSchema = z
 
     // --- AI / OCR ---
     ANTHROPIC_API_KEY: z.string().default(''),
-    AI_MODEL: z.string().min(1).default('claude-sonnet-5-5'),
+    // Model domyślny — gdy gospodarstwo nie wybrało go w ustawieniach (ADR-085).
+    AI_MODEL: z.string().min(1).default('claude-haiku-5-5'),
     // Model myśli adaptacyjnie, a myślenie liczy się do limitu — 4096 z 08 §8 ucinało
     // dłuższe wyciągi (ADR-059).
     AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(16_000),
     AI_ENABLED: envBoolean(true),
     // Kwota w groszach — sufiks `Minor` zgodnie z regułą jednostek (02 §8).
     AI_MONTHLY_BUDGET_MINOR: z.coerce.number().int().min(0).default(5_000),
-    // Stawki w groszach za milion tokenów — konfiguracja, nie stała (08 §9). Domyślne
-    // odpowiadają claude-sonnet-5-5 ($2 / $10) po kursie z zapasem ~4 zł/$.
+    // Stawki w groszach za milion tokenów — konfiguracja, nie stała (08 §9). Od ADR-085
+    // dotyczą tylko modelu spoza katalogu `AI_MODELS` (ten ma własne stawki). Domyślne
+    // odpowiadają cenom Sonneta 5.5 ($2 / $10) po kursie z zapasem ~4 zł/$.
     AI_INPUT_COST_MINOR_PER_MTOK: z.coerce.number().int().min(0).default(800),
     AI_OUTPUT_COST_MINOR_PER_MTOK: z.coerce.number().int().min(0).default(4_000),
 

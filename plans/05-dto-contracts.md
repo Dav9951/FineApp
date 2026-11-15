@@ -1411,7 +1411,15 @@ Plik to `shared/src/dto/document.ts`. Względem szkicu wyżej:
   (eksportowany z `category.ts`); `CommitDocumentResponse` = `{ document, transactions }`,
   meta jak zapis transakcji.
 - `AiUsageDto` — `enabled`, `model`, `monthKey`, `documentCount`, `inputTokens`,
-  `outputTokens`, `spentMinor`, `budgetMinor`, `remainingMinor`.
+  `outputTokens`, `spentMinor`, `budgetMinor`, `remainingMinor`. `model` = model
+  z ustawień gospodarstwa albo `AI_MODEL` (ADR-085).
+- `UpdateAiModelRequest` — `{ model: AiModelId }`; katalog `AI_MODELS` w
+  `shared/domain/ai-models.ts` (id, podpis, opis, stawki w groszach za MTok),
+  `findAiModel` (ADR-085).
+- `AiLogEntryDto` — `id`, `documentId` (`null` po usunięciu dokumentu), `documentName`,
+  `level` (`info` | `warn` | `error`), `event` (`started` | `prepared` | `parsed` |
+  `failed` | `upload_rejected`), `message`, `details` (rekord liczb, napisów,
+  `boolean`, `null`), `createdAt`; `AiLogQuery` — `documentId?`, `limit` (ADR-086).
 - `transaction.ts`: `BulkCreateTransactionsRequest` (`transactions` 1–100,
   `BULK_TRANSACTIONS_MAX`).
 - Reguły wspólne w `shared/domain/document.ts`: `documentItemsNetMinor`,

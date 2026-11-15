@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  filterCategoryTree,
   hasAnyFilter,
   historyFiltersToParams,
   historyQuery,
@@ -170,5 +171,47 @@ describe('toggleCategory', () => {
     const on = toggleCategory(['J', 'K', 'R'], { id: 'K', children: [] });
     expect([...on].sort()).toEqual(['J', 'R']);
     expect([...toggleCategory(['X'], { id: 'K', children: [] })].sort()).toEqual(['K', 'X']);
+  });
+});
+
+describe('filterCategoryTree', () => {
+  const tree = [
+    {
+      id: 'transport',
+      name: 'Transport',
+      children: [
+        { id: 'rower', name: 'Rower' },
+        { id: 'paliwo', name: 'Paliwo' },
+      ],
+    },
+    { id: 'zakupy', name: 'Żabka i drobne', children: [] },
+    {
+      id: 'sport',
+      name: 'Sport',
+      children: [{ id: 'rower-serwis', name: 'Serwis roweru' }],
+    },
+  ];
+
+  it('pusty tekst — drzewo bez zmian', () => {
+    expect(filterCategoryTree(tree, '  ')).toEqual(tree);
+  });
+
+  it('pasujące dziecko zostaje pod rodzicem, bez niepasującego rodzeństwa', () => {
+    expect(filterCategoryTree(tree, 'rower')).toEqual([
+      { id: 'transport', name: 'Transport', children: [{ id: 'rower', name: 'Rower' }] },
+      { id: 'sport', name: 'Sport', children: [{ id: 'rower-serwis', name: 'Serwis roweru' }] },
+    ]);
+  });
+
+  it('pasujący rodzic zostaje ze wszystkimi dziećmi', () => {
+    expect(filterCategoryTree(tree, 'TRANS')).toEqual([tree[0]]);
+  });
+
+  it('bez ogonków i wielkości liter', () => {
+    expect(filterCategoryTree(tree, 'zabka').map((node) => node.id)).toEqual(['zakupy']);
+  });
+
+  it('nic nie pasuje — pusta lista', () => {
+    expect(filterCategoryTree(tree, 'kino')).toEqual([]);
   });
 });

@@ -307,9 +307,9 @@ Parametry wywołania:
 
 | Parametr | Wartość | Uzasadnienie |
 |---|---|---|
-| `model` | `AI_MODEL` (domyślnie `claude-sonnet-5-5`, ADR-071) | Dobry odczyt obrazu przy rozsądnym koszcie |
+| `model` | z ustawień gospodarstwa (`households.ai_model`: Haiku 5.5 / Sonnet 5.5), a bez wyboru `AI_MODEL` (domyślnie `claude-haiku-5-5`) — [ADR-085](./14-decisions-log.md#adr-085) | Haiku czyta typowy paragon ~20× taniej; Sonnet zostaje jednym kliknięciem na trudniejsze dokumenty |
 | `max_tokens` | `AI_MAX_OUTPUT_TOKENS` (**16 000**) | Myślenie adaptacyjne liczy się do limitu; 4096 ucinało długie wyciągi (ADR-059) |
-| `temperature` | **nie wysyłamy** | modele Sonnet 5 / 5.5 odrzucają niestandardowe parametry próbkowania (`400`) |
+| `temperature` | **nie wysyłamy** | Sonnet 5 / 5.5 i Haiku 5.5 odrzucają niestandardowe parametry próbkowania (`400`) |
 | `output_config.format` | `json_schema` z §5/§6 | Wymusza strukturę odpowiedzi bez narzędzia (ADR-059) |
 | `timeout` | **120 s** | Wyciąg z kilkudziesięcioma operacjami potrafi przekroczyć 60 s |
 
@@ -338,8 +338,11 @@ w `ai_raw_response` i oznaczamy dokument jako `failed` z kodem `AI_SCHEMA_MISMAT
 export function estimateCostMinor(usage: TokenUsage): number;
 ```
 
-- Stawki: `AI_INPUT_COST_MINOR_PER_MTOK` (800) i `AI_OUTPUT_COST_MINOR_PER_MTOK` (4000) —
-  grosze za milion tokenów; koszt zaokrąglany w górę do grosza (ADR-059).
+- Stawki: każdy model z katalogu `AI_MODELS` ma własne (Haiku 5.5: 40 / 200, Sonnet 5.5:
+  800 / 4000 groszy za milion tokenów wejścia / wyjścia, kurs z zapasem ~4 zł/$);
+  `AI_INPUT_COST_MINOR_PER_MTOK` i `AI_OUTPUT_COST_MINOR_PER_MTOK` obowiązują tylko model
+  spoza katalogu ustawiony zmienną `AI_MODEL` (ADR-085). Koszt zaokrąglany w górę do
+  grosza (ADR-059); liczony stawkami modelu, którym naprawdę czytano.
 - Suma kosztów miesiąca w `app_meta` pod kluczem `ai_spend_<YYYY-MM>_minor` (miesiąc
   w strefie gospodarstwa); nieudany odczyt, na który usługa odpowiedziała, też się liczy.
 - Przekroczenie `AI_MONTHLY_BUDGET_MINOR` → `402`-podobny błąd `AI_BUDGET_EXCEEDED`
@@ -459,6 +462,8 @@ nie wykonuje żadnych wywołań do usług zewnętrznych w tle.
 | Brak klucza API | `EXTERNAL_SERVICE_ERROR` | „Odczyt dokumentów jest wyłączony. Dodaj wydatek ręcznie." |
 | Timeout / 5xx po ponowieniach | `EXTERNAL_SERVICE_ERROR` | „Nie udało się odczytać dokumentu. Spróbuj ponownie." |
 | Odpowiedź niezgodna ze schematem | `EXTERNAL_SERVICE_ERROR` (`AI_SCHEMA_MISMATCH`) | jak wyżej + log z surową odpowiedzią |
+
+Nieudany odczyt, odczyt bez pozycji i odrzucony plik (poza duplikatem i wyłączonym OCR) zostawiają wpis w dzienniku odczytu (§16) z przyczyną techniczną.
 | Przekroczony limit kosztów | `AI_BUDGET_EXCEEDED` | „Wyczerpano miesięczny limit OCR." |
 | Zero odczytanych pozycji | — (status `parsed`) | „Nie rozpoznano pozycji. Wpisz kwotę ręcznie." + formularz z podglądem zdjęcia |
 
@@ -489,3 +494,38 @@ zdjęcia `nazwa.expected.json`: `{ "totalMinor", "bookedOn", "items": [{ "amount
 "category": "<slug>" }] }`. Skrypt zakłada bazę w pamięci z kategoriami domyślnymi, woła
 prawdziwą usługę (koszt!) i wypisuje tabelę czterech wskaźników do wklejenia w 13.
 Pozycje paruje kwota co do grosza; rabaty (`inflow`) nie są oceniane.
+
+## 16. Dziennik odczytu
+
+> **Poza roadmapą** ([ADR-086](./14-decisions-log.md#adr-086)). Tabela `document_logs`
+> (03 §3.22), `GET /documents/log` (04 §13), widok w Ustawieniach i na ekranie
+> nieudanego dokumentu (06 §3.12, §3.4).
+
+Każda analiza zostawia wpisy — po to, żeby przyczynę nieudanego odczytu dało się
+odczytać w aplikacji, a nie zgadywać z „Spróbuj ponownie":
+
+| Etap (`event`) | Waga | Szczegóły (`details`) |
+|---|---|---|
+| `started` | info | `model`, `kind`, `mimeType`, `byteSize`, `pageCount` |
+| `prepared` | info; **warn**, gdy krótszy bok obrazu po skalowaniu < 500 px (`NARROW_IMAGE_PX`) | `sourceWidth`, `sourceHeight`, `width`, `height`, `sentKb`, `categoryCount` |
+| `parsed` | info; **warn** przy zerze pozycji | `durationMs`, `stopReason`, `inputTokens`, `outputTokens`, `maxOutputTokens`, `itemCount`, `costMinor`, `requestId` |
+| `failed` | error | `errorCode`, `durationMs`, `httpStatus`, `errorType` (np. `APIConnectionTimeoutError`), `apiMessage` (≤ 300 znaków), `timeoutMs`, `maxRetries`, `stopReason`, `reason` (schemat), `costMinor` |
+| `upload_rejected` | warn | `errorCode` (`FILE_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `DOMAIN_RULE_VIOLATION`, `AI_BUDGET_EXCEEDED`), `maxBytes` |
+
+Zasady:
+
+- **Bez treści dokumentu.** Kwoty, sprzedawca i surowa odpowiedź zostają w `documents`;
+  dziennik ma liczby i kody. Komunikat błędu usługi to typ i opis błędu API — bez
+  danych finansowych i bez klucza.
+- **Dziennik nie psuje analizy.** Błąd zapisu wpisu ląduje w logu procesu, odczyt idzie
+  dalej.
+- Błąd przed wywołaniem albo przy zapisie wyniku (plik, `sharp`, baza) → `failed`
+  z `INTERNAL_ERROR` i klasą błędu.
+- Duplikat pliku i wyłączone OCR nie trafiają do dziennika — ich komunikat na ekranie
+  jest wystarczający.
+- Wpisy żyją 90 dni.
+
+Typowe odczyty dziennika: `AI_UNAVAILABLE` z `errorType: APIConnectionTimeoutError`
+i `durationMs` ≈ 3 × 120 s — model nie zdążył (długi paragon, dużo myślenia);
+`AI_OUTPUT_TRUNCATED` z `outputTokens` = `maxOutputTokens` — odpowiedź się nie zmieściła;
+`prepared` z ostrzeżeniem o wąskim obrazie — paragon za długi na jedno zdjęcie.

@@ -1002,6 +1002,7 @@ Pełny opis pipeline'u: [08-ocr-ai-pipeline.md](./08-ocr-ai-pipeline.md).
 | POST | `/documents/:id/discard` | Odrzucenie całości. |
 | DELETE | `/documents/:id` | Usunięcie dokumentu i pliku. |
 | GET | `/documents/:id/file` | Pobranie oryginału (uwierzytelnione). |
+| GET | `/documents/log?documentId=&limit=` | Dziennik odczytu od najnowszych — `AiLogEntryDto[]` (05 §12); `limit` 1–200, domyślnie 50 ([ADR-086](./14-decisions-log.md#adr-086)). |
 
 **`POST /documents`** — pola formularza: `file` (wymagane), `kind`
 (`receipt` | `bank_statement` | `invoice`, domyślnie `receipt`), `accountId`
@@ -1413,6 +1414,7 @@ z zapytania, domyślnie 3, inne wartości → `400`.
 | GET | `/settings/export` | Eksport całości do JSON (kopia użytkownika). |
 | GET | `/settings/export.csv?month=` | Eksport transakcji do CSV. |
 | POST | `/settings/reset` | Usunięcie wszystkich danych gospodarstwa po potwierdzeniu PIN-em. ([ADR-072](./14-decisions-log.md#adr-072)). |
+| PATCH | `/settings/ai-model` | Model odczytu dokumentów: `{ model }` z `AI_MODELS` (Haiku 5.5 / Sonnet 5.5) → `AiUsageDto`. Model spoza listy → `400` ([ADR-085](./14-decisions-log.md#adr-085)). |
 | GET | `/settings/ai-usage` | Zużycie i koszt OCR w bieżącym miesiącu — `AiUsageDto` (05 §12): `enabled` (flaga `AI_ENABLED`, UI chowa *Skan*), liczba dokumentów, tokeny, `spentMinor`, `budgetMinor`, `remainingMinor` (`null` bez limitu). **Od `F7-7`.** |
 
 **Szczegóły zachowania** (ustalone przy `F8-1`, `F8-2`, [ADR-061](./14-decisions-log.md#adr-061))

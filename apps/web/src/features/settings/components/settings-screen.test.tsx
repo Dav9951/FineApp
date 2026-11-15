@@ -191,6 +191,55 @@ describe('stany ekranu', () => {
     renderSettings();
     expect(await screen.findByText(/Limit na ten miesiąc wyczerpany/u)).toBeInTheDocument();
   });
+
+  it('przełącznik modelu zapisuje wybór od razu (ADR-085)', async () => {
+    vi.spyOn(documentsApi, 'fetchAiUsage').mockResolvedValue({
+      ...USAGE,
+      model: 'claude-sonnet-5-5',
+    });
+    const update = vi
+      .spyOn(documentsApi, 'updateAiModel')
+      .mockResolvedValue({ ...USAGE, model: 'claude-haiku-5-5' });
+    renderSettings();
+    const sonnet = await screen.findByRole('radio', { name: /Sonnet 5\.5/u });
+    expect(sonnet).toBeChecked();
+    await userEvent.click(screen.getByRole('radio', { name: /Haiku 5\.5/u }));
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith(expect.any(String), 'claude-haiku-5-5');
+    });
+    expect(await screen.findByText('Odczyt dokumentów: Haiku 5.5')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Haiku 5\.5/u })).toBeChecked();
+  });
+
+  it('model spoza katalogu (AI_MODEL) — żaden kafel nie zaznaczony, podpis z nazwą', async () => {
+    renderSettings();
+    expect(
+      await screen.findByText(/Działa model claude-sonnet-5 z konfiguracji serwera/u),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Haiku 5\.5/u })).not.toBeChecked();
+  });
+
+  it('dziennik odczytu otwiera się w arkuszu z wpisami (ADR-086)', async () => {
+    vi.spyOn(documentsApi, 'fetchAiLog').mockResolvedValue([
+      {
+        id: '01J9ZQK8WQ4444444444444444',
+        documentId: null,
+        documentName: 'paragon.jpg',
+        level: 'error',
+        event: 'failed',
+        message: 'Odpowiedź ucięta na limicie tokenów wyjścia.',
+        details: { errorCode: 'AI_OUTPUT_TRUNCATED', durationMs: 95_400 },
+        createdAt: Date.parse('2026-09-23T10:00:00Z'),
+      },
+    ]);
+    renderSettings();
+    await userEvent.click(await screen.findByRole('button', { name: /Dziennik odczytu/u }));
+    expect(
+      await screen.findByText('Odpowiedź ucięta na limicie tokenów wyjścia.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('AI_OUTPUT_TRUNCATED')).toBeInTheDocument();
+    expect(screen.getByText('95,4 s')).toBeInTheDocument();
+  });
 });
 
 describe('gospodarstwo', () => {

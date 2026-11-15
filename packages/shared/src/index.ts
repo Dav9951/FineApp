@@ -20,6 +20,7 @@ export * from './domain/goal.js';
 export * from './domain/allocation-status.js';
 export * from './domain/planned-expense.js';
 export * from './domain/document.js';
+export * from './domain/ai-models.js';
 export * from './domain/budget.js';
 export * from './domain/budget-layout.js';
 export * from './utils/money.js';

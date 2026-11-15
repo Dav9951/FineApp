@@ -68,7 +68,7 @@ function checkNamesOf(name: string): string[] {
 }
 
 describe('komplet tabel z 03 §3', () => {
-  it('schemat ma dokładnie 21 tabel opisanych w dokumencie', () => {
+  it('schemat ma dokładnie 22 tabele opisanych w dokumencie', () => {
     expect([...tables.keys()].sort()).toEqual(
       [
         'accounts',
@@ -81,6 +81,7 @@ describe('komplet tabel z 03 §3', () => {
         'budget_drafts',
         'categories',
         'document_items',
+        'document_logs',
         'documents',
         'goals',
         'households',
@@ -115,7 +116,12 @@ describe('konwencje z 03 §1', () => {
   });
 
   it('każda tabela domenowa ma created_at i updated_at', () => {
-    const withoutUpdatedAt = ['auth_sessions', 'auth_attempts', 'idempotency_keys'];
+    const withoutUpdatedAt = [
+      'auth_sessions',
+      'auth_attempts',
+      'idempotency_keys',
+      'document_logs',
+    ];
     for (const name of tables.keys()) {
       if (name === 'app_meta') continue;
       expect(columnsOf(name)).toContain('created_at');

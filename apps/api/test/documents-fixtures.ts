@@ -164,6 +164,7 @@ export function fakeExtractor(): FakeExtractor {
         model: 'fake-model',
         requestId: 'req_test',
         rawResponse: '{}',
+        diagnostics: { durationMs: 1200, stopReason: 'end_turn' },
       });
     },
   };

@@ -113,6 +113,8 @@ export const qk = {
   document: (id: string) => ['documents', id] as const,
   /** Lista „Ostatnie" na ekranie skanu. */
   documentList: () => ['documents', 'list'] as const,
+  /** Dziennik odczytu — całego gospodarstwa albo jednego dokumentu (ADR-086). */
+  aiLog: (documentId?: string) => ['documents', 'log', { documentId }] as const,
 
   /** Ustawienia gospodarstwa. */
   settings: () => ['settings'] as const,

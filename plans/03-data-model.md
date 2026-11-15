@@ -81,6 +81,9 @@ CREATE TABLE households (
                               CHECK (month_start_day BETWEEN 1 AND 28),
   -- Konto proponowane przy wydatkach i skanie (ADR-070). Usunięcie konta czyści pole.
   default_expense_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+  -- Model odczytu dokumentów z ustawień (ADR-085); NULL = AI_MODEL z konfiguracji.
+  -- Dozwolone wartości pilnuje kontrakt (AI_MODELS), nie CHECK — nowy model bez migracji.
+  ai_model                  TEXT,
   created_at                INTEGER NOT NULL,
   updated_at                INTEGER NOT NULL
 );
@@ -865,6 +868,39 @@ szkicu (07 §13.10) — dzięki temu zmiana układu w grudniu nie psuje listopad
 **Unikalność nazwy** (w sekcji szkicu, bez względu na wielkość liter) pilnuje serwis
 (I-25) — SQLite nie ma porównania `lower()` po polsku w indeksie, a po nazwie układ
 jest dopasowywany między miesiącami.
+
+### 3.22 `document_logs`
+
+> **Poza roadmapą** ([ADR-086](./14-decisions-log.md#adr-086)), migracja
+> `0007_ocr_log_ai_model` (razem z `households.ai_model`, ADR-085).
+
+Dziennik odczytu dokumentów — przebieg każdej analizy i odrzucone wrzucenia. Do diagnozy
+po fakcie, bez zaglądania do logów kontenera.
+
+```sql
+CREATE TABLE document_logs (
+  id            TEXT PRIMARY KEY,
+  household_id  TEXT    NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  -- SET NULL: wpis zostaje po usunięciu dokumentu, nazwa pliku w document_name.
+  document_id   TEXT    REFERENCES documents(id) ON DELETE SET NULL,
+  document_name TEXT,
+  level         TEXT    NOT NULL CHECK (level IN ('info','warn','error')),
+  event         TEXT    NOT NULL CHECK (event IN ('started','prepared','parsed',
+                                                  'failed','upload_rejected')),
+  message       TEXT    NOT NULL,
+  -- JSON { klucz: liczba | napis | boolean | null } — czas, tokeny, wymiary, kody.
+  -- Nigdy treść dokumentu (kwoty, sprzedawca, surowa odpowiedź zostają w documents).
+  details       TEXT    NOT NULL DEFAULT '{}',
+  created_at    INTEGER NOT NULL
+);
+
+CREATE INDEX idx_document_logs_household ON document_logs(household_id, created_at);
+CREATE INDEX idx_document_logs_document  ON document_logs(document_id, created_at);
+```
+
+Bez `updated_at` — wpis się nie zmienia. Wpisy starsze niż **90 dni** usuwa każdy kolejny
+zapis (`LOG_RETENTION_MS`). Nie wchodzi do eksportu (`EXPORT_TABLES`) — to diagnostyka,
+nie dane gospodarstwa; „Usuń wszystkie dane" (ADR-072) czyści go razem z dokumentami.
 
 ## 4. Niezmienniki wymuszane w serwisach
 

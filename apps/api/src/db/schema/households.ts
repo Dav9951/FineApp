@@ -32,6 +32,12 @@ export const households = sqliteTable(
       (): AnySQLiteColumn => accounts.id,
       { onDelete: 'set null' },
     ),
+    /**
+     * Model odczytu dokumentów wybrany w ustawieniach (ADR-085); `NULL` — `AI_MODEL`
+     * z konfiguracji. Lista dozwolonych wartości pilnowana w kontrakcie, nie w `CHECK`:
+     * dopisanie modelu do katalogu nie powinno wymagać migracji.
+     */
+    aiModel: text('ai_model'),
     ...timestamps,
   },
   (table) => [check('households_month_start_day_check', between(table.monthStartDay, 1, 28))],

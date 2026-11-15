@@ -15,6 +15,11 @@ import {
 import type { DbHandle } from '../../db/client.js';
 import { appMeta } from '../../db/schema/app-meta.js';
 import {
+  documentLogs,
+  type DocumentLogInsert,
+  type DocumentLogRow,
+} from '../../db/schema/document-logs.js';
+import {
   documentItems,
   documents,
   type DocumentInsert,
@@ -404,4 +409,62 @@ export function reassignItemsCategory(
       ),
     )
     .run();
+}
+
+/**
+ * Dopisuje wpis dziennika odczytu i sprząta wpisy starsze niż `olderThan` (ADR-086).
+ *
+ * Sprzątanie przy zapisie zamiast osobnego zadania: dwóch użytkowników, kilkanaście
+ * wpisów na dokument — usunięcie po indeksie `(household_id, created_at)` nic nie kosztuje.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param row - Wpis (bez `householdId`).
+ * @param olderThan - Wpisy sprzed tej chwili (epoch ms) są usuwane.
+ */
+export function insertDocumentLog(
+  handle: DbHandle,
+  householdId: string,
+  row: Omit<DocumentLogInsert, 'householdId'>,
+  olderThan: number,
+): void {
+  handle.db
+    .insert(documentLogs)
+    .values({ ...row, householdId })
+    .run();
+  handle.db
+    .delete(documentLogs)
+    .where(and(eq(documentLogs.householdId, householdId), lt(documentLogs.createdAt, olderThan)))
+    .run();
+}
+
+/**
+ * Wpisy dziennika odczytu od najnowszych.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param filter - Opcjonalny dokument i limit.
+ * @param filter.documentId - Tylko wpisy tego dokumentu.
+ * @param filter.limit - Najwięcej wierszy.
+ * @returns Wiersze dziennika.
+ */
+export function findDocumentLogs(
+  handle: DbHandle,
+  householdId: string,
+  filter: { readonly documentId?: string; readonly limit: number },
+): DocumentLogRow[] {
+  const conditions: SQL[] = [eq(documentLogs.householdId, householdId)];
+  if (filter.documentId !== undefined) {
+    conditions.push(eq(documentLogs.documentId, filter.documentId));
+  }
+  return (
+    handle.db
+      .select()
+      .from(documentLogs)
+      .where(and(...conditions))
+      // Ten sam znacznik czasu (dwa wpisy w jednej milisekundzie) — ULID rośnie w czasie.
+      .orderBy(desc(documentLogs.createdAt), desc(documentLogs.id))
+      .limit(filter.limit)
+      .all()
+  );
 }

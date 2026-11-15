@@ -23,13 +23,16 @@ export const VISION_MAX_EDGE_PX = 1568;
  *
  * @param bytes - Zapisany plik (JPEG po normalizacji albo PDF).
  * @param mimeType - Typ zapisanego pliku.
- * @returns Części gotowe do wysłania.
+ * @returns Części gotowe do wysłania; obraz z wymiarami przed i po skalowaniu.
  */
 export async function prepareForVision(bytes: Buffer, mimeType: string): Promise<PreparedPart[]> {
   if (mimeType === 'application/pdf') {
     return [{ kind: 'pdf', base64: bytes.toString('base64') }];
   }
-  const jpeg = await sharp(bytes)
+  // Zapisany plik jest już obrócony według EXIF-u (normalizacja przy wrzuceniu), więc
+  // wymiary z metadanych to wymiary paragonu, jakie widzi człowiek.
+  const source = await sharp(bytes).metadata();
+  const { data, info } = await sharp(bytes)
     .rotate()
     .resize({
       width: VISION_MAX_EDGE_PX,
@@ -38,6 +41,16 @@ export async function prepareForVision(bytes: Buffer, mimeType: string): Promise
       withoutEnlargement: true,
     })
     .jpeg({ quality: 80 })
-    .toBuffer();
-  return [{ kind: 'image', mediaType: 'image/jpeg', base64: jpeg.toString('base64') }];
+    .toBuffer({ resolveWithObject: true });
+  return [
+    {
+      kind: 'image',
+      mediaType: 'image/jpeg',
+      base64: data.toString('base64'),
+      width: info.width,
+      height: info.height,
+      sourceWidth: source.width ?? info.width,
+      sourceHeight: source.height ?? info.height,
+    },
+  ];
 }

@@ -290,8 +290,19 @@ describe('createAnthropicExtractor', () => {
     outputCostMinorPerMTok: 4000,
   };
   const input: ExtractInput = {
+    model: 'claude-sonnet-5',
     kind: 'receipt',
-    parts: [{ kind: 'image', mediaType: 'image/jpeg', base64: 'AAAA' }],
+    parts: [
+      {
+        kind: 'image',
+        mediaType: 'image/jpeg',
+        base64: 'AAAA',
+        width: 10,
+        height: 10,
+        sourceWidth: 10,
+        sourceHeight: 10,
+      },
+    ],
     categories: CATEGORIES.filter((category) => category.kind === 'expense'),
     timezone: 'Europe/Warsaw',
     currency: 'PLN',
