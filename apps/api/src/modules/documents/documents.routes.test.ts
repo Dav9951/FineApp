@@ -542,9 +542,9 @@ describe('analiza — błędy i koszty', () => {
       .where(eq(documents.id, id))
       .run();
     // Obraca się tylko to, co w `processing` dłużej niż 10 minut.
-    expect(failInterruptedDocuments(s.app.db, s.clock)).toBe(0);
+    expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(0);
     s.clock.advance(STALE_PROCESSING_MS + 1);
-    expect(failInterruptedDocuments(s.app.db, s.clock)).toBe(1);
+    expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(1);
     expect(await getDoc(s, id)).toMatchObject({
       status: 'failed',
       errorCode: 'INTERRUPTED',

@@ -2,6 +2,7 @@ import {
   AI_MODELS,
   currentMonthKey,
   exportFileName,
+  findAiModel,
   todayInTimezone,
   toBps,
   type AiModelId,
@@ -218,7 +219,7 @@ const MODEL_OPTIONS = AI_MODELS.map((option) => ({ value: option.id, label: opti
 function AiModelSwitch({ model }: { model: string }): ReactNode {
   const update = useUpdateAiModel();
   const toast = useToast();
-  const current = AI_MODELS.find((option) => option.id === model);
+  const current = findAiModel(model);
   const pending = update.isPending ? update.variables : undefined;
   const shown = pending ?? current?.id;
   return (
@@ -229,7 +230,7 @@ function AiModelSwitch({ model }: { model: string }): ReactNode {
           if (next === '' || next === model) return;
           update.mutate(next, {
             onSuccess: (usage) => {
-              const label = AI_MODELS.find((option) => option.id === usage.model)?.label;
+              const label = findAiModel(usage.model)?.label;
               toast.show({ message: `Odczyt dokumentów: ${label ?? usage.model}` });
             },
             onError: (error) => {

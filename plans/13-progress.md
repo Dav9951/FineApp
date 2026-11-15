@@ -3,9 +3,9 @@
 > Stan realizacji faz, sprawy zauważone do rozważenia i wskaźniki jakości.
 > Plan zadań: [11-roadmap.md](./11-roadmap.md).
 
-**Ostatnia aktualizacja:** 2026-11-15 (dziennik odczytu, przełącznik modelu AI, szukanie kategorii w filtrach — ADR-085…087)
+**Ostatnia aktualizacja:** 2026-11-15 (dziennik odczytu, przełącznik modelu AI, szukanie kategorii w filtrach — ADR-085…087; poprawki po przeglądzie)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
-**Stan:** ✅ typecheck · lint · format · **2400 testów zielonych**
+**Stan:** ✅ typecheck · lint · format · **2409 testów zielonych**
 
 ---
 

@@ -34,6 +34,7 @@ import {
   type ExtractResult,
   type PreparedPart,
 } from '../../ai/document-extractor.js';
+import { errorDiagnostics } from '../../ai/diagnostics.js';
 import { prepareForVision } from '../../ai/prepare-for-vision.js';
 import { CATEGORY_CONTEXT_LIMIT } from '../../ai/prompts/extraction-prompt.js';
 import type { Clock } from '../../core/clock.js';
@@ -51,11 +52,16 @@ import { newId } from '../../core/id.js';
 import type { DbHandle } from '../../db/client.js';
 import type { DocumentItemInsert, DocumentRow } from '../../db/schema/documents.js';
 import { lookupAccount } from '../accounts/accounts.service.js';
-import { getHousehold, getHouseholdAiModel, setHouseholdAiModel } from '../auth/auth.service.js';
+import {
+  getHousehold,
+  getHouseholdWithAiModel,
+  setHouseholdAiModel,
+} from '../auth/auth.service.js';
 import { listCategoriesFlat, lookupCategory } from '../categories/categories.service.js';
 import { categoriesUsedSince, duplicateCandidates } from '../transactions/transactions.ledger.js';
 import {
   normalizeUpload,
+  PDF_MAX_PAGES,
   readStoredFile,
   removeStoredFiles,
   sniffMediaType,
@@ -81,6 +87,7 @@ import {
   findDocuments,
   insertDocument,
   insertDocumentLog,
+  pruneDocumentLogs,
   patchDocument,
   patchDocumentItem,
   readAiSpend,
@@ -142,15 +149,12 @@ export const NARROW_IMAGE_PX = 500;
 /**
  * Model odczytu gospodarstwa: wybrany w ustawieniach albo `AI_MODEL` (ADR-085).
  *
- * @param deps - Zależności.
- * @param householdId - Gospodarstwo.
+ * @param aiModel - `households.ai_model` (`null` — brak wyboru).
+ * @param config - Konfiguracja AI.
  * @returns Identyfikator modelu.
  */
-export function activeAiModel(
-  deps: Pick<DocumentsDeps, 'db' | 'config'>,
-  householdId: string,
-): string {
-  return getHouseholdAiModel(deps.db, householdId) ?? deps.config.ai.model;
+export function resolveAiModel(aiModel: string | null, config: Config['ai']): string {
+  return aiModel ?? config.model;
 }
 
 /**
@@ -191,37 +195,37 @@ function writeLog(
 ): void {
   const now = deps.clock.now().getTime();
   try {
-    insertDocumentLog(
-      deps.db,
-      householdId,
-      {
-        id: newId(),
-        documentId: entry.document?.id ?? null,
-        documentName: entry.document?.name ?? null,
-        level: entry.level,
-        event: entry.event,
-        message: entry.message,
-        details: JSON.stringify(entry.details ?? {}),
-        createdAt: now,
-      },
-      now - LOG_RETENTION_MS,
-    );
+    insertDocumentLog(deps.db, householdId, {
+      id: newId(),
+      documentId: entry.document?.id ?? null,
+      documentName: entry.document?.name ?? null,
+      level: entry.level,
+      event: entry.event,
+      message: entry.message,
+      details: JSON.stringify(entry.details ?? {}),
+      createdAt: now,
+    });
   } catch (error) {
     deps.log.warn({ err: error, event: entry.event }, 'Nie udało się zapisać dziennika odczytu');
   }
 }
 
 /**
- * Opis błędu spoza ekstraktora (odczyt pliku, `sharp`, baza) do dziennika.
+ * Sprząta wpisy dziennika starsze niż `LOG_RETENTION_MS` — raz na analizę (ADR-086).
+ * Jak zapis wpisu, nigdy nie rzuca.
  *
- * @param error - Błąd.
- * @returns Szczegóły: klasa i komunikat, bez stosu.
+ * @param deps - Zależności.
+ * @param householdId - Gospodarstwo.
  */
-function unexpectedDiagnostics(error: unknown): ExtractionDiagnostics {
-  return {
-    errorType: error instanceof Error ? error.constructor.name : typeof error,
-    apiMessage: (error instanceof Error ? error.message : String(error)).slice(0, 300),
-  };
+function pruneOldLogs(
+  deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log'>,
+  householdId: string,
+): void {
+  try {
+    pruneDocumentLogs(deps.db, householdId, deps.clock.now().getTime() - LOG_RETENTION_MS);
+  } catch (error) {
+    deps.log.warn({ err: error }, 'Nie udało się posprzątać dziennika odczytu');
+  }
 }
 
 /**
@@ -442,7 +446,7 @@ export function recordRejectedUpload(
   const logged =
     error instanceof FileTooLargeError ||
     error instanceof UnsupportedMediaTypeError ||
-    error instanceof DomainRuleViolationError;
+    isPdfPageLimitError(error);
   if (!logged) return;
   writeLog(deps, householdId, {
     document: null,
@@ -452,8 +456,26 @@ export function recordRejectedUpload(
     details: {
       errorCode: error.code,
       ...(error instanceof FileTooLargeError ? { maxBytes: deps.config.uploads.maxBytes } : {}),
+      ...(error instanceof DomainRuleViolationError ? { maxPages: PDF_MAX_PAGES } : {}),
     },
   });
+}
+
+/**
+ * Czy to odrzucenie PDF-u ponad limit stron (08 §3).
+ *
+ * Wrzucenie rzuca `DomainRuleViolationError` w dwóch miejscach: limit stron (szczegół
+ * na polu `file`) i zarchiwizowane konto (pole `accountId`). Do dziennika trafia tylko
+ * pierwsze — zarchiwizowane konto ma jasny komunikat przy polu formularza.
+ *
+ * @param error - Błąd wrzucenia.
+ * @returns `true` dla PDF-u ponad limit stron.
+ */
+function isPdfPageLimitError(error: unknown): error is DomainRuleViolationError {
+  return (
+    error instanceof DomainRuleViolationError &&
+    error.details?.some((detail) => detail.path === 'file') === true
+  );
 }
 
 /**
@@ -472,8 +494,17 @@ export function reanalyzeDocument(
   id: string,
 ): UploadDocumentResponse {
   const extractor = requireExtractor(deps);
-  requireDocument(deps.db, householdId, id);
-  if (budgetExhausted(deps, householdId)) throw new AiBudgetExceededError(BUDGET_MESSAGE);
+  const row = requireDocument(deps.db, householdId, id);
+  if (budgetExhausted(deps, householdId)) {
+    writeLog(deps, householdId, {
+      document: { id, name: row.originalFilename },
+      level: 'warn',
+      event: 'upload_rejected',
+      message: 'Ponowna analiza odrzucona — wyczerpany miesięczny limit kosztów.',
+      details: { errorCode: 'AI_BUDGET_EXCEEDED', budgetMinor: deps.config.ai.monthlyBudgetMinor },
+    });
+    throw new AiBudgetExceededError(BUDGET_MESSAGE);
+  }
   startAnalysis(deps, extractor, householdId, id, ['uploaded', 'parsed', 'failed']);
   return { id, status: 'processing', pollAfterMs: POLL_AFTER_MS };
 }
@@ -628,16 +659,17 @@ async function analyzeDocument(
 ): Promise<void> {
   const row = findDocumentById(deps.db, householdId, id);
   if (row?.status !== 'processing') return;
-  const household = getHousehold(deps.db, householdId);
+  const { household, aiModel } = getHouseholdWithAiModel(deps.db, householdId);
   const today = todayInTimezone(household.timezone, deps.clock.now());
   const kind: ExtractionKind = row.kind === 'bank_statement' ? 'bank_statement' : 'receipt';
-  const month = budgetMonth(deps, householdId);
-  const model = activeAiModel(deps, householdId);
+  const month = currentMonthKey(household.timezone, deps.clock.now());
+  const model = resolveAiModel(aiModel, deps.config.ai);
   const rates = ratesFor(model, deps.config.ai);
   const document = { id, name: row.originalFilename };
   const log = (entry: Omit<LogInput, 'document'>): void => {
     writeLog(deps, householdId, { document, ...entry });
   };
+  pruneOldLogs(deps, householdId);
 
   log({
     level: 'info',
@@ -745,7 +777,7 @@ async function analyzeDocument(
       message: FAILURE_EXPLANATION[code],
       details: {
         errorCode: code,
-        ...(extraction === null ? unexpectedDiagnostics(error) : extraction.details.diagnostics),
+        ...(extraction === null ? errorDiagnostics(error) : extraction.details.diagnostics),
         ...(usage === undefined ? {} : { costMinor }),
         requestId: extraction?.details.requestId ?? null,
       },
@@ -813,13 +845,27 @@ function logPrepared(
 /**
  * Oznacza przerwane analizy jako nieudane — wołane przy starcie (08 §2).
  *
- * @param handle - Uchwyt bazy.
- * @param clock - Źródło czasu.
+ * Każdy oznaczony dokument dostaje wpis `failed` w dzienniku (ADR-086): bez niego
+ * dziennik kończyłby się na `started` / `prepared` i wyglądał, jakby analiza wciąż trwała.
+ *
+ * @param deps - Zależności.
  * @returns Liczba oznaczonych dokumentów.
  */
-export function failInterruptedDocuments(handle: DbHandle, clock: Clock): number {
-  const now = clock.now().getTime();
-  return failStaleProcessing(handle, now - STALE_PROCESSING_MS, now);
+export function failInterruptedDocuments(
+  deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log'>,
+): number {
+  const now = deps.clock.now().getTime();
+  const failed = failStaleProcessing(deps.db, now - STALE_PROCESSING_MS, now);
+  for (const document of failed) {
+    writeLog(deps, document.householdId, {
+      document: { id: document.id, name: document.originalFilename },
+      level: 'error',
+      event: 'failed',
+      message: 'Analiza przerwana restartem serwera.',
+      details: { errorCode: 'INTERRUPTED', staleAfterMs: STALE_PROCESSING_MS },
+    });
+  }
+  return failed.length;
 }
 
 /**
@@ -1106,7 +1152,7 @@ export function getAiUsage(
   deps: Pick<DocumentsDeps, 'db' | 'config' | 'clock'>,
   householdId: string,
 ): AiUsageDto {
-  const household = getHousehold(deps.db, householdId);
+  const { household, aiModel } = getHouseholdWithAiModel(deps.db, householdId);
   const now = deps.clock.now();
   const monthKey = currentMonthKey(household.timezone, now);
   const spentMinor = readAiSpend(deps.db, monthKey);
@@ -1116,7 +1162,7 @@ export function getAiUsage(
   const range = monthEpochRange(monthKey, household.timezone);
   return {
     enabled: deps.config.ai.enabled,
-    model: activeAiModel(deps, householdId),
+    model: resolveAiModel(aiModel, deps.config.ai),
     monthKey,
     ...sumAiUsage(deps.db, householdId, range.from, range.to),
     spentMinor,

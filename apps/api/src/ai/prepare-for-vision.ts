@@ -29,9 +29,11 @@ export async function prepareForVision(bytes: Buffer, mimeType: string): Promise
   if (mimeType === 'application/pdf') {
     return [{ kind: 'pdf', base64: bytes.toString('base64') }];
   }
-  // Zapisany plik jest już obrócony według EXIF-u (normalizacja przy wrzuceniu), więc
-  // wymiary z metadanych to wymiary paragonu, jakie widzi człowiek.
-  const source = await sharp(bytes).metadata();
+  // `width` / `height` z metadanych to piksele przed obrotem; `autoOrient` uwzględnia
+  // znacznik EXIF (orientacje 5–8 zamieniają boki), tak jak robi to `.rotate()` niżej.
+  // Plik po normalizacji jest już obrócony, ale wymiary mają być prawdziwe także dla
+  // pliku, który przyszedł inną drogą (np. `ocr:evaluate`).
+  const source = (await sharp(bytes).metadata()).autoOrient;
   const { data, info } = await sharp(bytes)
     .rotate()
     .resize({
@@ -49,8 +51,8 @@ export async function prepareForVision(bytes: Buffer, mimeType: string): Promise
       base64: data.toString('base64'),
       width: info.width,
       height: info.height,
-      sourceWidth: source.width ?? info.width,
-      sourceHeight: source.height ?? info.height,
+      sourceWidth: source.width,
+      sourceHeight: source.height,
     },
   ];
 }

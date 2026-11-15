@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   filterCategoryTree,
+  fullCategoryNode,
   hasAnyFilter,
   historyFiltersToParams,
   historyQuery,
@@ -213,5 +214,32 @@ describe('filterCategoryTree', () => {
 
   it('nic nie pasuje — pusta lista', () => {
     expect(filterCategoryTree(tree, 'kino')).toEqual([]);
+  });
+});
+
+describe('fullCategoryNode', () => {
+  const tree = [
+    {
+      id: 'jedzenie',
+      name: 'Jedzenie',
+      children: [
+        { id: 'kawa', name: 'Kawa' },
+        { id: 'restauracje', name: 'Restauracje' },
+      ],
+    },
+  ];
+
+  it('rodzic z zawężonego drzewa przełącza wszystkie podkategorie', () => {
+    const [narrowed] = filterCategoryTree(tree, 'kawa');
+    expect(narrowed?.children.map((child) => child.id)).toEqual(['kawa']);
+    const node = fullCategoryNode(tree, narrowed ?? tree[0]!);
+    const selected = toggleCategory([], node);
+    expect(selected).toEqual(['jedzenie', 'kawa', 'restauracje']);
+    expect(toggleCategory(selected, node)).toEqual([]);
+  });
+
+  it('nieznany węzeł — zwraca go bez zmian', () => {
+    const lone = { id: 'inny', name: 'Inny', children: [] };
+    expect(fullCategoryNode(tree, lone)).toBe(lone);
   });
 });

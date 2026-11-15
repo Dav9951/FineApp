@@ -274,3 +274,19 @@ export function filterCategoryTree<T extends NamedCategoryNode>(
   }
   return result;
 }
+
+/**
+ * Pełny węzeł kategorii głównej z niezawężonego drzewa.
+ *
+ * Przy szukaniu panel pokazuje rodzica tylko z pasującymi dziećmi, ale zaznaczenie
+ * rodzica ma działać jak zawsze — na **wszystkich** podkategoriach (`toggleCategory`).
+ * Inaczej „Jedzenie" zaznaczone przy szukaniu „kawa" pominęłoby „Restauracje",
+ * a odznaczone — zostawiłoby je w wyborze, niewidoczne.
+ *
+ * @param tree - Pełne drzewo jednego rodzaju.
+ * @param node - Węzeł z drzewa zawężonego.
+ * @returns Węzeł z pełnego drzewa o tym samym `id`; gdy go nie ma — `node`.
+ */
+export function fullCategoryNode<T extends CategoryNode>(tree: readonly T[], node: T): T {
+  return tree.find((root) => root.id === node.id) ?? node;
+}

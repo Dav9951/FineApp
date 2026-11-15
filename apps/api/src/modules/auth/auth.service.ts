@@ -585,20 +585,24 @@ export function getHousehold(handle: DbHandle, householdId: string): HouseholdDt
 }
 
 /**
- * Model odczytu dokumentów wybrany w ustawieniach gospodarstwa (ADR-085).
+ * Gospodarstwo razem z modelem odczytu dokumentów (ADR-085) — jednym odczytem wiersza.
  *
- * Nie należy do `HouseholdDto`: ten idzie w odpowiedzi logowania, a model obchodzi tylko
- * moduł dokumentów i sekcję AI w ustawieniach.
+ * Model nie należy do `HouseholdDto`: ten idzie w odpowiedzi logowania, a model obchodzi
+ * tylko moduł dokumentów i sekcję AI w ustawieniach. Analiza potrzebuje obu naraz, więc
+ * osobne `getHousehold` i odczyt modelu czytałyby ten sam wiersz dwa razy.
  *
  * @param handle - Uchwyt bazy.
  * @param householdId - Gospodarstwo z tokenu.
- * @returns Identyfikator modelu albo `null`, gdy obowiązuje `AI_MODEL`.
+ * @returns Ustawienia gospodarstwa i model (`null`, gdy obowiązuje `AI_MODEL`).
  * @throws {UnauthorizedError} Gdy gospodarstwa z tokenu nie ma w bazie.
  */
-export function getHouseholdAiModel(handle: DbHandle, householdId: string): string | null {
-  const household = findHouseholdById(handle, householdId);
-  if (household === undefined) throw new UnauthorizedError('Sesja wygasła. Zaloguj się ponownie.');
-  return household.aiModel;
+export function getHouseholdWithAiModel(
+  handle: DbHandle,
+  householdId: string,
+): { household: HouseholdDto; aiModel: string | null } {
+  const row = findHouseholdById(handle, householdId);
+  if (row === undefined) throw new UnauthorizedError('Sesja wygasła. Zaloguj się ponownie.');
+  return { household: toHouseholdDto(row), aiModel: row.aiModel };
 }
 
 /**

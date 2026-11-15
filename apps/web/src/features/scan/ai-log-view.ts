@@ -38,6 +38,8 @@ const DETAIL_LABEL: Readonly<Record<string, string>> = {
   reason: 'przyczyna',
   budgetMinor: 'limit (gr)',
   maxBytes: 'limit rozmiaru',
+  maxPages: 'limit stron',
+  staleAfterMs: 'uznana za przerwaną po',
 };
 
 /**
@@ -50,7 +52,7 @@ const DETAIL_LABEL: Readonly<Record<string, string>> = {
 export function detailValue(key: string, value: string | number | boolean | null): string {
   if (value === null) return '—';
   if (typeof value === 'number') {
-    if (key === 'durationMs' || key === 'timeoutMs') {
+    if (key === 'durationMs' || key === 'timeoutMs' || key === 'staleAfterMs') {
       return `${(value / 1000).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} s`;
     }
     if (key === 'byteSize' || key === 'maxBytes') {

@@ -15,6 +15,7 @@ import { useCategoryTree } from '../../categories/hooks/use-categories.js';
 import { useIncomeSources } from '../../income-sources/hooks/use-income-sources.js';
 import {
   filterCategoryTree,
+  fullCategoryNode,
   parseAmountBound,
   toggleCategory,
   type HistoryFilters,
@@ -118,7 +119,9 @@ function CategoryChecklist({
             <Checkbox
               checked={selected.includes(root.id)}
               onCheckedChange={() => {
-                onChange(toggleCategory(selected, root));
+                // Pełny węzeł z drzewa, nie zawężony wyszukiwaniem — rodzic przełącza
+                // wszystkie podkategorie, także te ukryte przez „Szukaj kategorii".
+                onChange(toggleCategory(selected, fullCategoryNode(tree.data, root)));
               }}
             >
               <span className="font-medium">{root.name}</span>

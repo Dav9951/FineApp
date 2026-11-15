@@ -209,9 +209,13 @@ export function deleteDocumentRow(handle: DbHandle, householdId: string, id: str
  * @param handle - Uchwyt bazy.
  * @param olderThan - Granica `updated_at` (epoch ms).
  * @param now - Chwila zapisu.
- * @returns Liczba oznaczonych dokumentów.
+ * @returns Oznaczone dokumenty — gospodarstwo i nazwa pliku do wpisu w dzienniku (ADR-086).
  */
-export function failStaleProcessing(handle: DbHandle, olderThan: number, now: number): number {
+export function failStaleProcessing(
+  handle: DbHandle,
+  olderThan: number,
+  now: number,
+): { id: string; householdId: string; originalFilename: string }[] {
   return handle.db
     .update(documents)
     .set({
@@ -221,7 +225,12 @@ export function failStaleProcessing(handle: DbHandle, olderThan: number, now: nu
       updatedAt: now,
     })
     .where(and(eq(documents.status, 'processing'), lt(documents.updatedAt, olderThan)))
-    .run().changes;
+    .returning({
+      id: documents.id,
+      householdId: documents.householdId,
+      originalFilename: documents.originalFilename,
+    })
+    .all();
 }
 
 /**
@@ -412,30 +421,43 @@ export function reassignItemsCategory(
 }
 
 /**
- * Dopisuje wpis dziennika odczytu i sprząta wpisy starsze niż `olderThan` (ADR-086).
- *
- * Sprzątanie przy zapisie zamiast osobnego zadania: dwóch użytkowników, kilkanaście
- * wpisów na dokument — usunięcie po indeksie `(household_id, created_at)` nic nie kosztuje.
+ * Dopisuje wpis dziennika odczytu (ADR-086).
  *
  * @param handle - Uchwyt bazy.
  * @param householdId - Gospodarstwo.
  * @param row - Wpis (bez `householdId`).
- * @param olderThan - Wpisy sprzed tej chwili (epoch ms) są usuwane.
  */
 export function insertDocumentLog(
   handle: DbHandle,
   householdId: string,
   row: Omit<DocumentLogInsert, 'householdId'>,
-  olderThan: number,
 ): void {
   handle.db
     .insert(documentLogs)
     .values({ ...row, householdId })
     .run();
-  handle.db
+}
+
+/**
+ * Usuwa wpisy dziennika gospodarstwa starsze niż `olderThan` (ADR-086).
+ *
+ * Wołane raz na analizę, nie przy każdym wpisie — analiza dopisuje 3–4 wiersze, a jedno
+ * usunięcie po indeksie `(household_id, created_at)` wystarcza.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param olderThan - Wpisy sprzed tej chwili (epoch ms) są usuwane.
+ * @returns Liczba usuniętych wpisów.
+ */
+export function pruneDocumentLogs(
+  handle: DbHandle,
+  householdId: string,
+  olderThan: number,
+): number {
+  return handle.db
     .delete(documentLogs)
     .where(and(eq(documentLogs.householdId, householdId), lt(documentLogs.createdAt, olderThan)))
-    .run();
+    .run().changes;
 }
 
 /**

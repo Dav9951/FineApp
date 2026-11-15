@@ -509,8 +509,8 @@ odczytać w aplikacji, a nie zgadywać z „Spróbuj ponownie":
 | `started` | info | `model`, `kind`, `mimeType`, `byteSize`, `pageCount` |
 | `prepared` | info; **warn**, gdy krótszy bok obrazu po skalowaniu < 500 px (`NARROW_IMAGE_PX`) | `sourceWidth`, `sourceHeight`, `width`, `height`, `sentKb`, `categoryCount` |
 | `parsed` | info; **warn** przy zerze pozycji | `durationMs`, `stopReason`, `inputTokens`, `outputTokens`, `maxOutputTokens`, `itemCount`, `costMinor`, `requestId` |
-| `failed` | error | `errorCode`, `durationMs`, `httpStatus`, `errorType` (np. `APIConnectionTimeoutError`), `apiMessage` (≤ 300 znaków), `timeoutMs`, `maxRetries`, `stopReason`, `reason` (schemat), `costMinor` |
-| `upload_rejected` | warn | `errorCode` (`FILE_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `DOMAIN_RULE_VIOLATION`, `AI_BUDGET_EXCEEDED`), `maxBytes` |
+| `failed` | error | Analiza przerwana restartem (oznaczana przy starcie): `errorCode: INTERRUPTED`, `staleAfterMs`. Pozostałe: `errorCode`, `durationMs`, `httpStatus`, `errorType` (np. `APIConnectionTimeoutError`), `apiMessage` (≤ 300 znaków), `timeoutMs`, `maxRetries`, `stopReason`, `reason` (schemat), `costMinor` |
+| `upload_rejected` | warn | `errorCode` (`FILE_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `DOMAIN_RULE_VIOLATION` — tylko PDF ponad limit stron, `AI_BUDGET_EXCEEDED` — przy wrzuceniu i przy ponownej analizie), `maxBytes`, `maxPages`, `budgetMinor` |
 
 Zasady:
 
@@ -523,7 +523,9 @@ Zasady:
   z `INTERNAL_ERROR` i klasą błędu.
 - Duplikat pliku i wyłączone OCR nie trafiają do dziennika — ich komunikat na ekranie
   jest wystarczający.
-- Wpisy żyją 90 dni.
+- Wpisy żyją 90 dni; stare usuwa początek każdej analizy.
+- Wymiary oryginału (`sourceWidth`, `sourceHeight`) uwzględniają orientację EXIF —
+  orientacje 5–8 zamieniają boki.
 
 Typowe odczyty dziennika: `AI_UNAVAILABLE` z `errorType: APIConnectionTimeoutError`
 i `durationMs` ≈ 3 × 120 s — model nie zdążył (długi paragon, dużo myślenia);

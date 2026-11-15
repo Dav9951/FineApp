@@ -898,8 +898,8 @@ CREATE INDEX idx_document_logs_household ON document_logs(household_id, created_
 CREATE INDEX idx_document_logs_document  ON document_logs(document_id, created_at);
 ```
 
-Bez `updated_at` — wpis się nie zmienia. Wpisy starsze niż **90 dni** usuwa każdy kolejny
-zapis (`LOG_RETENTION_MS`). Nie wchodzi do eksportu (`EXPORT_TABLES`) — to diagnostyka,
+Bez `updated_at` — wpis się nie zmienia. Wpisy starsze niż **90 dni** usuwa początek
+każdej analizy (`LOG_RETENTION_MS`, jedno zapytanie na analizę). Nie wchodzi do eksportu (`EXPORT_TABLES`) — to diagnostyka,
 nie dane gospodarstwa; „Usuń wszystkie dane" (ADR-072) czyści go razem z dokumentami.
 
 ## 4. Niezmienniki wymuszane w serwisach

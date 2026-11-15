@@ -2,6 +2,8 @@
  Dziennik odczytu dokumentów (ADR-086): tabela `document_logs` z 03 §3.22.
  Model odczytu w ustawieniach (ADR-085): kolumna `households.ai_model`; istniejące
  gospodarstwo przechodzi na Haiku 5.5 — powrót na Sonnet jednym kliknięciem w Ustawieniach.
+ UPDATE na końcu celowo nadpisuje AI_MODEL z env dla istniejących gospodarstw: przy NULL
+ produkcja z jawnym AI_MODEL=claude-sonnet-5-5 zostałaby na Sonnecie (ADR-085 pkt 5).
 */
 CREATE TABLE `document_logs` (
 	`id` text PRIMARY KEY NOT NULL,

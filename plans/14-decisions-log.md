@@ -4320,8 +4320,13 @@ myślenie adaptacyjne domyślnie (effort `medium`).
 3. Model trafia do ekstraktora w `ExtractInput.model` przy każdym odczycie; dokument
    zapisuje model, którym go odczytano (`documents.ai_model`).
 4. Stawki z env (`AI_*_COST_MINOR_PER_MTOK`) obowiązują już tylko model spoza katalogu.
-5. Domyślny `AI_MODEL` → `claude-haiku-5-5`; migracja `0007` ustawia istniejące
-   gospodarstwo na Haiku (prośba właściciela). Powrót — jeden kafel w Ustawieniach.
+5. Domyślny `AI_MODEL` → `claude-haiku-5-5`. Migracja `0007` **świadomie** wpisuje
+   `claude-haiku-5-5` do `households.ai_model` istniejących gospodarstw (prośba
+   właściciela), zamiast zostawić `NULL`: produkcyjny `.env` ma jawnie
+   `AI_MODEL=claude-sonnet-5-5` (z dawnego `.env.example`), więc przy `NULL` nic by się
+   nie zmieniło. Skutek: od tej migracji `AI_MODEL` z env **nie działa** dla istniejących
+   gospodarstw — liczy się wybór w Ustawieniach; `AI_MODEL` obowiązuje tylko gospodarstwo
+   bez wyboru (nowe z seeda). Powrót na Sonnet — jeden kafel w Ustawieniach.
 6. Przełącznik w sekcji „Odczyt dokumentów (AI)" (06 §3.12): zapis od razu po wyborze.
 
 **Odrzucone.** Dowolny napis w przełączniku — bez stawek koszt liczyłby się stawkami
@@ -4329,7 +4334,9 @@ Sonneta (przeszacowanie ×20) albo wcale. `CHECK` w bazie na liście modeli — 
 modelu wymagałoby migracji. Model jako zmienna z restartem — o to właśnie chodziło, żeby
 nie trzeba było.
 
-**Konsekwencje.** `AI_MODEL` w `.env` produkcji nie wygrywa z wyborem w Ustawieniach.
+**Konsekwencje.** `AI_MODEL` w `.env` produkcji nie wygrywa z wyborem w Ustawieniach,
+a po migracji `0007` wybór jest ustawiony — zmiana `AI_MODEL` nic nie da (napisane też
+w `.env.example`).
 Zmienione: 03 §3.1, 04 §15, 05 §12, 06 §3.12, 08 §8–§9, 10 (domyślny `AI_MODEL`).
 
 <a id="adr-086"></a>
@@ -4356,10 +4363,15 @@ niego właściciel z telefonu i tak nie zajrzy.
 3. `GET /documents/log?documentId=&limit=` (04 §13). Widok: arkusz „Dziennik odczytu"
    w Ustawieniach (całe gospodarstwo) i sekcja na ekranie dokumentu w trakcie analizy
    i po niepowodzeniu (06 §3.4, §3.12).
-4. Bez treści dokumentu w dzienniku (reguła 12). Wpisy żyją 90 dni, sprzątane przy
-   zapisie; usunięcie dokumentu zostawia wpisy (`SET NULL` + `document_name`);
+4. Bez treści dokumentu w dzienniku (reguła 12). Wpisy żyją 90 dni, sprzątane na
+   starcie każdej analizy (raz, nie przy każdym wpisie); usunięcie dokumentu zostawia
+   wpisy (`SET NULL` + `document_name`);
    „Usuń wszystkie dane" czyści dziennik.
 5. Zapis wpisu nigdy nie rzuca — dziennik nie może zepsuć odczytu.
+6. Analiza przerwana restartem (`INTERRUPTED`, oznaczana przy starcie) dostaje wpis
+   `failed` „Analiza przerwana restartem serwera."; ponowna analiza odrzucona przez
+   wyczerpany limit — wpis `upload_rejected`. Z `DomainRuleViolationError` przy wrzuceniu
+   trafia do dziennika tylko PDF ponad limit stron, nie zarchiwizowane konto.
 
 **Odrzucone.** Szczegóły w `documents.error_message` — jedna linia na dokument, bez
 historii prób i bez odrzuconych wrzuceń, które dokumentu nie mają. Podgląd logów

@@ -13,16 +13,26 @@ import {
   fakeExtractor,
   multipart,
   receiptPhoto,
+  tinyPdf,
   type FakeExtractor,
 } from '../../../test/documents-fixtures.js';
-import { householdFixture, type HouseholdFixture } from '../../../test/factories.js';
+import { eq } from 'drizzle-orm';
+
+import { householdFixture, insertAccount, type HouseholdFixture } from '../../../test/factories.js';
 import { ExtractionError } from '../../ai/document-extractor.js';
 import { mutableClock, type MutableClock } from '../../core/clock.js';
 import type { Config } from '../../core/config.js';
 import { newId } from '../../core/id.js';
+import { documents } from '../../db/schema/documents.js';
 import { createDocumentJobs, type DocumentJobs } from './documents.jobs.js';
 import { insertDocumentLog } from './documents.repository.js';
-import { LOG_RETENTION_MS, ratesFor } from './documents.service.js';
+import {
+  failInterruptedDocuments,
+  LOG_RETENTION_MS,
+  ratesFor,
+  resolveAiModel,
+  STALE_PROCESSING_MS,
+} from './documents.service.js';
 
 /**
  * Dziennik odczytu (ADR-086) i przełącznik modelu (ADR-085): `GET /documents/log`,
@@ -54,9 +64,13 @@ interface Setup {
  * Aplikacja z włączonym OCR i atrapą ekstraktora.
  *
  * @param uploads - Nadpisania sekcji `uploads`.
+ * @param ai - Nadpisania sekcji `ai`.
  * @returns Środowisko testu.
  */
-async function setup(uploads: Partial<Config['uploads']> = {}): Promise<Setup> {
+async function setup(
+  uploads: Partial<Config['uploads']> = {},
+  ai: Partial<Config['ai']> = {},
+): Promise<Setup> {
   const dir = mkdtempSync(join(tmpdir(), 'fineapp-log-'));
   uploadDir = dir;
   const clock = mutableClock(START);
@@ -65,7 +79,7 @@ async function setup(uploads: Partial<Config['uploads']> = {}): Promise<Setup> {
   const base = testConfig();
   const app = await buildTestApp(
     {
-      ai: { ...base.ai, enabled: true, apiKey: 'test' },
+      ai: { ...base.ai, enabled: true, apiKey: 'test', ...ai },
       uploads: { dir, maxBytes: 10_485_760, ...uploads },
     },
     clock,
@@ -203,20 +217,94 @@ describe('GET /documents/log', () => {
     expect(rejected?.message).toContain('dlugi-paragon.jpg');
   });
 
+  it('PDF ponad limit stron → upload_rejected z limitem stron', async () => {
+    const s = await setup();
+    const body = multipart(
+      { kind: 'bank_statement' },
+      { filename: 'wyciag.pdf', contentType: 'application/pdf', bytes: tinyPdf(6) },
+    );
+    const response = await s.app.app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: { ...s.home.headers, ...body.headers },
+      payload: body.payload,
+    });
+    expect(response.statusCode).toBe(422);
+    const [rejected] = await readLog(s);
+    expect(rejected).toMatchObject({
+      event: 'upload_rejected',
+      details: { errorCode: 'DOMAIN_RULE_VIOLATION', maxPages: 5 },
+    });
+  });
+
+  it('zarchiwizowane konto przy wrzuceniu nie trafia do dziennika', async () => {
+    const s = await setup();
+    const archived = insertAccount(s.app.db, s.home, { isArchived: true });
+    const body = multipart(
+      { kind: 'receipt', accountId: archived },
+      { filename: 'paragon.jpg', contentType: 'image/jpeg', bytes: await receiptPhoto() },
+    );
+    const response = await s.app.app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: { ...s.home.headers, ...body.headers },
+      payload: body.payload,
+    });
+    expect(response.statusCode).toBe(422);
+    expect(await readLog(s)).toEqual([]);
+  });
+
+  it('ponowna analiza przy wyczerpanym limicie zostawia wpis w dzienniku', async () => {
+    const s = await setup({}, { monthlyBudgetMinor: 4 });
+    s.extractor.push({ items: [extractedItem()] });
+    const response = await upload(s, await receiptPhoto());
+    const id = response.json<{ data: { id: string } }>().data.id;
+    // Pierwszy odczyt kosztował 4 gr — limit wyczerpany.
+    const again = await s.app.app.inject({
+      method: 'POST',
+      url: `/api/v1/documents/${id}/analyze`,
+      headers: s.home.headers,
+    });
+    expect(again.statusCode).toBe(402);
+    const [rejected] = await readLog(s, `?documentId=${id}`);
+    expect(rejected).toMatchObject({
+      level: 'warn',
+      event: 'upload_rejected',
+      details: { errorCode: 'AI_BUDGET_EXCEEDED', budgetMinor: 4 },
+    });
+  });
+
+  it('analiza przerwana restartem dostaje wpis failed (INTERRUPTED)', async () => {
+    const s = await setup();
+    s.extractor.push({ items: [extractedItem()] });
+    const response = await upload(s, await receiptPhoto());
+    const id = response.json<{ data: { id: string } }>().data.id;
+    s.app.db.db
+      .update(documents)
+      .set({ status: 'processing', updatedAt: START.getTime() })
+      .where(eq(documents.id, id))
+      .run();
+    s.clock.advance(STALE_PROCESSING_MS + 1);
+    expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(1);
+    const [failed] = await readLog(s, `?documentId=${id}`);
+    expect(failed).toMatchObject({
+      level: 'error',
+      event: 'failed',
+      message: 'Analiza przerwana restartem serwera.',
+      documentName: 'dlugi-paragon.jpg',
+      details: { errorCode: 'INTERRUPTED' },
+    });
+  });
+
   it('wpisy starsze niż 90 dni znikają przy kolejnym zapisie', async () => {
     const s = await setup();
-    insertDocumentLog(
-      s.app.db,
-      s.home.householdId,
-      {
-        id: newId(),
-        level: 'info',
-        event: 'started',
-        message: 'stary wpis',
-        createdAt: START.getTime() - LOG_RETENTION_MS - 1,
-      },
-      0,
-    );
+    insertDocumentLog(s.app.db, s.home.householdId, {
+      id: newId(),
+      level: 'info',
+      event: 'started',
+      message: 'stary wpis',
+      createdAt: START.getTime() - LOG_RETENTION_MS - 1,
+    });
     expect(await readLog(s)).toHaveLength(1);
     s.extractor.push({ items: [extractedItem()] });
     await upload(s, await receiptPhoto());
@@ -277,6 +365,14 @@ describe('PATCH /settings/ai-model', () => {
       payload: { model: 'claude-haiku-5-5' },
     });
     expect(anonymous.statusCode).toBe(401);
+  });
+});
+
+describe('resolveAiModel', () => {
+  it('wybór gospodarstwa wygrywa z AI_MODEL; bez wyboru — AI_MODEL', () => {
+    const config = testConfig().ai;
+    expect(resolveAiModel('claude-haiku-5-5', config)).toBe('claude-haiku-5-5');
+    expect(resolveAiModel(null, config)).toBe(config.model);
   });
 });
 

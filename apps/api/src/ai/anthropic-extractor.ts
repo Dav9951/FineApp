@@ -10,6 +10,7 @@ import {
   type PreparedPart,
   type TokenUsage,
 } from './document-extractor.js';
+import { API_MESSAGE_MAX, errorDiagnostics } from './diagnostics.js';
 import { EXTRACTION_SYSTEM_PROMPT, extractionUserText } from './prompts/extraction-prompt.js';
 import { extractionSchema, parseExtraction } from './schemas/extraction.js';
 
@@ -85,9 +86,6 @@ function httpStatusOf(error: unknown): number | null {
   return typeof status === 'number' ? status : null;
 }
 
-/** Najdłuższy fragment komunikatu błędu usługi zapisywany w dzienniku. */
-const API_MESSAGE_MAX = 300;
-
 /**
  * Diagnostyka błędu wywołania — do dziennika odczytu (ADR-086).
  *
@@ -101,14 +99,12 @@ const API_MESSAGE_MAX = 300;
  * @returns Szczegóły do dziennika.
  */
 function failureDiagnostics(error: unknown, durationMs: number): ExtractionDiagnostics {
-  const message = error instanceof Error ? error.message : String(error);
   return {
     durationMs,
     timeoutMs: REQUEST_TIMEOUT_MS,
     maxRetries: MAX_RETRIES,
     httpStatus: httpStatusOf(error),
-    errorType: error instanceof Error ? error.constructor.name : typeof error,
-    apiMessage: message.slice(0, API_MESSAGE_MAX),
+    ...errorDiagnostics(error),
   };
 }
 
