@@ -2,8 +2,9 @@ name: Deploy to Production
 
 # Wdrożenie na VPS za bramą https-portal (plans/10-deployment.md §12, ADR-065).
 #
-# Wymaga zmiennej repozytorium `APP_URL` (np. https://budzet.example.pl)
-# i sekretów `HOST`, `USERNAME`, `SSH_PRIVATE_KEY`.
+# Wymaga zmiennej `APP_URL` (np. https://budzet.example.pl) i sekretów `HOST`, `USERNAME`,
+# `SSH_PRIVATE_KEY` w środowisku `production` (Settings → Environments), dostępnym tylko
+# z gałęzi `main` (ADR-088).
 #
 # Kiedy wdraża:
 # - ręcznie: Actions → Deploy to Production → Run workflow (zawsze);
@@ -106,8 +107,10 @@ jobs:
             scripts
           sparse-checkout-cone-mode: false
 
+      # Akcje spoza GitHuba i Dockera dostają klucz SSH do VPS — przypięte do pełnego SHA,
+      # żeby przesunięty tag nie podmienił kodu, który go widzi (ADR-088). Aktualizuje Dependabot.
       - name: Upload compose file and scripts
-        uses: appleboy/scp-action@v1
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
@@ -117,7 +120,7 @@ jobs:
           rm: true
 
       - name: Deploy on VPS
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
           GHCR_USER: ${{ github.actor }}
