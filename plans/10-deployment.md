@@ -399,11 +399,26 @@ Push na `main` **wdraża tylko wtedy**, gdy zmienna repozytorium `AUTO_DEPLOY` =
 (Settings → Secrets and variables → Actions → Variables). Bez niej `main` przechodzi
 samo CI, a wdrożenie uruchamia się ręcznie (Actions → Deploy to Production → Run workflow).
 
-Sekrety repozytorium: `HOST`, `USERNAME`, `SSH_PRIVATE_KEY` — klucz używany wyłącznie
+Sekrety `HOST`, `USERNAME`, `SSH_PRIVATE_KEY` — w środowisku **`production`**
+(Settings → Environments), dostępnym tylko z gałęzi `main` (ADR-088). Klucz używany wyłącznie
 przez ten workflow, w `~/.ssh/authorized_keys` z opcjami `no-port-forwarding,
 no-agent-forwarding,no-X11-forwarding`. Pobranie obrazu na serwerze idzie jednorazowym
 `GITHUB_TOKEN`-em joba w tymczasowej konfiguracji Dockera — serwer nie trzyma tokenu
-do GHCR, a istniejące logowanie innych serwisów zostaje nietknięte.
+do GHCR, a istniejące logowanie innych serwisów zostaje nietknięte. Paczka GHCR `fineapp`
+musi dawać repozytorium zapis (Package settings → Manage Actions access).
+
+Repozytorium jest publiczne (ADR-088), więc:
+
+- **Ruleset na `main`** — zmiany tylko przez PR, wymagane joby `typecheck · lint · format · test`
+  i `docker build` z `ci.yml`, bez force push i usuwania gałęzi; zatwierdzenia: 0.
+- **Logi Actions są jawne** — żaden krok nie wypisuje sekretów ani wartości z nich
+  wyliczonych (maskowana jest tylko dokładna wartość sekretu).
+- **PR z forka** idzie przez `pull_request` (bez sekretów), przebieg zatwierdza opiekun
+  (Settings → Actions → *Require approval for all external contributors*). Nigdy
+  `pull_request_target` z checkoutem kodu PR-a.
+- **Akcje spoza `actions/*` i `docker/*` przypięte do pełnego SHA**; aktualizuje je
+  Dependabot (`.github/dependabot.yml`). `GITHUB_TOKEN` domyślnie tylko do odczytu,
+  workflow deklarują `permissions:` same.
 
 ### 12.4 Wdrożenie, aktualizacja, wycofanie
 
@@ -421,7 +436,8 @@ do GHCR, a istniejące logowanie innych serwisów zostaje nietknięte.
 ### 12.5 Pierwsze uruchomienie
 
 1. `.env` wg §3 z `APP_URL=https://budzet.example.pl`, `chmod 600`.
-2. Sekrety `HOST`, `USERNAME`, `SSH_PRIVATE_KEY` w repozytorium.
+2. Sekrety `HOST`, `USERNAME`, `SSH_PRIVATE_KEY` w środowisku `production` (tylko `main`),
+   zmienna `APP_URL`.
 3. Ręczne uruchomienie `deploy-prod.yml` → kontener `fineapp-app` zdrowy w `gateway-net`.
 4. **Dopiero teraz** domena w bramie — `DOMAINS` w `~/projects/gateway/docker-compose.yml`:
    `budzet.example.pl -> http://fineapp-app:3000, www.budzet.example.pl => https://budzet.example.pl`,

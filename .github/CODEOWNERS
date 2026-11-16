@@ -1,0 +1,13 @@
+# Właściciele kodu (ADR-088). GitHub automatycznie prosi ich o przegląd PR-a,
+# który dotyka wskazanych ścieżek.
+#
+# Szczególnie wrażliwe: workflow mają dostęp do sekretów wdrożenia, a Dockerfile,
+# compose produkcyjny i skrypty kopii trafiają wprost na serwer.
+
+*                @Dav9951
+
+/.github/        @Dav9951
+/Dockerfile      @Dav9951
+/docker/         @Dav9951
+/deploy/         @Dav9951
+/scripts/        @Dav9951

@@ -4402,3 +4402,37 @@ więcej niż wpisanie czterech liter.
 
 **Konsekwencje.** Funkcja `filterCategoryTree` w `history-filters.ts` z testami.
 Zmienione: 06 §3.2.
+
+<a id="adr-088"></a>
+
+## ADR-088 — Publiczne repozytorium: sekrety w środowisku, przypięte akcje, PR na `main`
+
+**Data:** 2026-11-16 · **Zadanie:** przeniesienie pracy do publicznego repozytorium (poza roadmapą) · **Status:** przyjęte
+
+**Kontekst.** Rozwój przeniesiono z prywatnego repozytorium do publicznego `FineApp`,
+razem z sekretami wdrożenia (`HOST`, `USERNAME`, `SSH_PRIVATE_KEY`). W publicznym
+repozytorium logi Actions są jawne, każdy może otworzyć PR z forka, a workflow
+wdrożenia trzyma klucz SSH do VPS.
+
+**Decyzja.**
+
+1. Sekrety wdrożenia żyją w środowisku **`production`**, dostępnym tylko z gałęzi `main`
+   (Settings → Environments → Deployment branches). Job `deploy` już z niego korzysta.
+2. **Ruleset na `main`**: zmiany wyłącznie przez PR, wymagane zielone joby z `ci.yml`
+   (`typecheck · lint · format · test`, `docker build`), bez force push i usuwania.
+   Zatwierdzenia: 0 — jeden opiekun nie może zatwierdzić własnego PR-a.
+3. **Akcje spoza `actions/*` i `docker/*` przypięte do pełnego SHA** — dziś `appleboy/scp-action`
+   i `appleboy/ssh-action`, które widzą klucz SSH. Dependabot (`.github/dependabot.yml`)
+   co miesiąc proponuje nowsze SHA.
+4. `CODEOWNERS` (przegląd zmian w workflow, Dockerfile, `deploy/`, `scripts/`)
+   i `SECURITY.md` (prywatne zgłoszenia podatności).
+5. PR z forka nie dostaje sekretów (`pull_request`, nigdy `pull_request_target`
+   z checkoutem kodu PR-a); jego przebieg zatwierdza opiekun.
+
+**Odrzucone.** Przypinanie do SHA także akcji GitHuba i Dockera — wydawcy, którym i tak
+ufamy (runner, rejestr), a koszt to szum aktualizacji. Wymaganie 1 zatwierdzenia — przy
+jednym opiekunie blokowałoby każdy merge.
+
+**Konsekwencje.** Część decyzji to ustawienia repozytorium, nie pliki — opisane w 10 §12.3.
+Paczka GHCR `fineapp` musi dawać zapis repozytorium `FineApp` (Package settings →
+Manage Actions access). Zmienione: 10 §12.3, §12.5.

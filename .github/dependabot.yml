@@ -1,0 +1,14 @@
+# Aktualizacje akcji GitHub Actions (ADR-088). Akcje spoza GitHuba i Dockera są
+# przypięte do pełnego SHA — Dependabot podbija SHA razem z komentarzem wersji.
+# Zależności npm aktualizujemy ręcznie (pnpm), więc nie ma ich tutaj.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci

@@ -3,8 +3,9 @@ name: CI
 # Bramka z CLAUDE.md („Koniec sesji") uruchamiana na każdym PR-ze,
 # plus budowa obrazu Dockera — ten sam Dockerfile, który trafia na produkcję.
 # `main` pokrywa deploy-prod.yml, który woła ten workflow. Bez wyzwalacza `push` na
-# gałęziach: każda praca idzie przez PR, a podwójny przebieg (push + PR) zjadałby
-# minuty Actions prywatnego repozytorium. Gałąź bez PR-a — Run workflow ręcznie.
+# gałęziach: każda praca idzie przez PR (ruleset na `main` wymaga PR-a i zielonych jobów
+# z tego pliku), a push + PR dawałby dwa identyczne przebiegi. Gałąź bez PR-a — Run
+# workflow ręcznie. PR z forka nie dostaje sekretów; jego przebieg zatwierdza opiekun.
 
 on:
   pull_request:
