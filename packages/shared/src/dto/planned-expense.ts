@@ -36,7 +36,8 @@ function optionalText(max: number) {
     .trim()
     .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
     .nullish()
-    .transform((value) => (value === '' ? null : value));
+    .transform((value) => (value === '' ? null : value))
+    .optional();
 }
 
 /** Stan odkładania na planowany wydatek (sinking fund). */
@@ -135,7 +136,7 @@ export type CreatePlannedExpenseInput = z.input<typeof PlannedExpenseFieldsSchem
 export const CreatePlannedExpenseRequestSchema = PlannedExpenseFieldsSchema.superRefine(
   (value, ctx) => {
     for (const issue of plannedExpenseIssues(value)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+      ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
     }
   },
 );

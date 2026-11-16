@@ -8,7 +8,7 @@
 | Runtime | Node.js 22 LTS | Wsparcie do 2027, natywny `fetch`, stabilne ESM. |
 | Monorepo | pnpm workspaces | Współdzielone DTO bez publikowania paczek; szybkie i oszczędne na dysku. |
 | Backend | Fastify 5 | Szybki, pierwszorzędne typowanie, wbudowana walidacja schematami, dobry ekosystem pluginów. |
-| Walidacja | Zod 3 | Jedno źródło: schemat → typ TS → walidacja runtime → dokumentacja. |
+| Walidacja | Zod 4 | Jedno źródło: schemat → typ TS → walidacja runtime → dokumentacja. |
 | Baza | SQLite (better-sqlite3) | Wymóg projektu; idealna dla 2 użytkowników — zero administracji, backup = kopia pliku. |
 | ORM | Drizzle ORM + drizzle-kit | Schemat w TS, typowane zapytania blisko SQL, migracje generowane do plików `.sql`. |
 | Auth | argon2id + JWT (access) + opaque refresh w DB | PIN wymaga mocnego KDF; sesje odwoływalne. |
@@ -101,9 +101,9 @@ nie przez proszenie o JSON w tekście — to eliminuje parsowanie markdown i hal
 
 | Pakiet | Wersja | Uwaga |
 |---|---|---|
-| `zod` | 3.25.76 | ostatnia z gałęzi 3.x — **zostaje**, patrz niżej |
-| `fastify` | 5.12.5 | |
-| `fastify-type-provider-zod` | 4.0.2 | deklaruje `zod ^3.14.2` — para spełniona |
+| `zod` | 4.6.7 | od [ADR-089](./14-decisions-log.md#adr-089); 3.x nie dostaje poprawek bezpieczeństwa |
+| `fastify` | 5.12.8 | |
+| `fastify-type-provider-zod` | 7.0.0 | deklaruje `zod >=4.1.5`; ciągnie `@fastify/swagger` i `openapi-types` jako peer |
 | `drizzle-orm` / `drizzle-kit` | 0.45.3 / 0.31.11 | |
 | `better-sqlite3` | 13.0.3 | SQLite 3.53.4 |
 | `@anthropic-ai/sdk` | 0.127.0 | podniesione z `^0.33.0` |
@@ -111,12 +111,12 @@ nie przez proszenie o JSON w tekście — to eliminuje parsowanie markdown i hal
 | `typescript` | 5.9.3 | TS 7 odpada: `typescript-eslint` deklaruje `<6.1.0` |
 | `@types/node` | 22.x | trzyma się majora runtime'u z `.nvmrc` |
 
-**Dlaczego Zod zostaje na 3.x.** Obawa z pierwotnej wersji tego paragrafu („przy Zod 4
-wymagany jest nowszy type provider") potwierdziła się, ale wypadła na korzyść 3.x:
-`fastify-type-provider-zod` od wersji 5 ma w zależnościach równorzędnych
-`@fastify/swagger` i `openapi-types`, a projekt nigdzie nie wystawia OpenAPI. Koszt
-przejścia na Zod 4 to dwie zależności dodane wyłącznie po to, żeby uciszyć ostrzeżenia.
-Migracja kiedyś nastąpi i dotknie każdego DTO — świadomie odłożona, [`Z-6` w 13](./13-progress.md).
+**Zod 4 zamiast 3.x.** Do 2026-11 Zod zostawał na 3.x, bo nowszy type provider ciągnie
+`@fastify/swagger` i `openapi-types`, a projekt nie wystawia OpenAPI (ADR-014). Przeważyła
+podatność GHSA-mrhx-c7xc-m3w5 (wyczerpanie pamięci przy walidacji zbyt dużych kolekcji)
+naprawiona wyłącznie w 4.6.6 — gałąź 3.x jest zamknięta. Obie paczki to zależności
+równorzędne instalowane przez pnpm, w kodzie wykonywanym nie są ładowane
+([ADR-089](./14-decisions-log.md#adr-089)).
 
 **Model AI.** Od ADR-071 domyślny jest `claude-sonnet-5-5` (§2.6).
 

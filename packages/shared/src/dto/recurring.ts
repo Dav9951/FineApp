@@ -91,7 +91,8 @@ const optionalNotes = z
   .trim()
   .max(1000, 'Notatka może mieć najwyżej 1000 znaków')
   .nullish()
-  .transform((value) => (value === '' ? null : value));
+  .transform((value) => (value === '' ? null : value))
+  .optional();
 
 /**
  * Pola reguły **bez** walidacji krzyżowej — ciało `POST /recurring/rules`.
@@ -176,7 +177,7 @@ export function recurringRuleFromRequest(
 export const CreateRecurringRuleRequestSchema = RecurringRuleFieldsSchema.superRefine(
   (value, ctx) => {
     for (const issue of recurringRuleShapeIssues(recurringRuleFromRequest(value))) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+      ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
     }
   },
 );
@@ -203,7 +204,8 @@ export type UpdateRecurringRuleRequest = z.infer<typeof UpdateRecurringRuleReque
 const OptionalFlagSchema = z
   .enum(['true', 'false'])
   .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'));
+  .transform((value) => (value === undefined ? undefined : value === 'true'))
+  .optional();
 
 /** Parametry `GET /recurring/rules` (04 §9). */
 export const ListRecurringRulesQuerySchema = z.object({
@@ -346,7 +348,8 @@ export const SkipOccurrenceRequestSchema = z.object({
     .trim()
     .max(200, 'Powód może mieć najwyżej 200 znaków')
     .nullish()
-    .transform((value) => (value === '' ? null : value)),
+    .transform((value) => (value === '' ? null : value))
+    .optional(),
 });
 /** Pominięcie wystąpienia po walidacji. */
 export type SkipOccurrenceRequest = z.infer<typeof SkipOccurrenceRequestSchema>;

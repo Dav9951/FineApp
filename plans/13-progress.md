@@ -38,7 +38,7 @@
 | Z-3 | ~~Ikony PWA nie istnieją~~ — **zrobione w `F0-8`**: generowane z tokenów przez `design/tools/generate-icons.mjs`, motywem pierścień wykonania z ADR-013 | — |
 | Z-4 | ~~Brak repozytorium git~~ — zrobione | — |
 | Z-5 | Zestaw 20 rzeczywistych paragonów do oceny OCR — **zbiera właściciel**; narzędzie pomiaru gotowe (`ocr:evaluate`, sekcja „W toku") | średnia |
-| Z-6 | `zod` 3.25.76 to ostatnia wersja gałęzi 3.x. Migracja do 4.x dotknie **każdego** DTO w `packages/shared` i wymusi type provider ciągnący `@fastify/swagger` — [ADR-014](./14-decisions-log.md#adr-014) | średnia |
+| Z-6 | ~~`zod` 3.25.76 to ostatnia wersja gałęzi 3.x~~ — **zrobione**: Zod 4.6.7 i type provider 7 ([ADR-089](./14-decisions-log.md#adr-089)) | — |
 | Z-7 | Korzeniowy `tsconfig.json` ma `references` do paczek, które nie są `composite` — `tsc -b` w korzeniu nie zadziała. Dziś nic go nie wywołuje | niska |
 | Z-8 | ~~`--passWithNoTests`~~ — **zdjęte ze wszystkich trzech paczek**; każda ma własne testy | — |
 | Z-11 | ~~`ON DELETE SET NULL` kontra I-12/I-18~~ — **rozstrzygnięte przed `F4-1`**: usunięcie transakcji z zaksięgowania cofa zaksięgowanie (07 §6.7, [ADR-042](./14-decisions-log.md#adr-042)); implementacja w `F4-3` i Fazie 6 | — |

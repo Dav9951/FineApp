@@ -34,7 +34,8 @@ function optionalText(max: number) {
     .trim()
     .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
     .nullish()
-    .transform((value) => (value === '' ? null : value));
+    .transform((value) => (value === '' ? null : value))
+    .optional();
 }
 
 /** Zobowiązanie wraz z wyliczonym stanem bieżącym. */
@@ -170,7 +171,7 @@ export function liabilityIssues(value: {
 /** Nowe zobowiązanie z walidacją krzyżową — schemat formularza. */
 export const CreateLiabilityRequestSchema = LiabilityFieldsSchema.superRefine((value, ctx) => {
   for (const issue of liabilityIssues(value)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+    ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 });
 
@@ -192,7 +193,8 @@ export type UpdateLiabilityRequest = z.infer<typeof UpdateLiabilityRequestSchema
 const OptionalFlagSchema = z
   .enum(['true', 'false'])
   .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'));
+  .transform((value) => (value === undefined ? undefined : value === 'true'))
+  .optional();
 
 /** Parametry `GET /liabilities`. */
 export const ListLiabilitiesQuerySchema = z.object({ isActive: OptionalFlagSchema });

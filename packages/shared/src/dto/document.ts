@@ -239,7 +239,7 @@ export const CommitDocumentRequestSchema = z
   .superRefine((value, ctx) => {
     if (value.mode === 'single' && !value.categoryId && !value.categoryName) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['categoryId'],
         message: 'Wybierz kategorię dla całego dokumentu',
       });
@@ -318,7 +318,7 @@ export const AiLogEntryDtoSchema = z.object({
   /** Zdanie po polsku dla człowieka. */
   message: z.string(),
   /** Liczby i kody do diagnozy: czas, tokeny, wymiary obrazu, status HTTP. */
-  details: z.record(AiLogDetailValueSchema),
+  details: z.record(z.string(), AiLogDetailValueSchema),
   createdAt: TimestampSchema,
 });
 /** Wpis dziennika odczytu. */

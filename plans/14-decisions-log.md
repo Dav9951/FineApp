@@ -363,7 +363,7 @@ wartości — inaczej dwa punkty listy kontrolnej `15 §10` są deklaracją, a n
 
 ## ADR-014 — Wersje zależności ustalone instalacją; Zod zostaje na 3.x
 
-**Data:** 2026-09-21 · **Status:** przyjęta
+**Data:** 2026-09-21 · **Status:** przyjęta; część o Zodzie zastąpiona przez [ADR-089](#adr-089)
 
 **Decyzja.** Wersje w `package.json` przestały być deklaracją. Pierwsza instalacja
 (`F0-1`) potwierdziła je uruchomieniem i domknęła uwagę operacyjną z
@@ -4436,3 +4436,51 @@ jednym opiekunie blokowałoby każdy merge.
 **Konsekwencje.** Część decyzji to ustawienia repozytorium, nie pliki — opisane w 10 §12.3.
 Paczka GHCR `fineapp` musi dawać zapis repozytorium `FineApp` (Package settings →
 Manage Actions access). Zmienione: 10 §12.3, §12.5.
+
+---
+
+<a id="adr-089"></a>
+
+## ADR-089 — Migracja na Zod 4 i `fastify-type-provider-zod` 7
+
+**Data:** 2026-11-16 · **Zadanie:** alerty Dependabota (poza roadmapą) · **Status:** przyjęta
+
+**Kontekst.** ADR-014 zostawił Zod na 3.x, bo type provider zgodny z Zod 4 ciągnie
+`@fastify/swagger` i `openapi-types`. Dependabot zgłosił GHSA-mrhx-c7xc-m3w5 (wysoka):
+walidacja zbyt dużych kolekcji z ograniczeniami potrafi wyczerpać pamięć. Poprawka jest
+tylko w `zod` 4.6.6 — gałąź 3.x nie dostanie łatki, a schematy Zod walidują każde
+żądanie do API.
+
+**Decyzja.** `zod` 4.6.7 we wszystkich trzech paczkach, `fastify-type-provider-zod` 7.0.0.
+`@fastify/swagger` i `openapi-types` instaluje pnpm jako zależności równorzędne; provider
+odwołuje się do nich wyłącznie w plikach `.d.ts`, więc w kodzie wykonywanym nie są
+ładowane. Instalacja nadal nie zgłasza żadnego ostrzeżenia o zależnościach równorzędnych.
+
+**Co zmieniło zachowanie Zoda i jak to obsłużono.**
+
+1. **`.partial()` nie wyłącza już `default`.** Pominięte pole dostawało wartość domyślną,
+   więc `PATCH /accounts/:id` z pustym ciałem ustawiłby `openingBalanceMinor: 0`
+   i `includeInNetWorth: true`. `UpdateAccountRequestSchema` nadpisuje te pola zwykłym
+   `optional`, jak od początku robił `UpdateRecurringRuleRequestSchema`. Wszystkie
+   schematy `Update…` sprawdzono pustym ciałem — żaden inny nie dopisuje pól.
+2. **Pole z `.transform()` za `.nullish()` przestało być opcjonalne w typie wyniku.**
+   Pomocnicze `optionalText` i flagi `'true' | 'false'` kończą się `.optional()`. To
+   bezpieczne, bo ich transformacja zostawia `undefined` bez zmian. Pola, których
+   transformacja zamienia brak na `null` (`document.ts`), zostały bez zmian.
+3. **`errorMap` → `error`.** Polska mapa komunikatów konfiguracji (`config.ts`) mówi
+   nowymi kodami (`invalid_format`, `invalid_value`, `origin`) i zwraca `undefined`,
+   gdy przypadek nie jest obsłużony. `z.ZodIssueCode.custom` → `'custom'`.
+4. **Type provider 7** nie zagnieżdża już problemu Zoda w `params.issue`. Ścieżka pola
+   w `details` pochodzi z `instancePath` (`/transactions/1/categoryId` →
+   `transactions.1.categoryId`).
+
+**Weryfikacja.** typecheck, lint, Prettier i 2 409 testów zielone, `pnpm build` przechodzi.
+Test `server.test.ts` potwierdza, że serializer nadal działa jako lista dozwoleń: pole
+spoza schematu odpowiedzi znika (09). Komunikaty konfiguracji sprawdzone także dla
+gałęzi bez testu (`NODE_ENV`, `PORT` poza zakresem).
+
+**Koszt.** Dwie zależności równorzędne, których projekt nie używa — dokładnie to, czego
+ADR-014 chciał uniknąć. Przy podatności bez łatki w 3.x to cena akceptowalna. Domyślne
+angielskie komunikaty Zoda brzmią inaczej niż w 3.x — tam, gdzie schemat nie podaje
+własnego, odpowiedź `details` może pokazać nowe brzmienie. Zmienione: 01 §1 i §3, 05 (`UpdateAccountRequestSchema`,
+`'custom'`), 13 `Z-6`.

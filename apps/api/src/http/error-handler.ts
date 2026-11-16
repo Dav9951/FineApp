@@ -71,9 +71,10 @@ function body(
  */
 function toDetails(error: FastifyError): ApiErrorDetail[] {
   if (!hasZodFastifySchemaValidationErrors(error)) return [];
+  // Type provider 7 wystawia ścieżkę Zoda jako `/a/0/b` (bez przedrostka Fastify).
   return error.validation.map((issue) => ({
-    path: issue.params.issue.path.join('.') || issue.instancePath.replace(/^\//, ''),
-    message: issue.params.issue.message,
+    path: issue.instancePath.replace(/^\//, '').split('/').join('.'),
+    message: issue.message ?? '',
   }));
 }
 

@@ -46,7 +46,8 @@ export const UpsertAllocationTargetRequestSchema = z.object({
     .trim()
     .max(200, 'Notatka może mieć najwyżej 200 znaków')
     .nullish()
-    .transform((value) => (value === '' ? null : value)),
+    .transform((value) => (value === '' ? null : value))
+    .optional(),
 });
 /** Ustawienie rozkładu po walidacji. */
 export type UpsertAllocationTargetRequest = z.infer<typeof UpsertAllocationTargetRequestSchema>;

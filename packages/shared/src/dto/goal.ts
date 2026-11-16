@@ -133,7 +133,8 @@ function optionalText(max: number) {
     .trim()
     .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
     .nullish()
-    .transform((value) => (value === '' ? null : value));
+    .transform((value) => (value === '' ? null : value))
+    .optional();
 }
 
 /**
@@ -168,7 +169,7 @@ export type CreateGoalInput = z.input<typeof GoalFieldsSchema>;
 /** Nowy cel z walidacją krzyżową (I-14) — schemat formularza. */
 export const CreateGoalRequestSchema = GoalFieldsSchema.superRefine((value, ctx) => {
   for (const issue of goalIssues(value)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+    ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 });
 
@@ -204,7 +205,8 @@ export type UpdateGoalRequest = z.infer<typeof UpdateGoalRequestSchema>;
 const OptionalFlagSchema = z
   .enum(['true', 'false'])
   .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'));
+  .transform((value) => (value === undefined ? undefined : value === 'true'))
+  .optional();
 
 /** Parametry `GET /goals` (04 §10). */
 export const ListGoalsQuerySchema = z.object({

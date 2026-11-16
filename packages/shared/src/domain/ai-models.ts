@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 /** Identyfikatory modeli z przełącznika. */
 export const AiModelIdSchema = z.enum(['claude-haiku-5-5', 'claude-sonnet-5-5'], {
-  errorMap: () => ({ message: 'Nieznany model AI' }),
+  error: 'Nieznany model AI',
 });
 /** Identyfikator modelu z przełącznika. */
 export type AiModelId = z.infer<typeof AiModelIdSchema>;

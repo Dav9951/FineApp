@@ -39,7 +39,7 @@ Aktualny stan realizacji: [13-progress.md](./13-progress.md).
 > deklaracją — para `fastify` ↔ `fastify-type-provider-zod` ↔ `zod` została sprawdzona
 > uruchomieniem, nie lekturą ([ADR-014](./14-decisions-log.md#adr-014)). **Zod zostaje
 > na 3.x**; przejście na 4.x wymagałoby type providera ciągnącego `@fastify/swagger`,
-> którego projekt nie używa.
+> którego projekt nie używa. *(Zmienione w [ADR-089](./14-decisions-log.md#adr-089): Zod 4.)*
 >
 > Przy okazji wyszło, że pierwotny szkielet nie przechodził własnych bramek — pięć
 > poprawek konfiguracyjnych opisuje [ADR-015](./14-decisions-log.md#adr-015). Dwie z nich

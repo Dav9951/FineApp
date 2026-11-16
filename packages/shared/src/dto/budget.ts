@@ -39,7 +39,8 @@ function optionalText(max: number) {
     .trim()
     .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
     .nullish()
-    .transform((value) => (value === '' ? null : value));
+    .transform((value) => (value === '' ? null : value))
+    .optional();
 }
 
 /** Nazwa linii — jak nazwa reguły i planowanego wydatku. */
@@ -299,7 +300,7 @@ export const CreateBudgetLineRequestSchema = BudgetLineFieldsSchema.superRefine(
     null,
   );
   for (const issue of issues) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+    ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 });
 /** Nowa linia po walidacji. */

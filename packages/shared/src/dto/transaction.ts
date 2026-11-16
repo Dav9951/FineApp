@@ -114,7 +114,8 @@ function optionalText(max: number) {
     .trim()
     .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
     .nullish()
-    .transform((value) => (value === '' ? null : value));
+    .transform((value) => (value === '' ? null : value))
+    .optional();
 }
 
 /**
@@ -151,7 +152,7 @@ export const TransactionFieldsSchema = z.object({
  */
 export const CreateTransactionRequestSchema = TransactionFieldsSchema.superRefine((value, ctx) => {
   for (const issue of transactionShapeIssues(value)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+    ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 });
 /** Nowa transakcja po walidacji. */
@@ -278,21 +279,21 @@ export const TransactionQuerySchema = CursorPaginationSchema.extend({
 }).superRefine((value, ctx) => {
   if (value.month !== undefined && (value.from !== undefined || value.to !== undefined)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['month'],
       message: 'Podaj miesiąc albo zakres dat, nie oba naraz',
     });
   }
   if (value.uncategorized && value.categoryId !== undefined) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['uncategorized'],
       message: 'Filtr „bez kategorii" wyklucza wybór kategorii',
     });
   }
   if (value.from !== undefined && value.to !== undefined && value.from > value.to) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['to'],
       message: 'Koniec zakresu nie może być wcześniejszy niż początek',
     });
@@ -303,7 +304,7 @@ export const TransactionQuerySchema = CursorPaginationSchema.extend({
     value.minAmountMinor > value.maxAmountMinor
   ) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['maxAmountMinor'],
       message: 'Kwota maksymalna nie może być mniejsza niż minimalna',
     });
