@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { goalFixture } from '../../../../test/goal-fixture.js';
 import { plannedFixture, plannedSectionFixture } from '../../../../test/planned-fixture.js';
 import { renderScreen } from '../../../../test/render-screen.js';
+import { SHEET_OPEN_TIMEOUT } from '../../../../test/timeouts.js';
 import { AppShell } from '../../../components/layout/app-shell.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import * as accountsApi from '../../accounts/api.js';
@@ -321,7 +322,9 @@ describe('Ekran miesiąca — treść', () => {
     renderMonth();
 
     await userEvent.click(await screen.findByRole('button', { name: /Lidl/ }));
-    expect(await screen.findByRole('dialog', { name: 'Edytuj transakcję' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('dialog', { name: 'Edytuj transakcję' }, SHEET_OPEN_TIMEOUT),
+    ).toBeInTheDocument();
     expect(fetchTx).toHaveBeenCalledWith('token-testowy', TX);
   });
 
@@ -711,7 +714,7 @@ describe('Ekran miesiąca — cele procentowe i cele (F5-8)', () => {
     expect(scope.getByText('360,00 zł')).toBeInTheDocument();
 
     await userEvent.click(scope.getByRole('button', { name: 'Uzupełnij' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Nowy przelew' });
+    const dialog = await screen.findByRole('dialog', { name: 'Nowy przelew' }, SHEET_OPEN_TIMEOUT);
     expect(within(dialog).getByRole('textbox', { name: 'Kwota' })).toHaveTextContent('360');
   });
 

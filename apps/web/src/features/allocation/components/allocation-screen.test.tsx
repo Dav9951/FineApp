@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { allocationFixture } from '../../../../test/goal-fixture.js';
 import { renderScreen } from '../../../../test/render-screen.js';
+import { SHEET_OPEN_TIMEOUT } from '../../../../test/timeouts.js';
 import { AppShell } from '../../../components/layout/app-shell.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import * as accountsApi from '../../accounts/api.js';
@@ -95,7 +96,7 @@ describe('AllocationScreen', () => {
     const user = userEvent.setup();
     renderAllocation();
     await user.click(await screen.findByRole('button', { name: 'Przelej teraz' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Nowy przelew' });
+    const dialog = await screen.findByRole('dialog', { name: 'Nowy przelew' }, SHEET_OPEN_TIMEOUT);
     expect(within(dialog).getByRole('textbox', { name: 'Kwota' })).toHaveTextContent('360');
   });
 

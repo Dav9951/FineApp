@@ -12,6 +12,7 @@ import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen } from '../../../../test/render-screen.js';
+import { SHEET_OPEN_TIMEOUT } from '../../../../test/timeouts.js';
 import { AppShell } from '../../../components/layout/app-shell.js';
 import { ApiRequestError, NetworkError } from '../../../lib/api-client.js';
 import * as accountsApi from '../../accounts/api.js';
@@ -216,7 +217,7 @@ async function typeAmount(user: UserEvent, dialog: HTMLElement, keys: string): P
  */
 async function openExpense(user: UserEvent): Promise<HTMLElement> {
   await user.click(await screen.findByRole('button', { name: 'Dodaj transakcję' }));
-  const dialog = await screen.findByRole('dialog', { name: 'Nowy wydatek' });
+  const dialog = await screen.findByRole('dialog', { name: 'Nowy wydatek' }, SHEET_OPEN_TIMEOUT);
   // Konto domyślne pojawia się, gdy dojdzie lista kont.
   await within(dialog).findByRole('button', { name: /Z konta.*ROR mBank/ });
   return dialog;
@@ -353,7 +354,9 @@ describe('Arkusz transakcji — bez kont', () => {
     vi.mocked(accountsApi.fetchAccounts).mockResolvedValue([]);
 
     await user.click(await screen.findByRole('button', { name: 'Dodaj transakcję' }));
-    const form = within(await screen.findByRole('dialog', { name: 'Nowy wydatek' }));
+    const form = within(
+      await screen.findByRole('dialog', { name: 'Nowy wydatek' }, SHEET_OPEN_TIMEOUT),
+    );
     await user.click(await form.findByRole('button', { name: /Z konta.*Wybierz/ }));
     expect(form.getByText('Nie ma konta do wyboru')).toBeInTheDocument();
     await user.click(form.getByRole('button', { name: 'Przejdź do kont' }));
@@ -372,7 +375,7 @@ describe('Arkusz transakcji — przelew i przychód', () => {
     const create = vi.spyOn(transactionsApi, 'createTransaction').mockResolvedValue(SAVED);
     const router = renderShell('/t/new?type=transfer');
 
-    const dialog = await screen.findByRole('dialog', { name: 'Nowy przelew' });
+    const dialog = await screen.findByRole('dialog', { name: 'Nowy przelew' }, SHEET_OPEN_TIMEOUT);
     expect(router.state.location.pathname).toBe(`/m/${MONTH}`);
     const form = within(dialog);
     await form.findByRole('button', { name: /Z konta.*ROR mBank/ });
@@ -448,7 +451,11 @@ describe('Arkusz transakcji — edycja', () => {
     const update = vi.spyOn(transactionsApi, 'updateTransaction').mockResolvedValue(SAVED);
     renderShell(`/t/${TX}`);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Edytuj transakcję' });
+    const dialog = await screen.findByRole(
+      'dialog',
+      { name: 'Edytuj transakcję' },
+      SHEET_OPEN_TIMEOUT,
+    );
     const form = within(dialog);
     const description = await form.findByRole('textbox', { name: 'Opis' });
     expect(form.queryByRole('tab')).not.toBeInTheDocument();
@@ -469,7 +476,11 @@ describe('Arkusz transakcji — edycja', () => {
     const update = vi.spyOn(transactionsApi, 'updateTransaction');
     renderShell(`/t/${TX}`);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Edytuj transakcję' });
+    const dialog = await screen.findByRole(
+      'dialog',
+      { name: 'Edytuj transakcję' },
+      SHEET_OPEN_TIMEOUT,
+    );
     await user.click(await within(dialog).findByRole('button', { name: 'Zapisz zmiany' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -529,7 +540,11 @@ describe('Arkusz transakcji — edycja', () => {
     const update = vi.spyOn(transactionsApi, 'updateTransaction').mockResolvedValue(SAVED);
     renderShell(`/t/${TX}`);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Edytuj transakcję' });
+    const dialog = await screen.findByRole(
+      'dialog',
+      { name: 'Edytuj transakcję' },
+      SHEET_OPEN_TIMEOUT,
+    );
     const form = within(dialog);
     expect(await form.findByRole('note')).toHaveTextContent('Miesiąc jest zamknięty');
     // Wybory kategorii, konta i daty to zwykłe wiersze, nie przyciski.
@@ -662,7 +677,11 @@ describe('Arkusz transakcji — „Zapisz jako wydatek stały" (F4-8)', () => {
   it('edycja istniejącej transakcji — bez pola wyboru', async () => {
     vi.spyOn(transactionsApi, 'fetchTransaction').mockResolvedValue(transaction());
     renderShell(`/t/${TX}`);
-    const dialog = await screen.findByRole('dialog', { name: 'Edytuj transakcję' });
+    const dialog = await screen.findByRole(
+      'dialog',
+      { name: 'Edytuj transakcję' },
+      SHEET_OPEN_TIMEOUT,
+    );
     await within(dialog).findByRole('textbox', { name: 'Opis' });
     expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
   });
