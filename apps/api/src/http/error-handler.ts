@@ -63,17 +63,19 @@ function body(
 /**
  * Zamienia problemy walidacji Zoda na listę wskazującą pola formularza.
  *
- * Ścieżka jest przycinana z przedrostka, który dokłada Fastify (`body/`, `querystring/`),
- * bo front podświetla pole po jego nazwie w formularzu, a nie po miejscu w żądaniu.
+ * Ścieżka to ścieżka Zoda w obrębie części żądania (bez `body/`, `querystring/`), bo front
+ * podświetla pole po jego nazwie w formularzu, a nie po miejscu w żądaniu. Pochodzi
+ * z `params.path` (dokłada go walidator w `server.ts`); `instancePath` to rezerwa.
  *
  * @param error - Błąd walidacji z type providera.
  * @returns Lista `{ path, message }`.
  */
 function toDetails(error: FastifyError): ApiErrorDetail[] {
   if (!hasZodFastifySchemaValidationErrors(error)) return [];
-  // Type provider 7 wystawia ścieżkę Zoda jako `/a/0/b` (bez przedrostka Fastify).
   return error.validation.map((issue) => ({
-    path: issue.instancePath.replace(/^\//, '').split('/').join('.'),
+    path: Array.isArray(issue.params.path)
+      ? issue.params.path.map(String).join('.')
+      : issue.instancePath.replace(/^\//, '').split('/').join('.'),
     message: issue.message ?? '',
   }));
 }

@@ -16,6 +16,7 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  optionalText,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -101,22 +102,6 @@ export const TransactionListItemDtoSchema = TransactionDtoSchema.extend({
 });
 /** Transakcja z nazwami powiązanych bytów. */
 export type TransactionListItemDto = z.infer<typeof TransactionListItemDtoSchema>;
-
-/**
- * Opcjonalny tekst transakcji: przycięty, a pusty zapisywany jako brak.
- *
- * @param max - Najwyższa dopuszczalna długość.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value))
-    .optional();
-}
 
 /**
  * Pola transakcji **bez** walidacji krzyżowej.

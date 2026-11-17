@@ -9,6 +9,7 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  optionalText,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -23,22 +24,6 @@ import {
  * ([05 §11a](../../../../plans/05-dto-contracts.md#11a-planowane-wydatki--dtoplanned-expensedtots),
  * `F6-1`…`F6-5`, ADR-055). Wyliczenia: `shared/domain/planned-expense.ts` (07 §6.5).
  */
-
-/**
- * Opcjonalny tekst: przycięty, pusty zapisywany jako brak.
- *
- * @param max - Najwięcej znaków.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value))
-    .optional();
-}
 
 /** Stan odkładania na planowany wydatek (sinking fund). */
 export const SetAsideDtoSchema = z.object({

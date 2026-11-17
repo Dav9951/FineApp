@@ -1,5 +1,6 @@
-import Fastify, { type FastifyInstance } from 'fastify';
-import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import Fastify, { type FastifyInstance, type FastifySerializerCompiler } from 'fastify';
+import { ResponseSerializationError, validatorCompiler } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 
 import { createAnthropicExtractor } from '../ai/anthropic-extractor.js';
 import type { DocumentExtractor } from '../ai/document-extractor.js';
@@ -40,6 +41,51 @@ import { registerSpa } from './spa.js';
  * woła dopiero `index.ts`. Dzięki temu testy używają `app.inject()` i nie zajmują portu
  * ([02 §9](../../../../plans/02-architecture.md)).
  */
+
+/**
+ * Walidator type providera, który zostawia w `params.path` oryginalną ścieżkę Zoda.
+ *
+ * Provider 7 podaje ścieżkę tylko jako `instancePath` (`/a/b`), więc klucz rekordu
+ * z ukośnikiem (`a/b`) nie dałby się odróżnić od zagnieżdżenia. Drugi przebieg Zoda
+ * zachodzi wyłącznie przy błędzie i daje te same problemy w tej samej kolejności.
+ *
+ * @param route - Trasa ze schematem Zoda.
+ * @returns Funkcja walidująca dane żądania.
+ */
+const validatorKeepingZodPath: typeof validatorCompiler = (route) => {
+  const validate = validatorCompiler(route);
+  return (data) => {
+    const result = validate(data);
+    if (typeof result === 'object' && 'error' in result && Array.isArray(result.error)) {
+      const issues = z.safeParse(route.schema, data).error?.issues ?? [];
+      result.error.forEach((issue, index) => {
+        issue.params.path = issues[index]?.path;
+      });
+    }
+    return result;
+  };
+};
+
+/**
+ * Serializer odpowiedzi przez `parse`, jak w type providerze 4.
+ *
+ * Provider 7 używa `z.encode`, które rzuca na każdej jednokierunkowej `.transform()` —
+ * schemat odpowiedzi współdzielony z żądaniem (np. `optionalText`) dawałby 500.
+ * `parse` nadal działa jako lista dozwoleń: pole spoza schematu nie wyjdzie (09).
+ *
+ * @param route - Trasa ze schematem odpowiedzi.
+ * @param route.schema - Schemat odpowiedzi.
+ * @param route.method - Metoda HTTP, do komunikatu błędu.
+ * @param route.url - Adres trasy, do komunikatu błędu.
+ * @returns Funkcja zamieniająca dane odpowiedzi na JSON.
+ */
+const serializerByParse: FastifySerializerCompiler<z.ZodType> = (route) => (data) => {
+  const result = route.schema.safeParse(data);
+  if (!result.success) {
+    throw new ResponseSerializationError(route.method, route.url, { cause: result.error });
+  }
+  return JSON.stringify(result.data);
+};
 
 /** Bazowy prefiks wszystkich tras API ([04](../../../../plans/04-api-spec.md)). */
 export const API_PREFIX = '/api/v1';
@@ -96,8 +142,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   // Walidacja wejścia i serializacja odpowiedzi przez te same schematy Zod, które
   // idą do frontu. Serializer działa jako lista dozwoleń: pole spoza schematu
   // odpowiedzi nie wyjdzie na zewnątrz.
-  app.setValidatorCompiler(validatorCompiler);
-  app.setSerializerCompiler(serializerCompiler);
+  app.setValidatorCompiler(validatorKeepingZodPath);
+  app.setSerializerCompiler(serializerByParse);
 
   // Puste ciało przy `Content-Type: application/json` Fastify odrzuca komunikatem
   // „Body cannot be empty". Trasy takie jak `/auth/refresh` i `/auth/logout` ciała

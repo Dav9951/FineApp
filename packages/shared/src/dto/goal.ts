@@ -15,6 +15,8 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  OptionalFlagSchema,
+  optionalText,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -122,22 +124,6 @@ export const GoalDetailDtoSchema = GoalDtoSchema.extend({
 export type GoalDetailDto = z.infer<typeof GoalDetailDtoSchema>;
 
 /**
- * Opcjonalny tekst: przycięty, pusty zapisywany jako brak.
- *
- * @param max - Najwięcej znaków.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value))
-    .optional();
-}
-
-/**
  * Pola celu **bez** walidacji krzyżowej — ciało `POST /goals` (jak przy transakcjach,
  * ADR-035: reguły między polami → `422` z serwisu, `goalIssues`).
  */
@@ -200,13 +186,6 @@ export const UpdateGoalRequestSchema = z
   .partial();
 /** Zmiana celu po walidacji. */
 export type UpdateGoalRequest = z.infer<typeof UpdateGoalRequestSchema>;
-
-/** Filtr tak/nie w adresie: tylko dwa literały. */
-const OptionalFlagSchema = z
-  .enum(['true', 'false'])
-  .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'))
-  .optional();
 
 /** Parametry `GET /goals` (04 §10). */
 export const ListGoalsQuerySchema = z.object({

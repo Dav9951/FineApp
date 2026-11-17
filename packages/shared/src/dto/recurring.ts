@@ -13,6 +13,7 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  OptionalFlagSchema,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -199,13 +200,6 @@ export const UpdateRecurringRuleRequestSchema = RecurringRuleFieldsSchema.omit({
   });
 /** Zmiana reguły po walidacji. */
 export type UpdateRecurringRuleRequest = z.infer<typeof UpdateRecurringRuleRequestSchema>;
-
-/** Filtr tak/nie w adresie: tylko dwa literały (`z.coerce.boolean()` zamienia „false" na `true`). */
-const OptionalFlagSchema = z
-  .enum(['true', 'false'])
-  .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'))
-  .optional();
 
 /** Parametry `GET /recurring/rules` (04 §9). */
 export const ListRecurringRulesQuerySchema = z.object({

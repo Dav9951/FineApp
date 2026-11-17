@@ -1226,8 +1226,28 @@ export const CreatePlannedExpenseRequestSchema = z
     }
   });
 
-export const UpdatePlannedExpenseRequestSchema =
-  CreatePlannedExpenseRequestSchema.innerType().partial();
+// Bez `default` z pól tworzenia: od Zod 4 `.partial()` ich nie wyłącza (ADR-089), więc
+// pominięte `priority` czy `setAsideEnabled` wracałyby do wartości domyślnej przy PATCH.
+export const UpdatePlannedExpenseRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60),
+    estimatedAmountMinor: PositiveAmountMinorSchema,
+    amountIsEstimate: z.boolean(),
+    dueMonth: MonthKeySchema,
+    dueOn: DateOnlySchema.nullable(),
+    categoryId: IdSchema.nullable(),
+    accountId: IdSchema.nullable(),
+    liabilityId: IdSchema.nullable(),
+    priority: PlannedExpensePrioritySchema,
+    setAsideEnabled: z.boolean(),
+    setAsideAccountId: IdSchema.nullable(),
+    setAsideGoalId: IdSchema.nullable(),
+    setAsideStartMonth: MonthKeySchema,
+    alreadySetAsideMinor: AmountMinorSchema.nonnegative(),
+    repeatsYearly: z.boolean(),
+    notes: optionalText(1000),
+  })
+  .partial();
 
 /** Zaksięgowanie miesięcznej wpłaty na odkładanie. */
 export const SetAsideContributionRequestSchema = z.object({

@@ -4474,7 +4474,17 @@ odwołuje się do nich wyłącznie w plikach `.d.ts`, więc w kodzie wykonywanym
    w `details` pochodzi z `instancePath` (`/transactions/1/categoryId` →
    `transactions.1.categoryId`).
 
-**Weryfikacja.** typecheck, lint, Prettier i 2 409 testów zielone, `pnpm build` przechodzi.
+5. **Ścieżka pola z ukośnikiem.** `instancePath` nie odróżnia klucza `a/b` od
+   zagnieżdżenia, więc walidator w `server.ts` dopisuje oryginalną ścieżkę Zoda
+   do `params.path`, a `toDetails` składa ją z tablicy.
+6. **Serializer przez `parse`.** Provider 7 serializuje przez `z.encode`, które rzuca
+   na jednokierunkowej `.transform()`. `server.ts` ma własny serializer przez
+   `safeParse` — jak provider 4 — i nadal odcina pola spoza schematu (09).
+7. **Straż na `.partial()`.** `update-schemas.test.ts` sprawdza, że każdy
+   `Update…RequestSchema` przepuszcza puste ciało bez dopisywania pól. `optionalText`
+   i `OptionalFlagSchema` mieszkają raz, w `domain/primitives.ts`.
+
+**Weryfikacja.** typecheck, lint, Prettier i 2 426 testów zielone, `pnpm build` przechodzi.
 Test `server.test.ts` potwierdza, że serializer nadal działa jako lista dozwoleń: pole
 spoza schematu odpowiedzi znika (09). Komunikaty konfiguracji sprawdzone także dla
 gałęzi bez testu (`NODE_ENV`, `PORT` poza zakresem).

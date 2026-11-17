@@ -17,6 +17,7 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  optionalText,
   SignedBpsSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -26,22 +27,6 @@ import {
  * ([05 §13b](../../../../plans/05-dto-contracts.md#13b-planer-budżetu--dtobudgetts),
  * `F9-2`, ADR-075…079). Wyliczenia: `shared/domain/budget.ts` (07 §13).
  */
-
-/**
- * Opcjonalny tekst: przycięty, pusty zapisywany jako brak.
- *
- * @param max - Najwięcej znaków.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value))
-    .optional();
-}
 
 /** Nazwa linii — jak nazwa reguły i planowanego wydatku. */
 const LineNameSchema = z
