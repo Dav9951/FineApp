@@ -108,3 +108,32 @@ export const HexColorSchema = z
 
 /** Dzień rozpoczęcia miesiąca budżetowego (1–28; w v1 wyłącznie 1 — ADR-006). */
 export const MonthStartDaySchema = z.number().int().min(1).max(28).default(1);
+
+/**
+ * Opcjonalny tekst: przycięty, pusty zapisywany jako brak (`null`).
+ *
+ * @param max - Najwięcej znaków.
+ * @returns Schemat pola.
+ */
+export function optionalText(
+  max: number,
+): z.ZodOptional<
+  z.ZodPipe<z.ZodNullable<z.ZodString>, z.ZodTransform<string | null, string | null>>
+> {
+  return z
+    .string()
+    .trim()
+    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
+    .nullable()
+    .transform((value) => (value === '' ? null : value))
+    .optional();
+}
+
+/**
+ * Filtr tak/nie w adresie: tylko dwa literały (`z.coerce.boolean()` zamienia „false"
+ * na `true`). Pominięty zostaje `undefined`.
+ */
+export const OptionalFlagSchema = z
+  .enum(['true', 'false'])
+  .transform((value) => value === 'true')
+  .optional();

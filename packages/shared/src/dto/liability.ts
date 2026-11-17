@@ -7,6 +7,8 @@ import {
   DateOnlySchema,
   IdSchema,
   NonNegativeAmountMinorSchema,
+  OptionalFlagSchema,
+  optionalText,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -21,21 +23,6 @@ import {
  * ([05 §8](../../../../plans/05-dto-contracts.md#8-zobowiązania--dtoliabilitydtots), `F4-4`,
  * ADR-047). Stan liczy `liabilityState` z `shared/domain/liability.ts` (07 §5.1).
  */
-
-/**
- * Opcjonalny tekst: przycięty, pusty zapisywany jako brak.
- *
- * @param max - Najwięcej znaków.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value));
-}
 
 /** Zobowiązanie wraz z wyliczonym stanem bieżącym. */
 export const LiabilityDtoSchema = z.object({
@@ -170,7 +157,7 @@ export function liabilityIssues(value: {
 /** Nowe zobowiązanie z walidacją krzyżową — schemat formularza. */
 export const CreateLiabilityRequestSchema = LiabilityFieldsSchema.superRefine((value, ctx) => {
   for (const issue of liabilityIssues(value)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+    ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 });
 
@@ -187,12 +174,6 @@ export const UpdateLiabilityRequestSchema = LiabilityFieldsSchema.omit({
   .extend({ isActive: z.boolean().optional() });
 /** Zmiana zobowiązania po walidacji. */
 export type UpdateLiabilityRequest = z.infer<typeof UpdateLiabilityRequestSchema>;
-
-/** Filtr tak/nie w adresie: tylko dwa literały. */
-const OptionalFlagSchema = z
-  .enum(['true', 'false'])
-  .optional()
-  .transform((value) => (value === undefined ? undefined : value === 'true'));
 
 /** Parametry `GET /liabilities`. */
 export const ListLiabilitiesQuerySchema = z.object({ isActive: OptionalFlagSchema });

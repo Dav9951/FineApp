@@ -9,6 +9,7 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  optionalText,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -23,21 +24,6 @@ import {
  * ([05 §11a](../../../../plans/05-dto-contracts.md#11a-planowane-wydatki--dtoplanned-expensedtots),
  * `F6-1`…`F6-5`, ADR-055). Wyliczenia: `shared/domain/planned-expense.ts` (07 §6.5).
  */
-
-/**
- * Opcjonalny tekst: przycięty, pusty zapisywany jako brak.
- *
- * @param max - Najwięcej znaków.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value));
-}
 
 /** Stan odkładania na planowany wydatek (sinking fund). */
 export const SetAsideDtoSchema = z.object({
@@ -135,7 +121,7 @@ export type CreatePlannedExpenseInput = z.input<typeof PlannedExpenseFieldsSchem
 export const CreatePlannedExpenseRequestSchema = PlannedExpenseFieldsSchema.superRefine(
   (value, ctx) => {
     for (const issue of plannedExpenseIssues(value)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+      ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
     }
   },
 );

@@ -87,7 +87,7 @@ export const UpdateHouseholdRequestSchema = z
       .max(12, 'Limit może wynosić najwyżej 12 miesięcy'),
     /** W v1 wyłącznie `1` — miesiąc kalendarzowy (ADR-006). */
     monthStartDay: z.literal(1, {
-      errorMap: () => ({ message: 'W tej wersji miesiąc zaczyna się zawsze 1. dnia' }),
+      error: 'W tej wersji miesiąc zaczyna się zawsze 1. dnia',
     }),
     /** Konto proponowane przy wydatkach i skanie; `null` usuwa wybór (ADR-070). */
     defaultExpenseAccountId: IdSchema.nullable(),

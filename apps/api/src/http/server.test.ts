@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { buildTestApp, type TestApp } from '../../test/build-app.js';
 import {
@@ -8,6 +9,7 @@ import {
   UnauthorizedError,
 } from '../core/errors.js';
 import { isId } from '../core/id.js';
+import { CSRF_HEADER, CSRF_HEADER_VALUE } from './middleware/csrf.js';
 
 /** Kształt ciała odpowiedzi błędu, do typowanego odczytu w testach. */
 interface ErrorBody {
@@ -165,6 +167,43 @@ describe('obsługa błędów — kontrakt z 04 §3', () => {
 
     const response = await harness.app.inject({ method: 'GET', url: '/api/v1/boom' });
     expect(response.json<ErrorBody>().error.details).toEqual(details);
+  });
+
+  it('ścieżka pola zachowuje klucz rekordu z ukośnikiem', async () => {
+    harness = await buildTestApp();
+    harness.app.post(
+      '/api/v1/boom',
+      { schema: { body: z.object({ lines: z.record(z.string(), z.number()) }) } },
+      () => ({}),
+    );
+    await harness.app.ready();
+
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/boom',
+      headers: { [CSRF_HEADER]: CSRF_HEADER_VALUE },
+      payload: { lines: { 'a/b': 'x' } },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json<ErrorBody>().error.details?.[0]?.path).toBe('lines.a/b');
+  });
+
+  it('serializuje odpowiedź, której schemat ma `.transform()`', async () => {
+    harness = await buildTestApp();
+    harness.app.get(
+      '/api/v1/boom',
+      {
+        schema: {
+          response: { 200: z.object({ note: z.string().transform((value) => value.trim()) }) },
+        },
+      },
+      () => ({ note: '  ok  ', secret: 'nie wychodzi' }),
+    );
+    await harness.app.ready();
+
+    const response = await harness.app.inject({ method: 'GET', url: '/api/v1/boom' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ note: 'ok' });
   });
 
   it('limit żądań podaje czas oczekiwania w ciele, nie tylko w nagłówku', async () => {

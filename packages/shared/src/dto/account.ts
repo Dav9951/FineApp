@@ -64,15 +64,18 @@ export type CreateAccountInput = z.input<typeof CreateAccountRequestSchema>;
 /**
  * Zmiana konta — każde pole opcjonalne.
  *
- * `.partial()` owija pola w `optional` **na zewnątrz** `default`, więc pominięte
- * `openingBalanceMinor` czy `includeInNetWorth` zostają `undefined`, a nie wracają do
- * wartości domyślnej — PATCH zmienia wyłącznie to, co przysłano. `null` w polach
- * opcjonalnych (`institution`, `color`, `icon`) czyści wartość.
+ * Pola z `default` są nadpisane zwykłym `optional`: od Zod 4 `.partial()` nie wyłącza
+ * wartości domyślnych, więc pominięte `openingBalanceMinor` czy `includeInNetWorth`
+ * wracałyby do `0` i `true`. Tu zostają `undefined` — PATCH zmienia wyłącznie to, co
+ * przysłano. `null` w polach opcjonalnych (`institution`, `color`, `icon`) czyści wartość.
  *
  * Zmiana `type` bez `allocationClass` przelicza klasę tylko wtedy, gdy nie była
  * nadpisana (`allocationClassAfterTypeChange`).
  */
-export const UpdateAccountRequestSchema = CreateAccountRequestSchema.partial();
+export const UpdateAccountRequestSchema = CreateAccountRequestSchema.partial().extend({
+  openingBalanceMinor: AmountMinorSchema.optional(),
+  includeInNetWorth: z.boolean().optional(),
+});
 /** Zmiana konta po walidacji. */
 export type UpdateAccountRequest = z.infer<typeof UpdateAccountRequestSchema>;
 

@@ -63,27 +63,27 @@ function znakow(count: number): string {
  * mają pierwszeństwo — mapa dotyka tylko tych, których sami nie napisaliśmy.
  *
  * @param issue - Problem zgłoszony przez Zoda.
- * @param ctx - Kontekst z domyślnym komunikatem.
- * @returns Komunikat po polsku albo domyślny, gdy przypadek nie jest obsłużony.
+ * @returns Komunikat po polsku albo `undefined`, gdy przypadek nie jest obsłużony —
+ *   wtedy Zod użyje własnego, domyślnego.
  */
-const polishErrors: z.ZodErrorMap = (issue, ctx) => {
-  if (issue.code === z.ZodIssueCode.invalid_type) {
-    if (issue.received === 'undefined') return { message: 'jest wymagana, a nie ustawiono jej' };
-    return { message: `oczekiwano wartości typu ${issue.expected}` };
+const polishErrors: z.core.$ZodErrorMap = (issue) => {
+  if (issue.code === 'invalid_type') {
+    if (issue.input === undefined) return 'jest wymagana, a nie ustawiono jej';
+    return `oczekiwano wartości typu ${issue.expected}`;
   }
-  if (issue.code === z.ZodIssueCode.invalid_string && issue.validation === 'url') {
-    return { message: 'musi być poprawnym adresem URL (np. https://budzet.example.com)' };
+  if (issue.code === 'invalid_format' && issue.format === 'url') {
+    return 'musi być poprawnym adresem URL (np. https://budzet.example.com)';
   }
-  if (issue.code === z.ZodIssueCode.invalid_enum_value) {
-    return { message: `dozwolone wartości: ${issue.options.join(', ')}` };
+  if (issue.code === 'invalid_value') {
+    return `dozwolone wartości: ${issue.values.map(String).join(', ')}`;
   }
-  if (issue.code === z.ZodIssueCode.too_small && issue.type === 'number') {
-    return { message: `musi być liczbą nie mniejszą niż ${String(issue.minimum)}` };
+  if (issue.code === 'too_small' && issue.origin === 'number') {
+    return `musi być liczbą nie mniejszą niż ${String(issue.minimum)}`;
   }
-  if (issue.code === z.ZodIssueCode.too_big && issue.type === 'number') {
-    return { message: `musi być liczbą nie większą niż ${String(issue.maximum)}` };
+  if (issue.code === 'too_big' && issue.origin === 'number') {
+    return `musi być liczbą nie większą niż ${String(issue.maximum)}`;
   }
-  return { message: ctx.defaultError };
+  return undefined;
 };
 
 /**
@@ -158,7 +158,7 @@ const envSchema = z
   .superRefine((env, ctx) => {
     if (env.PIN_MIN_LENGTH > env.PIN_MAX_LENGTH) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['PIN_MIN_LENGTH'],
         message: `nie może być większe od PIN_MAX_LENGTH (${env.PIN_MAX_LENGTH})`,
       });
@@ -167,21 +167,21 @@ const envSchema = z
     // lepiej nie wstać teraz niż zawieść użytkownika w trakcie pracy.
     if (env.AI_ENABLED && env.ANTHROPIC_API_KEY.length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['ANTHROPIC_API_KEY'],
         message: 'jest wymagany, gdy AI_ENABLED=true (albo ustaw AI_ENABLED=false)',
       });
     }
     if (env.REFRESH_TOKEN_TTL_SECONDS <= env.ACCESS_TOKEN_TTL_SECONDS) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['REFRESH_TOKEN_TTL_SECONDS'],
         message: 'musi być dłuższy niż ACCESS_TOKEN_TTL_SECONDS',
       });
     }
     if (env.NODE_ENV === 'production' && !env.COOKIE_SECURE) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['COOKIE_SECURE'],
         message: 'musi być `true` w produkcji — bez tego ciasteczko sesji idzie po HTTP',
       });
@@ -190,7 +190,7 @@ const envSchema = z
     // przeglądarka i tak nie odeśle ciasteczka `Secure` (10 §9, 09 §11).
     if (env.NODE_ENV === 'production' && !env.APP_URL.startsWith('https://')) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['APP_URL'],
         message: 'musi zaczynać się od https:// w produkcji',
       });
@@ -285,7 +285,7 @@ export class ConfigError extends Error {
  *   **wszystkie** problemy i nigdy nie zawiera wartości sekretów.
  */
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = envSchema.safeParse(source, { errorMap: polishErrors });
+  const parsed = envSchema.safeParse(source, { error: polishErrors });
 
   if (!parsed.success) {
     const issues = parsed.error.issues.map((issue) => {

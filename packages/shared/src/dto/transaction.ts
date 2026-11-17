@@ -16,6 +16,7 @@ import {
   IdSchema,
   MonthKeySchema,
   NonNegativeAmountMinorSchema,
+  optionalText,
   PositiveAmountMinorSchema,
   TimestampSchema,
 } from '../domain/primitives.js';
@@ -103,21 +104,6 @@ export const TransactionListItemDtoSchema = TransactionDtoSchema.extend({
 export type TransactionListItemDto = z.infer<typeof TransactionListItemDtoSchema>;
 
 /**
- * Opcjonalny tekst transakcji: przycięty, a pusty zapisywany jako brak.
- *
- * @param max - Najwyższa dopuszczalna długość.
- * @returns Schemat pola.
- */
-function optionalText(max: number) {
-  return z
-    .string()
-    .trim()
-    .max(max, `Tekst może mieć najwyżej ${String(max)} znaków`)
-    .nullish()
-    .transform((value) => (value === '' ? null : value));
-}
-
-/**
  * Pola transakcji **bez** walidacji krzyżowej.
  *
  * To ciało `POST /transactions`: niezmienniki kształtu (I-2, I-3, I-7a) sprawdza serwis
@@ -151,7 +137,7 @@ export const TransactionFieldsSchema = z.object({
  */
 export const CreateTransactionRequestSchema = TransactionFieldsSchema.superRefine((value, ctx) => {
   for (const issue of transactionShapeIssues(value)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+    ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
   }
 });
 /** Nowa transakcja po walidacji. */
@@ -278,21 +264,21 @@ export const TransactionQuerySchema = CursorPaginationSchema.extend({
 }).superRefine((value, ctx) => {
   if (value.month !== undefined && (value.from !== undefined || value.to !== undefined)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['month'],
       message: 'Podaj miesiąc albo zakres dat, nie oba naraz',
     });
   }
   if (value.uncategorized && value.categoryId !== undefined) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['uncategorized'],
       message: 'Filtr „bez kategorii" wyklucza wybór kategorii',
     });
   }
   if (value.from !== undefined && value.to !== undefined && value.from > value.to) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['to'],
       message: 'Koniec zakresu nie może być wcześniejszy niż początek',
     });
@@ -303,7 +289,7 @@ export const TransactionQuerySchema = CursorPaginationSchema.extend({
     value.minAmountMinor > value.maxAmountMinor
   ) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['maxAmountMinor'],
       message: 'Kwota maksymalna nie może być mniejsza niż minimalna',
     });

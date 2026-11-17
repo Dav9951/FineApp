@@ -305,10 +305,14 @@ export const CreateAccountRequestSchema = z.object({
 });
 
 /**
- * `.partial()` owija pola w `optional` na zewnątrz `default`, więc pominięte pole zostaje
+ * Pola z `default` nadpisane zwykłym `optional`: od Zod 4 `.partial()` nie wyłącza wartości
+ * domyślnych (ADR-089), więc pominięte pole wracałoby do `0` / `true`. Tu zostaje
  * `undefined` — PATCH nie przywraca wartości domyślnych. `null` czyści pole opcjonalne.
  */
-export const UpdateAccountRequestSchema = CreateAccountRequestSchema.partial();
+export const UpdateAccountRequestSchema = CreateAccountRequestSchema.partial().extend({
+  openingBalanceMinor: AmountMinorSchema.optional(),
+  includeInNetWorth: z.boolean().optional(),
+});
 
 /**
  * `?includeArchived=true|false`. Nie `z.coerce.boolean()` — to zamieniłoby napis
@@ -606,7 +610,7 @@ export const TransactionFieldsSchema = z.object({
 export const CreateTransactionRequestSchema = TransactionFieldsSchema.superRefine(
   (value, ctx) => {
     for (const issue of transactionShapeIssues(value)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.path], message: issue.message });
+      ctx.addIssue({ code: 'custom', path: [issue.path], message: issue.message });
     }
   },
 );
@@ -829,21 +833,21 @@ export const CreateGoalRequestSchema = z
     // I-14: tryb wpłaty musi mieć wypełnione odpowiadające mu pole.
     if (value.contributionMode === 'fixed' && value.contributionAmountMinor == null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['contributionAmountMinor'],
         message: 'Podaj kwotę miesięcznej wpłaty',
       });
     }
     if (value.contributionMode === 'percent_of_income' && value.contributionPercentBps == null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['contributionPercentBps'],
         message: 'Podaj procent wpływów',
       });
     }
     if (value.progressSource === 'account_balance' && !value.linkedAccountId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['linkedAccountId'],
         message: 'Śledzenie po saldzie wymaga wskazania konta',
       });
@@ -1046,28 +1050,28 @@ export const CreateRecurringRuleRequestSchema = z
     const needsDayOfMonth = ['monthly', 'quarterly', 'yearly', 'every_n_months'];
     if (needsDayOfMonth.includes(value.frequency) && value.dayOfMonth == null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['dayOfMonth'],
         message: 'Podaj dzień miesiąca',
       });
     }
     if (['weekly', 'biweekly'].includes(value.frequency) && value.weekday == null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['weekday'],
         message: 'Podaj dzień tygodnia',
       });
     }
     if (value.frequency === 'yearly' && value.monthOfYear == null) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['monthOfYear'],
         message: 'Podaj miesiąc',
       });
     }
     if (value.flow === 'transfer' && !value.counterAccountId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['counterAccountId'],
         message: 'Przelew cykliczny wymaga konta docelowego',
       });
@@ -1199,7 +1203,7 @@ export const CreatePlannedExpenseRequestSchema = z
     // I-16: dokładna data musi należeć do zadeklarowanego miesiąca.
     if (value.dueOn && value.dueOn.slice(0, 7) !== value.dueMonth) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['dueOn'],
         message: 'Data musi mieścić się w wybranym miesiącu',
       });
@@ -1207,7 +1211,7 @@ export const CreatePlannedExpenseRequestSchema = z
     // I-17: odkładanie musi wiedzieć, gdzie gromadzić pieniądze.
     if (value.setAsideEnabled && !value.setAsideAccountId && !value.setAsideGoalId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['setAsideAccountId'],
         message: 'Wskaż konto lub cel, na którym odkładasz',
       });
@@ -1215,15 +1219,35 @@ export const CreatePlannedExpenseRequestSchema = z
     // I-19
     if (value.setAsideStartMonth && value.setAsideStartMonth > value.dueMonth) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['setAsideStartMonth'],
         message: 'Odkładanie nie może zaczynać się po terminie wydatku',
       });
     }
   });
 
-export const UpdatePlannedExpenseRequestSchema =
-  CreatePlannedExpenseRequestSchema.innerType().partial();
+// Bez `default` z pól tworzenia: od Zod 4 `.partial()` ich nie wyłącza (ADR-089), więc
+// pominięte `priority` czy `setAsideEnabled` wracałyby do wartości domyślnej przy PATCH.
+export const UpdatePlannedExpenseRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60),
+    estimatedAmountMinor: PositiveAmountMinorSchema,
+    amountIsEstimate: z.boolean(),
+    dueMonth: MonthKeySchema,
+    dueOn: DateOnlySchema.nullable(),
+    categoryId: IdSchema.nullable(),
+    accountId: IdSchema.nullable(),
+    liabilityId: IdSchema.nullable(),
+    priority: PlannedExpensePrioritySchema,
+    setAsideEnabled: z.boolean(),
+    setAsideAccountId: IdSchema.nullable(),
+    setAsideGoalId: IdSchema.nullable(),
+    setAsideStartMonth: MonthKeySchema,
+    alreadySetAsideMinor: AmountMinorSchema.nonnegative(),
+    repeatsYearly: z.boolean(),
+    notes: optionalText(1000),
+  })
+  .partial();
 
 /** Zaksięgowanie miesięcznej wpłaty na odkładanie. */
 export const SetAsideContributionRequestSchema = z.object({
@@ -1384,7 +1408,7 @@ export const CommitDocumentRequestSchema = z
   .superRefine((value, ctx) => {
     if (value.mode === 'single' && !value.categoryId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['categoryId'],
         message: 'Wybierz kategorię dla całego dokumentu',
       });
