@@ -53,20 +53,22 @@ const ShoppingListNameSchema = z
   .max(60, 'Nazwa listy może mieć najwyżej 60 znaków');
 
 /**
- * Ilość i jednostka razem albo wcale (I-27) — przy zapisie pomijane pole to „bez zmian",
- * więc w zmianie oba muszą przyjść razem albo żadne.
+ * Spójność ilości i jednostki w zmianie (I-27, 05 §13c): obie wartości razem, albo `null`
+ * w jednej z nich — co czyści obie. Sama liczba albo sama jednostka bez pary to błąd.
  *
  * @param value - Pola żądania.
- * @param value.quantityMilli - Ilość albo jej brak.
- * @param value.unit - Jednostka albo jej brak.
- * @returns `true`, gdy para jest spójna.
+ * @param value.quantityMilli - Ilość, `null` albo pominięta.
+ * @param value.unit - Jednostka, `null` albo pominięta.
+ * @returns `true`, gdy zmiana jest spójna.
  */
 function quantityPairValid(value: {
   quantityMilli?: number | null | undefined;
   unit?: string | null | undefined;
 }): boolean {
-  if ((value.quantityMilli === undefined) !== (value.unit === undefined)) return false;
-  return (value.quantityMilli === null) === (value.unit === null);
+  if (value.quantityMilli === null || value.unit === null) {
+    return value.quantityMilli == null && value.unit == null;
+  }
+  return (value.quantityMilli === undefined) === (value.unit === undefined);
 }
 
 const quantityPairIssue = { message: 'Ilość i jednostkę podaje się razem', path: ['unit'] };

@@ -37,6 +37,7 @@ import type {
   ShoppingProductRow,
 } from '../../db/schema/shopping.js';
 import { listExportUsers } from '../auth/auth.service.js';
+import { parseImportFilePaths } from './shopping.files.js';
 import {
   initialsOf,
   toShoppingItemDto,
@@ -55,7 +56,9 @@ import {
   findProduct,
   findProductByName,
   findProductsByIds,
-  findRecentItems,
+  findImportFilePaths,
+  findListActivity,
+  findListIdsWithProduct,
   findRecentlyUsedProducts,
   findShoppingInitializedAt,
   findVisibleItems,
@@ -175,13 +178,9 @@ function toListDtos(
   const names = new Map(
     listExportUsers(handle, householdId).map((user) => [user.id, user.displayName]),
   );
-  const lastActor = new Map<string, string>();
-  for (const item of findRecentItems(handle, householdId, ids)) {
-    if (lastActor.has(item.listId)) continue;
-    const actorId = item.checkedAt !== null ? item.checkedBy : item.createdBy;
-    const name = actorId === null ? undefined : names.get(actorId);
-    if (name !== undefined) lastActor.set(item.listId, name);
-  }
+  const activity = new Map(
+    findListActivity(handle, householdId, ids).map((row) => [row.listId, row]),
+  );
   const pending = new Map<string, ShoppingListDto['pendingImports'][number][]>();
   for (const row of findPendingImports(handle, householdId, ids)) {
     pending.set(row.listId, [
@@ -193,7 +192,8 @@ function toListDtos(
     toShoppingListDto(list, {
       toBuyCount: Number(counts.get(list.id)?.toBuyCount ?? 0),
       checkedCount: Number(counts.get(list.id)?.checkedCount ?? 0),
-      lastActivityBy: lastActor.get(list.id) ?? null,
+      lastActivityAt: activity.get(list.id)?.updatedAt ?? null,
+      lastActivityBy: names.get(activity.get(list.id)?.updatedBy ?? '') ?? null,
       pendingImports: pending.get(list.id) ?? [],
     }),
   );
@@ -372,6 +372,7 @@ export function updateShoppingList(
  * swoją pozycję za podanymi.
  *
  * @param handle - Uchwyt bazy.
+ * @param clock - Źródło czasu.
  * @param householdId - Gospodarstwo z tokenu.
  * @param listIds - Listy w nowej kolejności.
  * @returns Listy bieżące po zmianie.
@@ -379,6 +380,7 @@ export function updateShoppingList(
  */
 export function reorderShoppingLists(
   handle: DbHandle,
+  clock: Clock,
   householdId: string,
   listIds: readonly string[],
 ): ShoppingListDto[] {
@@ -388,8 +390,9 @@ export function reorderShoppingLists(
     if (listIds.some((id) => !known.has(id))) throw new NotFoundError(LIST_NOT_FOUND);
     const unique = [...new Set(listIds)];
     const rest = lists.filter((list) => !unique.includes(list.id)).map((list) => list.id);
+    const now = clock.now().getTime();
     [...unique, ...rest].forEach((id, index) => {
-      patchList(handle, householdId, id, { sortOrder: index });
+      patchList(handle, householdId, id, { sortOrder: index, updatedAt: now });
     });
   })();
   return toListDtos(handle, householdId, findLists(handle, householdId, false));
@@ -398,21 +401,28 @@ export function reorderShoppingLists(
 /**
  * Usuwa listę z pozycjami i importami; flaga domyślnej przechodzi dalej (I-26).
  *
+ * Pliki importów usuwa wołający **po** zatwierdzeniu transakcji (I-31) — jak przy
+ * resecie danych: plik bez wiersza to mniejsze zło niż wiersz bez pliku.
+ *
  * @param handle - Uchwyt bazy.
  * @param clock - Źródło czasu.
  * @param householdId - Gospodarstwo z tokenu.
  * @param listId - Lista.
+ * @returns Ścieżki plików importów (względem `UPLOAD_DIR`) do usunięcia z dysku.
  */
 export function deleteShoppingList(
   handle: DbHandle,
   clock: Clock,
   householdId: string,
   listId: string,
-): void {
-  handle.sqlite.transaction(() => {
+): string[] {
+  return handle.sqlite.transaction((): string[] => {
     requireList(handle, householdId, listId);
+    // Kaskada usuwa wiersze importów, a tylko one znają pliki — zbieramy ścieżki przed nią.
+    const files = findImportFilePaths(handle, householdId, listId).flatMap(parseImportFilePaths);
     removeList(handle, householdId, listId);
     repairDefaultList(handle, householdId, clock.now().getTime());
+    return files;
   })();
 }
 
@@ -481,6 +491,7 @@ export function duplicateShoppingList(
         checkedBy: null,
         clearedAt: null,
         createdBy: userId,
+        updatedBy: userId,
         createdAt: now,
         updatedAt: now,
       });
@@ -682,6 +693,7 @@ export function createShoppingItem(
         unit: merged.unit,
         note: mergeNotes(target.note, note),
         productId,
+        updatedBy: userId,
         updatedAt: now,
       });
       outcome = { id: target.id, kind: 'merged' };
@@ -701,6 +713,7 @@ export function createShoppingItem(
           section,
           source: 'manual',
           createdBy: userId,
+          updatedBy: userId,
           createdAt: now,
           updatedAt: now,
         },
@@ -715,16 +728,19 @@ export function createShoppingItem(
 /**
  * Wchłania w pozycję inne pozycje *do kupienia* z tym samym kluczem na jej liście —
  * po odznaczeniu, przemianowaniu, zmianie jednostki albo przeniesieniu, żeby I-29
- * trzymało. Zostaje pozycja zmieniana, więc klient nie traci identyfikatora.
+ * trzymało. Zostaje pozycja zmieniana, więc klient nie traci identyfikatora; dział
+ * przechodzi z pozycji wchłoniętej.
  *
  * @param handle - Uchwyt bazy.
  * @param householdId - Gospodarstwo z tokenu.
+ * @param userId - Kto zmienia.
  * @param item - Pozycja po zmianie (do kupienia).
  * @param now - Znacznik systemowy.
  */
 function absorbDuplicates(
   handle: DbHandle,
   householdId: string,
+  userId: string,
   item: ShoppingItemRow,
   now: number,
 ): void {
@@ -738,13 +754,23 @@ function absorbDuplicates(
     const merged = mergeQuantities(current, duplicate);
     const note = mergeNotes(current.note, duplicate.note);
     removeItems(handle, householdId, [duplicate.id]);
+    // Dział z pozycji, która już była na liście (07 §14.3) — przeniesione „Mleko" z „Inne"
+    // ląduje w nabiale, gdzie stało mleko tej listy.
     patchItem(handle, householdId, current.id, {
       quantityMilli: merged.quantityMilli,
       unit: merged.unit,
       note,
+      section: duplicate.section,
+      updatedBy: userId,
       updatedAt: now,
     });
-    current = { ...current, quantityMilli: merged.quantityMilli, unit: merged.unit, note };
+    current = {
+      ...current,
+      quantityMilli: merged.quantityMilli,
+      unit: merged.unit,
+      note,
+      section: duplicate.section,
+    };
   }
 }
 
@@ -786,7 +812,11 @@ export function updateShoppingItem(
       next.name = tidyShoppingName(request.name);
       next.normalizedName = normalizeShoppingName(next.name);
     }
-    if (request.quantityMilli !== undefined && request.unit !== undefined) {
+    if (request.quantityMilli === null || request.unit === null) {
+      // `null` w jednym z pól czyści oba (I-27, 05 §13c).
+      next.quantityMilli = null;
+      next.unit = null;
+    } else if (request.quantityMilli !== undefined && request.unit !== undefined) {
       next.quantityMilli = request.quantityMilli;
       next.unit = request.unit;
     }
@@ -839,9 +869,10 @@ export function updateShoppingItem(
       section: next.section,
       checkedAt: next.checkedAt,
       checkedBy: next.checkedBy,
+      updatedBy: userId,
       updatedAt: now,
     });
-    if (next.checkedAt === null) absorbDuplicates(handle, householdId, next, now);
+    if (next.checkedAt === null) absorbDuplicates(handle, householdId, userId, next, now);
     touchList(handle, householdId, item.listId, now);
     if (targetListId !== item.listId) touchList(handle, householdId, targetListId, now);
   })();
@@ -879,6 +910,7 @@ export function deleteShoppingItem(
  * @param handle - Uchwyt bazy.
  * @param clock - Źródło czasu.
  * @param householdId - Gospodarstwo z tokenu.
+ * @param userId - Kto czyści.
  * @param listId - Lista.
  * @returns Wyczyszczone pozycje i czy coś zostało do kupienia.
  */
@@ -886,13 +918,14 @@ export function clearCheckedShoppingItems(
   handle: DbHandle,
   clock: Clock,
   householdId: string,
+  userId: string,
   listId: string,
 ): ClearCheckedResult {
   return handle.sqlite.transaction((): ClearCheckedResult => {
     requireEditableList(handle, householdId, listId);
     const now = clock.now().getTime();
     purgeClearedItems(handle, householdId, listId, now - CLEARED_RESTORE_WINDOW_MS);
-    const clearedIds = clearCheckedItems(handle, householdId, listId, now);
+    const clearedIds = clearCheckedItems(handle, householdId, userId, listId, now);
     if (clearedIds.length > 0) touchList(handle, householdId, listId, now);
     const listEmpty = !findVisibleItems(handle, householdId, listId).some(
       (item) => item.checkedAt === null,
@@ -908,6 +941,7 @@ export function clearCheckedShoppingItems(
  * @param handle - Uchwyt bazy.
  * @param clock - Źródło czasu.
  * @param householdId - Gospodarstwo z tokenu.
+ * @param userId - Kto cofa.
  * @param listId - Lista.
  * @param itemIds - Pozycje.
  * @returns Przywrócone pozycje.
@@ -916,6 +950,7 @@ export function restoreClearedShoppingItems(
   handle: DbHandle,
   clock: Clock,
   householdId: string,
+  userId: string,
   listId: string,
   itemIds: readonly string[],
 ): string[] {
@@ -925,6 +960,7 @@ export function restoreClearedShoppingItems(
     const restored = restoreClearedItems(
       handle,
       householdId,
+      userId,
       listId,
       itemIds,
       now - CLEARED_RESTORE_WINDOW_MS,
@@ -933,6 +969,26 @@ export function restoreClearedShoppingItems(
     if (restored.length > 0) touchList(handle, householdId, listId, now);
     return restored;
   })();
+}
+
+/**
+ * Podbija wersję list z pozycjami produktu — flaga „zawsze w domu" jest w ich treści,
+ * więc odpytywanie z `ETag` musi zobaczyć zmianę (04 §14b).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param productId - Produkt.
+ * @param now - Znacznik systemowy.
+ */
+function touchListsWithProduct(
+  handle: DbHandle,
+  householdId: string,
+  productId: string,
+  now: number,
+): void {
+  for (const listId of findListIdsWithProduct(handle, householdId, productId)) {
+    touchList(handle, householdId, listId, now);
+  }
 }
 
 /**
@@ -1010,6 +1066,7 @@ export function upsertShoppingProduct(
         section: request.section ?? existing.section,
         updatedAt: now,
       });
+      touchListsWithProduct(handle, householdId, existing.id, now);
       return {
         product: toShoppingProductDto(
           findProduct(handle, householdId, existing.id) as ShoppingProductRow,
@@ -1063,13 +1120,15 @@ export function updateShoppingProduct(
     if (clash && clash.id !== productId) {
       throw new ConflictError('Produkt o tej nazwie już jest w słowniku.');
     }
+    const now = clock.now().getTime();
     patchProduct(handle, householdId, productId, {
       name,
       normalizedName,
       section: request.section ?? product.section,
       isStaple: request.isStaple ?? product.isStaple,
-      updatedAt: clock.now().getTime(),
+      updatedAt: now,
     });
+    touchListsWithProduct(handle, householdId, productId, now);
     return toShoppingProductDto(findProduct(handle, householdId, productId) as ShoppingProductRow);
   })();
 }
@@ -1078,13 +1137,18 @@ export function updateShoppingProduct(
  * Usuwa produkt ze słownika — pozycje zostają na listach bez powiązania.
  *
  * @param handle - Uchwyt bazy.
+ * @param clock - Źródło czasu.
  * @param householdId - Gospodarstwo z tokenu.
  * @param productId - Produkt.
  */
 export function deleteShoppingProduct(
   handle: DbHandle,
+  clock: Clock,
   householdId: string,
   productId: string,
 ): void {
-  removeProduct(handle, householdId, productId);
+  handle.sqlite.transaction(() => {
+    touchListsWithProduct(handle, householdId, productId, clock.now().getTime());
+    removeProduct(handle, householdId, productId);
+  })();
 }

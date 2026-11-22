@@ -4730,3 +4730,38 @@ niedookreślonych.
 
 **Konsekwencje.** Zmienione: 01, 02, 03, 04, 05, 06, 07, 08, 09, 17 §4 i §6 (szkic zastąpiony
 mapą odwołań).
+
+---
+
+<a id="adr-098"></a>
+
+## ADR-098 — Listy zakupów: poprawki po przeglądzie kodu `F10-2`…`F10-4`
+
+**Data:** 2026-11-22 · **Zadanie:** przegląd `/code-review` przed PR · **Status:** przyjęta
+
+**Kontekst.** Przegląd w osobnej sesji znalazł 10 problemów: 6 błędów (ponowienie
+scalonego dopisania sumowało ilość drugi raz, `304` mimo zmian, cofająca się wersja
+listy, start serwera blokowany przez błąd usuwania pliku, pliki importów zostające po
+usunięciu listy, zły dział po scaleniu) i 4 rozbieżności z planem.
+
+**Decyzja.**
+
+1. **Idempotencja dopisania** przez istniejące `idempotency_keys`: identyfikator od
+   klienta jest kluczem (zakres `POST /shopping-lists/:id/items`, 24 h). Bez nowej
+   tabeli aliasów; ponowienie po ponad dobie, które trafi w scalenie, zsumuje się —
+   kolejka offline nie żyje tak długo.
+2. **Wersja listy (`ETag`)** rośnie ściśle w każdym zapisie listy (`patchList` też liczy
+   `max(updated_at + 1, now)`), przy zmianie kolejności list i przy zmianie flagi lub
+   usunięciu produktu — dla każdej listy z jego pozycjami.
+3. **`shopping_items.updated_by`** — „ostatnio" na karcie listy to rzeczywisty autor
+   ostatniej zmiany pozycji, a `lastActivityAt` pochodzi z pozycji, nie z wiersza listy
+   (03 §3.23). Migracja `0008` nie była wdrożona, więc kolumna weszła do niej.
+4. **Pliki**: usunięcie listy usuwa pliki jej importów po zatwierdzeniu transakcji;
+   sprzątanie przy starcie i usuwanie listy zbierają błędy (`allSettled`), logują
+   liczby i nie przerywają pracy.
+5. **Dział przy scaleniu** pochodzi z pozycji, która już była na liście (07 §14.3).
+6. **Normalizacja** — `NFKD` przed złożeniem (07 §14.1), ligatury i pełna szerokość.
+7. **Zmiana ilości**: `null` w jednym z pól czyści oba (05 §13c).
+
+**Konsekwencje.** Zmienione: 03 §3.23 i §3.25, 04 §14b, 05 §13c. Testy regresji dla
+każdego punktu w `shopping.routes.test.ts`, `shopping.files.test.ts` i testach `shared`.

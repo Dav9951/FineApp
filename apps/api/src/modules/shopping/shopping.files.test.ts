@@ -20,6 +20,9 @@ import {
 const NOW = new Date('2026-11-22T10:00:00.000Z');
 const UPLOAD_DIR = testConfig().uploads.dir;
 
+/** Logger, który niczego nie wypisuje. */
+const SILENT = { warn: (): void => undefined };
+
 let handle: DbHandle | undefined;
 
 afterEach(() => {
@@ -88,6 +91,7 @@ describe('purgeStaleImportFiles', () => {
       db: handle,
       clock: fixedClock(NOW),
       uploadDir: UPLOAD_DIR,
+      log: SILENT,
     });
     expect(purged).toBe(2);
     for (const row of rows) {
@@ -105,7 +109,56 @@ describe('purgeStaleImportFiles', () => {
       }
     }
     expect(
-      await purgeStaleImportFiles({ db: handle, clock: fixedClock(NOW), uploadDir: UPLOAD_DIR }),
+      await purgeStaleImportFiles({
+        db: handle,
+        clock: fixedClock(NOW),
+        uploadDir: UPLOAD_DIR,
+        log: SILENT,
+      }),
     ).toBe(0);
+  });
+
+  it('ścieżka spoza UPLOAD_DIR nie zatrzymuje startu — import zostaje z plikami, błąd w logu', async () => {
+    handle = testDb();
+    const home = await householdFixture(handle, testConfig(), NOW);
+    const at = NOW.getTime();
+    const old = at - IMPORT_FILE_RETENTION_MS - 1;
+    const listId = newId();
+    handle.db
+      .insert(shoppingLists)
+      .values({
+        id: listId,
+        householdId: home.householdId,
+        name: 'L',
+        createdAt: at,
+        updatedAt: at,
+      })
+      .run();
+    const id = newId();
+    handle.db
+      .insert(shoppingImports)
+      .values({
+        id,
+        householdId: home.householdId,
+        listId,
+        kind: 'list_photo',
+        input: 'image',
+        status: 'failed',
+        filePaths: JSON.stringify(['../../etc/passwd']),
+        createdBy: home.userId,
+        createdAt: old,
+        updatedAt: old,
+      })
+      .run();
+    const warnings: unknown[] = [];
+    const purged = await purgeStaleImportFiles({
+      db: handle,
+      clock: fixedClock(NOW),
+      uploadDir: UPLOAD_DIR,
+      log: { warn: (entry: unknown) => void warnings.push(entry) },
+    });
+    expect(purged).toBe(0);
+    expect(warnings).toEqual([{ failed: 1, total: 1 }]);
+    expect(handle.db.select().from(shoppingImports).get()?.filePaths).not.toBe('[]');
   });
 });

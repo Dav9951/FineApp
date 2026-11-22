@@ -936,7 +936,10 @@ CREATE INDEX idx_shopping_lists_household ON shopping_lists(household_id, archiv
 ```
 
 Liczniki (`toBuyCount`, `checkedCount`) i „ostatnia zmiana" **nie są przechowywane** —
-liczy je odczyt z `shopping_items`.
+liczy je odczyt z `shopping_items` (najnowsze `updated_at` i jego `updated_by`, także
+pozycji wyczyszczonych). `shopping_lists.updated_at` to **wersja listy** do `ETag`
+(04 §14b): rośnie ściśle przy każdej zmianie listy, jej pozycji i flagi „zawsze w domu"
+produktów na niej (ADR-098).
 
 ### 3.24 `shopping_products`
 
@@ -986,6 +989,8 @@ CREATE TABLE shopping_items (
   -- „Wyczyść kupione" — miękko, żeby działało „Cofnij" (I-28).
   cleared_at       INTEGER,
   created_by       TEXT    REFERENCES users(id) ON DELETE SET NULL,
+  -- Kto ostatnio zmienił pozycję — „Ania · 12 min temu" na karcie listy (ADR-098).
+  updated_by       TEXT    REFERENCES users(id) ON DELETE SET NULL,
   created_at       INTEGER NOT NULL,
   updated_at       INTEGER NOT NULL
 );

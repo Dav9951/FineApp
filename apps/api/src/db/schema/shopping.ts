@@ -203,6 +203,10 @@ export const shoppingItems = sqliteTable(
     createdBy: text('created_by').references((): AnySQLiteColumn => users.id, {
       onDelete: 'set null',
     }),
+    /** Kto ostatnio zmienił pozycję — „Ania · 12 min temu" na karcie listy (06 §3.15). */
+    updatedBy: text('updated_by').references((): AnySQLiteColumn => users.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps,
   },
   (table) => [

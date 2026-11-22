@@ -28,6 +28,8 @@ import type { Clock } from '../../core/clock.js';
 import type { Config } from '../../core/config.js';
 import type { DbHandle } from '../../db/client.js';
 import { authContext, requireAuth } from '../../http/middleware/require-auth.js';
+import { runIdempotent } from '../idempotency/idempotency.service.js';
+import { removeImportFiles } from './shopping.files.js';
 import {
   clearCheckedShoppingItems,
   createShoppingItem,
@@ -137,7 +139,7 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
       response: { 200: apiResponse(z.array(ShoppingListDtoSchema)) },
     },
     handler: (request) => ({
-      data: reorderShoppingLists(db, authContext(request).householdId, request.body.listIds),
+      data: reorderShoppingLists(db, clock, authContext(request).householdId, request.body.listIds),
     }),
   });
 
@@ -167,7 +169,13 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
     url: '/shopping-lists/:id',
     schema: { params: ShoppingIdParamsSchema },
     handler: async (request, reply) => {
-      deleteShoppingList(db, clock, authContext(request).householdId, request.params.id);
+      const files = deleteShoppingList(
+        db,
+        clock,
+        authContext(request).householdId,
+        request.params.id,
+      );
+      await removeImportFiles(options.config.uploads.dir, files, request.log);
       await reply.status(204).send();
     },
   });
@@ -233,16 +241,33 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
     },
     handler: (request, reply) => {
       const { householdId, userId } = authContext(request);
-      const outcome = createShoppingItem(
+      // Identyfikator od klienta jest kluczem idempotencji (ADR-096): ponowienie z kolejki
+      // offline odtwarza pierwszą odpowiedź — także scalenie, po którym wiersz o tym
+      // identyfikatorze nie powstał i ilość nie może zsumować się drugi raz.
+      const result = runIdempotent(
         db,
         clock,
         householdId,
-        userId,
-        request.params.id,
-        request.body,
+        'POST /shopping-lists/:id/items',
+        request.body.id,
+        { listId: request.params.id, ...request.body },
+        () => {
+          const outcome = createShoppingItem(
+            db,
+            clock,
+            householdId,
+            userId,
+            request.params.id,
+            request.body,
+          );
+          return {
+            statusCode: outcome.kind === 'created' ? 201 : 200,
+            body: { data: { item: outcome.item, merged: outcome.kind === 'merged' } },
+          };
+        },
       );
-      void reply.status(outcome.kind === 'created' ? 201 : 200);
-      return { data: { item: outcome.item, merged: outcome.kind === 'merged' } };
+      void reply.status(result.statusCode as 200 | 201);
+      return result.body;
     },
   });
 
@@ -259,6 +284,7 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
         db,
         clock,
         authContext(request).householdId,
+        authContext(request).userId,
         request.params.id,
       ),
     }),
@@ -279,6 +305,7 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
           db,
           clock,
           authContext(request).householdId,
+          authContext(request).userId,
           request.params.id,
           request.body.itemIds,
         ),
@@ -396,7 +423,7 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
     url: '/shopping-products/:id',
     schema: { params: ShoppingIdParamsSchema },
     handler: async (request, reply) => {
-      deleteShoppingProduct(db, authContext(request).householdId, request.params.id);
+      deleteShoppingProduct(db, clock, authContext(request).householdId, request.params.id);
       await reply.status(204).send();
     },
   });

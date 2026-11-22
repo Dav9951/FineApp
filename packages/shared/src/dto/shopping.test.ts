@@ -82,6 +82,8 @@ describe('pozycje (I-27)', () => {
     [{ checked: true }, true],
     [{ quantityMilli: 1500, unit: 'kg' }, true],
     [{ quantityMilli: null, unit: null }, true],
+    [{ quantityMilli: null }, true],
+    [{ unit: null }, true],
     [{ quantityMilli: 1500 }, false],
     [{ unit: 'kg' }, false],
     [{ quantityMilli: null, unit: 'kg' }, false],

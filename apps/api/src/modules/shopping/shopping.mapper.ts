@@ -15,6 +15,8 @@ import type {
 export interface ListExtras {
   readonly toBuyCount: number;
   readonly checkedCount: number;
+  /** Ostatnia zmiana pozycji (03 §3.23: z pozycji, nie z wiersza listy). */
+  readonly lastActivityAt: number | null;
   readonly lastActivityBy: string | null;
   readonly pendingImports: ShoppingListDto['pendingImports'];
 }
@@ -35,7 +37,7 @@ export function toShoppingListDto(row: ShoppingListRow, extras: ListExtras): Sho
     sortOrder: row.sortOrder,
     toBuyCount: extras.toBuyCount,
     checkedCount: extras.checkedCount,
-    lastActivityAt: row.updatedAt,
+    lastActivityAt: extras.lastActivityAt,
     lastActivityBy: extras.lastActivityBy,
     pendingImports: extras.pendingImports,
   };

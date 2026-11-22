@@ -28,6 +28,8 @@ describe('normalizeShoppingName (07 §14.1)', () => {
   it.each([
     ['  Mąka   PSZENNA.', 'maka pszenna'],
     ['Łosoś', 'losos'],
+    ['\uFB01let', 'filet'],
+    ['ＭＬＥＫＯ', 'mleko'],
     ['żółć', 'zolc'],
     ['Mleko,;', 'mleko'],
     ['jajka', 'jajka'],

@@ -69,6 +69,7 @@ async function main(): Promise<void> {
     db,
     clock: systemClock,
     uploadDir: config.uploads.dir,
+    log: app.log,
   });
   if (purgedImports > 0) {
     app.log.info({ purged: purgedImports }, 'Usunięto pliki starych importów list zakupów');

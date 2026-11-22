@@ -1418,10 +1418,10 @@ z zapytania, domyślnie 3, inne wartości → `400`.
 | POST | `/shopping-lists` | `{ name }` → `201`. Pierwsza lista gospodarstwa zostaje domyślną. |
 | PATCH | `/shopping-lists/:id` | `{ name?, isDefault?: true, archived?: boolean }`. `isDefault: false` → `400` (domyślną zmienia się, ustawiając inną). |
 | PATCH | `/shopping-lists/order` | `{ listIds }` — kolejność list. |
-| DELETE | `/shopping-lists/:id` | Usunięcie z pozycjami i importami (`204`). Ostatnia lista → dozwolone; I-26 przenosi flagę. |
+| DELETE | `/shopping-lists/:id` | Usunięcie z pozycjami i importami (`204`), pliki importów znikają z dysku po zatwierdzeniu (I-31). Ostatnia lista → dozwolone; I-26 przenosi flagę. |
 | POST | `/shopping-lists/:id/duplicate` | `{ name }` → nowa lista z pozycjami *do kupienia* i kupionymi (niewyczyszczonymi) jako *do kupienia*. |
 | GET | `/shopping-lists/:id/items` | `{ list, items }` — lista z licznikami i pozycje bez wyczyszczonych, w kolejności ekranu. `ETag` (`W/"<wersja>"`) z `shopping_lists.updated_at`, które każda zmiana pozycji podbija **ściśle rosnąco**; `If-None-Match` → `304` bez treści. |
-| POST | `/shopping-lists/:id/items` | `{ id?, name, quantityMilli?, unit?, note?, section? }`. `id` od klienta (ADR-096): istniejący w tym gospodarstwie → `200` z tą pozycją bez zmian (ponowienie), zajęty gdzie indziej → `409`. Scalanie (I-29) → `200` z `merged: true`; nowa → `201`. Brak `section` → ze słownika albo słów kluczowych (07 §14.5). |
+| POST | `/shopping-lists/:id/items` | `{ id?, name, quantityMilli?, unit?, note?, section? }`. `id` od klienta (ADR-096) jest też **kluczem idempotencji** (`idempotency_keys`, 24 h, ADR-098): ponowienie z tym samym ciałem odtwarza pierwszą odpowiedź — także scalenie, więc ilość nie sumuje się drugi raz; to samo `id` z innym ciałem → `409`; `id` zajęte w innym gospodarstwie → `409`. Scalanie (I-29) → `200` z `merged: true`; nowa → `201`. Brak `section` → ze słownika albo słów kluczowych (07 §14.5). |
 | PATCH | `/shopping-items/:id` | `{ name?, quantityMilli?, unit?, note?, section?, checked?, listId? }`. `checked` idempotentne (bez zmiany `updatedAt`); `listId` przenosi. Pozycja do kupienia po zmianie **wchłania** duplikaty o tym samym kluczu (07 §14.3) — identyfikator zmienianej zostaje. |
 | DELETE | `/shopping-items/:id` | `204`; nieistniejąca → `204` (ponowienie z kolejki offline). |
 | POST | `/shopping-lists/:id/clear-checked` | Ustawia `cleared_at` kupionym → `{ clearedIds, listEmpty }`. |

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d42ec563-fe70-4866-a572-23bcc141666d",
+  "id": "9937c7be-3373-45fd-ae30-45f31661077a",
   "prevId": "5824729a-7048-4abc-bbe5-41b46102b4c9",
   "tables": {
     "households": {
@@ -3980,6 +3980,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -4088,6 +4095,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "shopping_items_updated_by_users_id_fk": {
+          "name": "shopping_items_updated_by_users_id_fk",
+          "tableFrom": "shopping_items",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
           ],
           "columnsTo": [
             "id"

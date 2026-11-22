@@ -154,9 +154,16 @@ export function patchList(
     Pick<ShoppingListRow, 'name' | 'isDefault' | 'sortOrder' | 'archivedAt' | 'updatedAt'>
   >,
 ): void {
+  const { updatedAt, ...rest } = patch;
   handle.db
     .update(shoppingLists)
-    .set(patch)
+    .set({
+      ...rest,
+      // Wersja listy (ETag) rośnie ściśle także przy zmianie samej listy (04 §14b).
+      ...(updatedAt === undefined
+        ? {}
+        : { updatedAt: sql`max(${shoppingLists.updatedAt} + 1, ${updatedAt})` }),
+    })
     .where(and(eq(shoppingLists.householdId, householdId), eq(shoppingLists.id, listId)))
     .run();
 }
@@ -229,26 +236,88 @@ export function countItems(
     .all();
 }
 
+/** Ostatnia zmiana pozycji listy: kiedy i kto. */
+export interface ListActivity {
+  readonly listId: string;
+  readonly updatedAt: number;
+  readonly updatedBy: string | null;
+}
+
 /**
- * Ostatnio zmieniona pozycja każdej listy — z niej „kto ostatnio coś zmienił".
+ * Ostatnio zmieniona pozycja każdej listy — „Ania · 12 min temu" (03 §3.23: liczone
+ * z pozycji, nie przechowywane). Wyczyszczone też się liczą: czyszczenie to aktywność.
  *
  * @param handle - Uchwyt bazy.
  * @param householdId - Identyfikator gospodarstwa.
  * @param listIds - Listy.
- * @returns Wiersze pozycji, od najnowszej zmiany.
+ * @returns Po jednym wierszu na listę z pozycjami.
  */
-export function findRecentItems(
+export function findListActivity(
   handle: DbHandle,
   householdId: string,
   listIds: readonly string[],
-): ShoppingItemRow[] {
+): ListActivity[] {
   if (listIds.length === 0) return [];
-  return handle.db
-    .select()
+  const ranked = handle.db
+    .select({
+      listId: shoppingItems.listId,
+      updatedAt: shoppingItems.updatedAt,
+      updatedBy: shoppingItems.updatedBy,
+      rank: sql<number>`row_number() over (partition by ${shoppingItems.listId} order by ${shoppingItems.updatedAt} desc, ${shoppingItems.id} desc)`.as(
+        'rank',
+      ),
+    })
     .from(shoppingItems)
     .where(and(eq(shoppingItems.householdId, householdId), inArray(shoppingItems.listId, listIds)))
-    .orderBy(desc(shoppingItems.updatedAt), desc(shoppingItems.id))
+    .as('ranked');
+  return handle.db
+    .select({ listId: ranked.listId, updatedAt: ranked.updatedAt, updatedBy: ranked.updatedBy })
+    .from(ranked)
+    .where(eq(ranked.rank, 1))
     .all();
+}
+
+/**
+ * Listy, na których jest pozycja podpięta pod produkt — ich wersję trzeba podbić, gdy
+ * zmienia się flaga „zawsze w domu" albo produkt znika (ETag, 04 §14b).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param productId - Produkt.
+ * @returns Identyfikatory list.
+ */
+export function findListIdsWithProduct(
+  handle: DbHandle,
+  householdId: string,
+  productId: string,
+): string[] {
+  return handle.db
+    .selectDistinct({ listId: shoppingItems.listId })
+    .from(shoppingItems)
+    .where(and(eq(shoppingItems.householdId, householdId), eq(shoppingItems.productId, productId)))
+    .all()
+    .map((row) => row.listId);
+}
+
+/**
+ * Ścieżki plików importów listy — do usunięcia z dysku razem z listą (I-31).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param listId - Lista.
+ * @returns Wartości kolumny `file_paths`.
+ */
+export function findImportFilePaths(
+  handle: DbHandle,
+  householdId: string,
+  listId: string,
+): string[] {
+  return handle.db
+    .select({ filePaths: shoppingImports.filePaths })
+    .from(shoppingImports)
+    .where(and(eq(shoppingImports.householdId, householdId), eq(shoppingImports.listId, listId)))
+    .all()
+    .map((row) => row.filePaths);
 }
 
 /**
@@ -445,6 +514,7 @@ export function purgeClearedItems(
  *
  * @param handle - Uchwyt bazy.
  * @param householdId - Identyfikator gospodarstwa.
+ * @param userId - Kto czyści.
  * @param listId - Lista.
  * @param now - Znacznik systemowy.
  * @returns Identyfikatory wyczyszczonych.
@@ -452,12 +522,13 @@ export function purgeClearedItems(
 export function clearCheckedItems(
   handle: DbHandle,
   householdId: string,
+  userId: string,
   listId: string,
   now: number,
 ): string[] {
   return handle.db
     .update(shoppingItems)
-    .set({ clearedAt: now, updatedAt: now })
+    .set({ clearedAt: now, updatedBy: userId, updatedAt: now })
     .where(
       and(
         eq(shoppingItems.householdId, householdId),
@@ -476,6 +547,7 @@ export function clearCheckedItems(
  *
  * @param handle - Uchwyt bazy.
  * @param householdId - Identyfikator gospodarstwa.
+ * @param userId - Kto cofa.
  * @param listId - Lista.
  * @param itemIds - Pozycje.
  * @param since - Najstarszy dopuszczalny `cleared_at`.
@@ -485,6 +557,7 @@ export function clearCheckedItems(
 export function restoreClearedItems(
   handle: DbHandle,
   householdId: string,
+  userId: string,
   listId: string,
   itemIds: readonly string[],
   since: number,
@@ -492,7 +565,7 @@ export function restoreClearedItems(
 ): string[] {
   return handle.db
     .update(shoppingItems)
-    .set({ clearedAt: null, updatedAt: now })
+    .set({ clearedAt: null, updatedBy: userId, updatedAt: now })
     .where(
       and(
         eq(shoppingItems.householdId, householdId),

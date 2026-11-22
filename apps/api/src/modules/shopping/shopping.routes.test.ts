@@ -430,7 +430,8 @@ describe('pozycje (07 §14.3, I-29)', () => {
     const id = newId();
     const first = await add(s, listId, { id, name: 'Chleb' });
     expect(first.item.id).toBe(id);
-    const repeated = await add(s, listId, { id, name: 'Chleb' }, 200);
+    // Ponowienie odtwarza pierwszą odpowiedź (klucz idempotencji = identyfikator).
+    const repeated = await add(s, listId, { id, name: 'Chleb' }, 201);
     expect(repeated).toMatchObject({ merged: false, item: { id } });
     expect((await items(s, listId)).items).toHaveLength(1);
 
@@ -870,5 +871,184 @@ describe('eksport i reset', () => {
 
     const again = await lists(s);
     expect(again.map((list) => list.name)).toEqual(['Spożywcze']);
+  });
+});
+
+describe('poprawki po przeglądzie kodu', () => {
+  it('ponowienie scalonego dopisania z tym samym id nie sumuje drugi raz', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    await add(s, listId, { name: 'Mleko', quantityMilli: 2000, unit: 'pcs' });
+    const id = newId();
+    const body = { id, name: 'Mleko', quantityMilli: 1000, unit: 'pcs' };
+    const first = await add(s, listId, body, 200);
+    expect(first).toMatchObject({ merged: true, item: { quantityMilli: 3000 } });
+    const retry = await add(s, listId, body, 200);
+    expect(retry).toMatchObject({ merged: true, item: { quantityMilli: 3000 } });
+    expect((await items(s, listId)).items.map((item) => item.quantityMilli)).toEqual([3000]);
+    // To samo id z innym ciałem to inny zapis — 409, a nie cicha zgoda.
+    const changed = await call(s, 'POST', `/shopping-lists/${listId}/items`, {
+      ...body,
+      quantityMilli: 5000,
+    });
+    expect(changed.status).toBe(409);
+  });
+
+  /**
+   * Aktualny ETag listy.
+   *
+   * @param s - Aplikacja.
+   * @param listId - Lista.
+   * @returns Wartość nagłówka.
+   */
+  async function etagOf(s: Setup, listId: string): Promise<string> {
+    return String((await call(s, 'GET', `/shopping-lists/${listId}/items`)).headers.etag);
+  }
+
+  it('ETag zmienia się po zmianie flagi i usunięciu produktu oraz po zmianie kolejności', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const { item } = await add(s, listId, { name: 'Kakao' });
+    const productId = item.productId as string;
+
+    let before = await etagOf(s, listId);
+    await call(s, 'PATCH', `/shopping-products/${productId}`, { isStaple: true });
+    expect(await etagOf(s, listId)).not.toBe(before);
+    expect((await items(s, listId)).items[0]?.isStaple).toBe(true);
+
+    before = await etagOf(s, listId);
+    await call(s, 'POST', '/shopping-products', { name: 'Kakao', isStaple: false });
+    expect(await etagOf(s, listId)).not.toBe(before);
+
+    before = await etagOf(s, listId);
+    await call(s, 'DELETE', `/shopping-products/${productId}`);
+    expect(await etagOf(s, listId)).not.toBe(before);
+
+    const other = (
+      await call(s, 'POST', '/shopping-lists', { name: 'Dom' })
+    ).json<ShoppingListDto>();
+    before = await etagOf(s, listId);
+    await call(s, 'PATCH', '/shopping-lists/order', { listIds: [other.id, listId] });
+    expect(await etagOf(s, listId)).not.toBe(before);
+  });
+
+  it('wersja listy nie cofa się, gdy zmiana listy przychodzi w tej samej milisekundzie', async () => {
+    const s = await setup();
+    const groceriesId = await groceries(s);
+    const other = (
+      await call(s, 'POST', '/shopping-lists', { name: 'Dom' })
+    ).json<ShoppingListDto>();
+    // Dwie zmiany pozycji w tej samej milisekundzie: wersja = teraz + 1.
+    const { item } = await add(s, other.id, { name: 'Chleb' });
+    await patchItem(s, item.id, { checked: true });
+    const before = await etagOf(s, other.id);
+    // Archiwizacja domyślnej przenosi flagę na „Dom" — wersja musi wzrosnąć, nie spaść.
+    await call(s, 'PATCH', `/shopping-lists/${groceriesId}`, { archived: true });
+    const after = await call(s, 'GET', `/shopping-lists/${other.id}/items`, undefined, {
+      'if-none-match': before,
+    });
+    expect(after.status).toBe(200);
+    expect(after.json<ShoppingItemsDto>().list.isDefault).toBe(true);
+  });
+
+  it('usunięcie listy usuwa z dysku pliki jej importów', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const storagePath = 'shopping/2026/11/delete-list.jpg';
+    const absolute = join(testConfig().uploads.dir, storagePath);
+    await mkdir(dirname(absolute), { recursive: true });
+    await writeFile(absolute, 'jpeg');
+    const at = NOW.getTime();
+    s.app.db.db
+      .insert(shoppingImports)
+      .values({
+        id: newId(),
+        householdId: s.home.householdId,
+        listId,
+        kind: 'list_photo',
+        input: 'image',
+        status: 'parsed',
+        filePaths: JSON.stringify([storagePath]),
+        createdBy: s.home.userId,
+        createdAt: at,
+        updatedAt: at,
+      })
+      .run();
+    expect((await call(s, 'DELETE', `/shopping-lists/${listId}`)).status).toBe(204);
+    await expect(access(absolute)).rejects.toThrow();
+  });
+
+  it('przeniesienie: dział zostaje z pozycji, która już była na liście', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const other = (
+      await call(s, 'POST', '/shopping-lists', { name: 'Dom' })
+    ).json<ShoppingListDto>();
+    const moving = await add(s, listId, { name: 'Woda', section: 'other' });
+    await add(s, other.id, { name: 'Woda', section: 'drinks' });
+    const moved = await patchItem(s, moving.item.id, { listId: other.id });
+    expect(moved).toMatchObject({ id: moving.item.id, section: 'drinks' });
+  });
+
+  it('„ostatnio" pochodzi z pozycji i wskazuje tego, kto zmienił — nie autora', async () => {
+    const s = await setup();
+    const at = NOW.getTime();
+    const secondId = newId();
+    s.app.db.db
+      .insert(users)
+      .values({
+        id: secondId,
+        householdId: s.home.householdId,
+        email: `${secondId.toLowerCase()}@example.com`,
+        displayName: 'Tomek',
+        pinHash: 'nie-jest-hashem',
+        pinUpdatedAt: at,
+        createdAt: at,
+        updatedAt: at,
+      })
+      .run();
+    const token = await signAccessToken(
+      testConfig(),
+      { sub: secondId, hid: s.home.householdId, sid: newId() },
+      NOW,
+    );
+    const tomek = {
+      ...s.home,
+      userId: secondId,
+      headers: { ...s.home.headers, authorization: `Bearer ${token}` },
+    };
+
+    const listId = await groceries(s);
+    expect((await lists(s))[0]).toMatchObject({ lastActivityAt: null, lastActivityBy: null });
+    const { item } = await add(s, listId, { name: 'Chleb' });
+    await advance(s, 1000);
+    const changed = await call(
+      s,
+      'PATCH',
+      `/shopping-items/${item.id}`,
+      { quantityMilli: 2000, unit: 'pcs' },
+      {},
+      tomek,
+    );
+    expect(changed.status, changed.body).toBe(200);
+    const [card] = await lists(s);
+    expect(card).toMatchObject({
+      lastActivityBy: 'Tomek',
+      lastActivityAt: changed.json<ShoppingItemDto>().updatedAt,
+    });
+
+    // Zmiana nazwy listy to nie aktywność na pozycjach.
+    await advance(s, 1000);
+    await call(s, 'PATCH', `/shopping-lists/${listId}`, { name: 'Dom' });
+    expect((await lists(s))[0]?.lastActivityAt).toBe(card?.lastActivityAt);
+  });
+
+  it('PATCH z samym quantityMilli: null czyści ilość', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const { item } = await add(s, listId, { name: 'Chleb', quantityMilli: 2000, unit: 'pcs' });
+    const cleared = await patchItem(s, item.id, { quantityMilli: null });
+    expect(cleared).toMatchObject({ quantityMilli: null, unit: null });
+    await patchItem(s, item.id, { quantityMilli: 1000 }, 400);
   });
 });

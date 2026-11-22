@@ -2029,7 +2029,8 @@ export const BudgetGroupParamsSchema = z.object({ monthKey: MonthKeySchema, grou
 > `ShoppingItemsDtoSchema` (`{ list, items }`), `ShoppingIdParamsSchema`,
 > `DuplicateShoppingListRequestSchema`, `FrequentProductsQuerySchema`; puste `PATCH` są
 > dozwolone (jak wszystkie `Update…`, test `update-schemas`); `note` przez `optionalText(120)`
-> (pusty napis = `null`). Czyste funkcje: `domain/shopping.ts` (07 §14), stałe:
+> (pusty napis = `null`). W zmianie ilości (`Update…Item…`) `null` w jednym z pól czyści
+> oba, sama liczba albo sama jednostka bez pary → `400` (ADR-098). Czyste funkcje: `domain/shopping.ts` (07 §14), stałe:
 > `constants/shopping.ts` (`STARTER_STAPLES`, `SECTION_ORDER`, `SECTION_KEYWORDS`).
 > Endpointy: [04 §14b](./04-api-spec.md#14b-listy-zakupów--apiv1shopping-lists-shopping-items-shopping-products-shopping-imports).
 

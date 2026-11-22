@@ -42,7 +42,8 @@ export const FREQUENT_LIMIT = 12;
  * @returns Klucz: małe litery, bez znaków diakrytycznych, pojedyncze spacje.
  */
 export function normalizeShoppingName(name: string): string {
-  return foldForSearch(name)
+  // NFKD najpierw: ligatury i znaki pełnej szerokości („ﬁlet") dają ten sam klucz.
+  return foldForSearch(name.normalize('NFKD'))
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[.,;:]+$/, '')
