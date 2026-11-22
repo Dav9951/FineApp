@@ -1599,7 +1599,7 @@ Dla szkiców z `M ≤ current`. Wykonanie z księgi — zawsze `status='posted'`
 
 | Linia | Wykonanie |
 |---|---|
-| `recurring` | Σ `posted_amount_minor` wystąpień reguły w M |
+| `recurring` | Σ `posted_amount_minor` wystąpień reguły w M; linia **wydatku** dolicza zwykłe wydatki w M (bez wystąpienia, planowanego wydatku i zobowiązania) z **dokładnie** jej kategorii, o ile żadna linia `manual` nie obejmuje ich kategorii głównej. Dwie takie linie tej samej kategorii — wydatek trafia do pierwszej ([ADR-091](./14-decisions-log.md#adr-091)) |
 | `planned` | `posted_amount_minor`, gdy transakcja zapłaty jest w M; inaczej 0 |
 | `liability` | Σ wydatków z `liability_id` w M bez `recurring_occurrence_id` |
 | `set_aside` | Σ efektów alokacji (§2.2) przelewów z `planned_expense_id` w M |

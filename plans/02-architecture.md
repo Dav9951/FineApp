@@ -369,3 +369,5 @@ Reszta rozsądnie. Fabryki danych w `apps/api/test/factories/`.
   mieszkają w `features/*/hooks/`.
 - **Granice błędów** na poziomie route'u, nie całej aplikacji — awaria widżetu celów
   nie może wygasić całego ekranu miesiąca.
+  Wyjątek: brak pliku ekranu po wdrożeniu nowej wersji (nieudany dynamiczny import)
+  przeładowuje stronę, z ochroną przed pętlą ([ADR-090](./14-decisions-log.md#adr-090)).
