@@ -4527,3 +4527,34 @@ z banerem „Dostępna nowa wersja" — nie usuwa błędu w karcie otwartej prze
 
 **Konsekwencje.** Testy: `stale-chunk.test.ts`, `error-boundary.test.tsx`.
 Zmienione: 02 §10.
+
+---
+
+<a id="adr-091"></a>
+
+## ADR-091 — Linia z reguły liczy też rachunek wpisany ręcznie
+
+**Data:** 2026-11-22 · **Zadanie:** zgłoszenie z produkcji (poza roadmapą) · **Status:** przyjęta
+
+**Kontekst.** Linia „Prąd" z reguły cyklicznej pokazywała „wydano 0,00", choć w miesiącu
+był wydatek 259,61 zł w kategorii Mieszkanie › Prąd. Rachunek o zmiennej kwocie wpisano
+jako zwykłą transakcję, a nie przez „Zaksięguj" przy terminie reguły. §13.8 liczył dla
+linii `recurring` tylko wystąpienia reguły, więc wydatek trafiał do „Poza planem".
+Istniejącej transakcji nie da się powiązać z terminem reguły.
+
+**Decyzja.** Linia **wydatku** z reguły dolicza zwykłe wydatki miesiąca (bez wystąpienia,
+planowanego wydatku i zobowiązania) z **dokładnie** swojej kategorii — podkategoria
+Prąd nie bierze wydatków z Gazu, choć obie są w Mieszkaniu. Wyjątki:
+
+1. Linia własna (`manual`) kategorii głównej wydatku ma pierwszeństwo — wydatek zostaje
+   w jej grupie, żeby nie liczył się dwa razy.
+2. Dwie linie z reguł tej samej kategorii — wydatek trafia do pierwszej.
+3. Linie pominięte, przychody i pule — bez zmian.
+
+**Odrzucone.** Powiązanie transakcji z terminem reguły w formularzu — większa zmiana
+(kontrakt, ekran, stan wystąpienia); można ją dodać później niezależnie od tej reguły.
+Dopasowanie po kategorii głównej — reguła „Czynsz" w Mieszkaniu zbierałaby prąd i gaz.
+
+**Konsekwencje.** `BudgetLedgerRow` i `BudgetActualLine` niosą `categoryId` (dokładną
+kategorię) obok `mainCategoryId`. Testy w `budget.test.ts`. „Poza planem" maleje
+o takie wydatki. Zmienione: 07 §13.8.

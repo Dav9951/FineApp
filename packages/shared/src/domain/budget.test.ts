@@ -1284,6 +1284,7 @@ describe('budgetActuals (07 §13.8)', () => {
   const tx = (overrides: Partial<BudgetLedgerRow> = {}): BudgetLedgerRow => ({
     type: 'expense',
     amountMinor: 10_000,
+    categoryId: null,
     mainCategoryId: null,
     incomeSourceId: null,
     ruleId: null,
@@ -1309,6 +1310,7 @@ describe('budgetActuals (07 §13.8)', () => {
     origin: 'manual',
     amountMinor: 10_000,
     isExcluded: false,
+    categoryId: null,
     mainCategoryId: null,
     incomeSourceId: null,
     goalId: null,
@@ -1468,5 +1470,76 @@ describe('budgetActuals (07 §13.8)', () => {
     expect(result.groups[0]?.name).toBe('');
     expect(result.unplannedMinor).toBe(0);
     expect(run([], []).totals.netMinor).toBe(0);
+  });
+
+  describe('linia wydatku z reguły zbiera zwykłe wydatki swojej kategorii (ADR-091)', () => {
+    const power = (overrides: Partial<BudgetActualLine> = {}): BudgetActualLine =>
+      line({
+        id: 'power',
+        origin: 'recurring',
+        recurringRuleId: 'r-power',
+        amountMinor: 25_961,
+        categoryId: 'power',
+        mainCategoryId: 'home',
+        ...overrides,
+      });
+    const bill = (overrides: Partial<BudgetLedgerRow> = {}): BudgetLedgerRow =>
+      tx({ amountMinor: 25_961, categoryId: 'power', mainCategoryId: 'home', ...overrides });
+
+    it('rachunek wpisany ręcznie liczy się do linii, nie do „Poza planem"', () => {
+      const result = run([power()], [bill()]);
+      expect(result.lines.power).toBe(25_961);
+      expect(result.unplannedMinor).toBe(0);
+    });
+
+    it('sumuje zaksięgowany termin reguły i wydatek wpisany ręcznie', () => {
+      const result = run([power()], [bill({ ruleId: 'r-power' }), bill({ amountMinor: 1_000 })]);
+      expect(result.lines.power).toBe(26_961);
+    });
+
+    it('nie bierze innej podkategorii tej samej kategorii głównej', () => {
+      const result = run([power()], [bill({ categoryId: 'gas' })]);
+      expect(result.lines.power).toBe(0);
+      expect(result.unplannedMinor).toBe(25_961);
+    });
+
+    it('nie bierze wydatku z planowanego wydatku ani zobowiązania', () => {
+      const result = run(
+        [power()],
+        [bill({ plannedExpenseId: 'p1' }), bill({ liabilityId: 'loan' })],
+      );
+      expect(result.lines.power).toBe(0);
+    });
+
+    it('linia własna kategorii głównej zostawia wydatek w swojej grupie — bez podwójnego liczenia', () => {
+      const result = run(
+        [power(), line({ id: 'home', mainCategoryId: 'home', categoryId: 'home' })],
+        [bill()],
+      );
+      expect(result.lines.power).toBe(0);
+      expect(result.groups[0]?.actualMinor).toBe(25_961);
+      expect(result.unplannedMinor).toBe(0);
+    });
+
+    it('dwie linie z reguł tej samej kategorii — wydatek liczy się raz, w pierwszej', () => {
+      const result = run(
+        [power(), power({ id: 'power-2', recurringRuleId: 'r-power-2' })],
+        [bill()],
+      );
+      expect(result.lines.power).toBe(25_961);
+      expect(result.lines['power-2']).toBe(0);
+      expect(result.unplannedMinor).toBe(0);
+    });
+
+    it('linia pominięta nie zbiera wydatków', () => {
+      const result = run([power({ isExcluded: true })], [bill()]);
+      expect(result.lines.power).toBeUndefined();
+      expect(result.unplannedMinor).toBe(25_961);
+    });
+
+    it('linia przychodu z reguły nie zbiera wydatków', () => {
+      const result = run([power({ flow: 'income' })], [bill()]);
+      expect(result.lines.power).toBe(0);
+    });
   });
 });
