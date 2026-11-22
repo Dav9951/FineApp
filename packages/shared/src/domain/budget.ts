@@ -1339,6 +1339,8 @@ export function liabilityInstallmentForMonth(
 export interface BudgetLedgerRow {
   readonly type: TransactionType;
   readonly amountMinor: number;
+  /** Kategoria transakcji — dokładnie ta wybrana, także podkategoria. */
+  readonly categoryId: string | null;
   /** Kategoria **główna** transakcji (podkategoria zwinięta przez serwis). */
   readonly mainCategoryId: string | null;
   readonly incomeSourceId: string | null;
@@ -1361,6 +1363,8 @@ export interface BudgetActualLine {
   readonly origin: BudgetLineOrigin;
   readonly amountMinor: number;
   readonly isExcluded: boolean;
+  /** Kategoria linii — dokładnie ta z reguły albo linii, także podkategoria. */
+  readonly categoryId: string | null;
   /** Kategoria **główna** linii. */
   readonly mainCategoryId: string | null;
   readonly incomeSourceId: string | null;
@@ -1447,6 +1451,35 @@ function isVariable(row: BudgetLedgerRow): boolean {
 }
 
 /**
+ * Zwykłe wydatki dokładnie w kategorii linii z reguły (07 §13.8, ADR-091).
+ *
+ * Rachunek o zmiennej kwocie (prąd, gaz) bywa wpisywany jako zwykła transakcja, a nie
+ * przez zaksięgowanie terminu reguły. Bez tego linia pokazywałaby „wydano 0", a wydatek
+ * lądowałby w „Poza planem". Wydatek objęty linią własną swojej kategorii głównej
+ * zostaje w jej grupie — inaczej liczyłby się dwa razy.
+ *
+ * @param categoryId - Kategoria linii z reguły.
+ * @param ledger - Transakcje miesiąca.
+ * @param manualExpenseMains - Kategorie główne z liniami własnymi wydatków.
+ * @returns Suma takich wydatków.
+ */
+function unlinkedRuleCategorySpend(
+  categoryId: string,
+  ledger: readonly BudgetLedgerRow[],
+  manualExpenseMains: ReadonlySet<string>,
+): number {
+  return ledger
+    .filter(
+      (row) =>
+        row.type === 'expense' &&
+        isVariable(row) &&
+        row.categoryId === categoryId &&
+        (row.mainCategoryId === null || !manualExpenseMains.has(row.mainCategoryId)),
+    )
+    .reduce((sum, row) => sum + row.amountMinor, 0);
+}
+
+/**
  * Wykonanie jednej linii powiązanej (07 §13.8, tabela).
  *
  * @param line - Linia nie-`manual`.
@@ -1509,6 +1542,12 @@ function linkedActual(
  * wie, której dotyczy zakup. Linia własna bez kategorii i źródła wykonania nie ma.
  * Linie pominięte nie biorą udziału — ich wydatki trafiają do „Poza planem".
  *
+ * Linia wydatku z reguły zbiera też zwykłe wydatki (bez wystąpienia, planowanego
+ * wydatku i zobowiązania) z **dokładnie swojej** kategorii — rachunek wpisany ręcznie
+ * zamiast zaksięgowania terminu reguły (ADR-091). Tylko gdy żadna linia własna nie
+ * obejmuje kategorii głównej transakcji, bo wtedy wydatek należy do jej grupy; dwie
+ * linie z reguł tej samej kategorii — wydatek trafia do pierwszej.
+ *
  * Pule netto, jak rozkład (ADR-011): wykonanie linii oszczędności może być ujemne.
  *
  * @param input - Linie, transakcje miesiąca, cele i nazwy grup.
@@ -1522,11 +1561,29 @@ export function budgetActuals(input: BudgetActualsInput): BudgetActuals {
     ),
   );
 
+  const manualExpenseMains = new Set(
+    active.flatMap((line) =>
+      line.origin === 'manual' && line.flow === 'expense' && line.mainCategoryId !== null
+        ? [line.mainCategoryId]
+        : [],
+    ),
+  );
+  const claimedCategories = new Set<string>();
+
   const lines: Record<string, number> = {};
   let assignedExpense = 0;
   for (const line of active) {
     if (line.origin === 'manual') continue;
-    const actual = linkedActual(line, input.ledger, input, ruleIdsWithLine);
+    let actual = linkedActual(line, input.ledger, input, ruleIdsWithLine);
+    if (
+      line.origin === 'recurring' &&
+      line.flow === 'expense' &&
+      line.categoryId !== null &&
+      !claimedCategories.has(line.categoryId)
+    ) {
+      claimedCategories.add(line.categoryId);
+      actual += unlinkedRuleCategorySpend(line.categoryId, input.ledger, manualExpenseMains);
+    }
     lines[line.id] = actual;
     if (line.flow === 'expense') assignedExpense += actual;
   }

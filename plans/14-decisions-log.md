@@ -4494,3 +4494,67 @@ ADR-014 chciał uniknąć. Przy podatności bez łatki w 3.x to cena akceptowaln
 angielskie komunikaty Zoda brzmią inaczej niż w 3.x — tam, gdzie schemat nie podaje
 własnego, odpowiedź `details` może pokazać nowe brzmienie. Zmienione: 01 §1 i §3, 05 (`UpdateAccountRequestSchema`,
 `'custom'`), 13 `Z-6`.
+
+---
+
+<a id="adr-090"></a>
+
+## ADR-090 — Przeładowanie strony po wdrożeniu nowej wersji
+
+**Data:** 2026-11-22 · **Zadanie:** zgłoszenie z produkcji (poza roadmapą) · **Status:** przyjęta
+
+**Kontekst.** Po każdym wdrożeniu pierwsze wejście na ekran ładowany przez `lazy()`
+(np. Historia) kończyło się ekranem „Coś poszło nie tak. Failed to fetch dynamically
+imported module: …/assets/history-screen-<hash>.js". Build zmienia hashe plików, nowy
+obraz nie ma starych, a karta — albo service worker z poprzednią powłoką
+(`registerType: 'autoUpdate'`, `skipWaiting`, `clientsClaim`) — wciąż wykonuje stary
+`index-*.js`. Serwer odpowiada 404. Odświeżenie wczytuje nową powłokę i błąd znika.
+„Spróbuj ponownie" nie pomagał, bo `lazy()` zapamiętuje nieudany import.
+
+**Decyzja.** `lib/stale-chunk.ts` rozpoznaje błąd nieudanego dynamicznego importu
+(komunikaty Chromium, Safari, Firefox i Vite) i przeładowuje stronę:
+
+1. globalnie, na zdarzenie `vite:preloadError` (`main.tsx`);
+2. w granicy błędu trasy — zamiast ekranu błędu pokazuje „Wczytywanie nowej wersji
+   aplikacji…", a przycisk „Spróbuj ponownie" przy takim błędzie przeładowuje stronę.
+
+Ochrona przed pętlą: znacznik czasu w `sessionStorage`; drugi taki błąd w ciągu 10 s
+pokazuje zwykły ekran błędu. Bez dostępu do `sessionStorage` nie przeładowujemy.
+
+**Odrzucone.** Trzymanie starych plików `assets/` przez kilka wdrożeń — obraz Dockera
+jest niezmienny, wymagałoby to wspólnego wolumenu lub CDN. `registerType: 'prompt'`
+z banerem „Dostępna nowa wersja" — nie usuwa błędu w karcie otwartej przed wdrożeniem.
+
+**Konsekwencje.** Testy: `stale-chunk.test.ts`, `error-boundary.test.tsx`.
+Zmienione: 02 §10.
+
+---
+
+<a id="adr-091"></a>
+
+## ADR-091 — Linia z reguły liczy też rachunek wpisany ręcznie
+
+**Data:** 2026-11-22 · **Zadanie:** zgłoszenie z produkcji (poza roadmapą) · **Status:** przyjęta
+
+**Kontekst.** Linia „Prąd" z reguły cyklicznej pokazywała „wydano 0,00", choć w miesiącu
+był wydatek 259,61 zł w kategorii Mieszkanie › Prąd. Rachunek o zmiennej kwocie wpisano
+jako zwykłą transakcję, a nie przez „Zaksięguj" przy terminie reguły. §13.8 liczył dla
+linii `recurring` tylko wystąpienia reguły, więc wydatek trafiał do „Poza planem".
+Istniejącej transakcji nie da się powiązać z terminem reguły.
+
+**Decyzja.** Linia **wydatku** z reguły dolicza zwykłe wydatki miesiąca (bez wystąpienia,
+planowanego wydatku i zobowiązania) z **dokładnie** swojej kategorii — podkategoria
+Prąd nie bierze wydatków z Gazu, choć obie są w Mieszkaniu. Wyjątki:
+
+1. Linia własna (`manual`) kategorii głównej wydatku ma pierwszeństwo — wydatek zostaje
+   w jej grupie, żeby nie liczył się dwa razy.
+2. Dwie linie z reguł tej samej kategorii — wydatek trafia do pierwszej.
+3. Linie pominięte, przychody i pule — bez zmian.
+
+**Odrzucone.** Powiązanie transakcji z terminem reguły w formularzu — większa zmiana
+(kontrakt, ekran, stan wystąpienia); można ją dodać później niezależnie od tej reguły.
+Dopasowanie po kategorii głównej — reguła „Czynsz" w Mieszkaniu zbierałaby prąd i gaz.
+
+**Konsekwencje.** `BudgetLedgerRow` i `BudgetActualLine` niosą `categoryId` (dokładną
+kategorię) obok `mainCategoryId`. Testy w `budget.test.ts`. „Poza planem" maleje
+o takie wydatki. Zmienione: 07 §13.8.

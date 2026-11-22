@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { AppProviders } from './app/providers.js';
 import { AppRouter } from './app/router.js';
 import { captureInstallPrompt } from './lib/pwa.js';
+import { installStaleChunkReload } from './lib/stale-chunk.js';
 import './styles/tokens.css';
 
 /**
@@ -18,6 +19,7 @@ if (!container) {
 }
 
 captureInstallPrompt();
+installStaleChunkReload();
 
 createRoot(container).render(
   <StrictMode>
