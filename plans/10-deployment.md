@@ -99,6 +99,13 @@ docker compose exec app node dist/scripts/create-user.js --email ja@example.com 
 
 Skrypt wypisze wygenerowany PIN **jeden raz** — trzeba go zapisać od razu.
 
+Zapomniany PIN — nowy, wylosowany i wypisany raz; wylogowuje wszystkie urządzenia tej
+osoby ([09 §10.1](./09-security-auth.md#101-reset-zapomnianego-pin-u)):
+
+```bash
+docker compose exec app node dist/scripts/reset-pin.js --email ja@example.com
+```
+
 ## 4. Reverse-proxy
 
 **Caddy** (`Caddyfile`) — najprostsza opcja, certyfikat automatycznie:
@@ -446,7 +453,8 @@ Repozytorium jest publiczne (ADR-088), więc:
    kontenerem wyłączyłaby **wszystkie** serwisy za bramą. Odtworzenie bramy to kilka
    sekund przerwy dla wszystkich.
 5. Użytkownicy: `docker compose exec app node dist/scripts/create-user.js --email … --name …`
-   w `~/projects/fineapp` (PIN wypisany raz).
+   w `~/projects/fineapp` (PIN wypisany raz). Zapomniany PIN:
+   `docker compose exec app node dist/scripts/reset-pin.js --email …` (09 §10.1).
 6. `F8-8`: `scripts/backup.sh` ręcznie, `scripts/restore.sh` na tej kopii, cron
    z `BACKUP_DIR=$HOME/projects/fineapp/backups`, kopia poza serwerem (§5.3).
 7. Gdy wszystko działa — `AUTO_DEPLOY=true`.

@@ -17,6 +17,7 @@
     "db:seed": "tsx src/db/seed/index.ts",
     "db:studio": "drizzle-kit studio",
     "user:create": "tsx src/scripts/create-user.ts",
+    "user:reset-pin": "tsx src/scripts/reset-pin.ts",
     "ocr:evaluate": "tsx src/scripts/evaluate-ocr.ts"
   },
   "dependencies": {
