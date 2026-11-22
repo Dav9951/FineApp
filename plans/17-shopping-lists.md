@@ -1,13 +1,13 @@
 # 17 — Listy zakupów
 
-> **Stan:** plan do potwierdzenia przez właściciela — **Faza 10**, [11-roadmap.md](./11-roadmap.md).
+> **Stan:** plan potwierdzony przez właściciela 2026-11-22 (§9) — **Faza 10**, [11-roadmap.md](./11-roadmap.md).
 > Decyzje: [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096)
-> (status: *proponowana*). Wymaganie **#15** w [00 §4](./00-project-overview.md#4-zakres--mapowanie-wymagań).
+> (status: *przyjęta*). Wymaganie **#15** w [00 §4](./00-project-overview.md#4-zakres--mapowanie-wymagań).
 
 Ten dokument opisuje funkcję w całości: po co jest, jak się z niej korzysta i jak łączy się
 z resztą aplikacji. Jak przy planerze budżetu ([16](./16-budget-planner.md)), szczegóły
-kontraktowe trafią do dokumentów 03–07 w zadaniu `F10-1`, **po** rozstrzygnięciu pytań
-z §9. Do tego czasu kontraktem jest szkic w §6–§7 poniżej.
+kontraktowe trafią do dokumentów 03–07 w zadaniu `F10-1` (pytania z §9 są już
+rozstrzygnięte). Do tego czasu kontraktem jest szkic w §6–§7 poniżej.
 
 | Co | Gdzie (po `F10-1`) |
 |---|---|
@@ -316,10 +316,12 @@ strony albo druga osoba widzą to samo. To celowo inaczej niż w przeglądzie pa
 
 ### 5.5 Słownik: *Zawsze w domu*
 
-`⋯ → Zawsze w domu`: lista produktów z flagą, wyszukiwarka, *+ Dodaj*, usunięcie flagi.
-Przy pierwszym użyciu słownik ma kilka wpisów startowych (sól, pieprz, cukier, mąka
-pszenna, olej, ocet, proszek do pieczenia, soda oczyszczona) do potwierdzenia jednym
-przyciskiem. **Pytanie P-4.**
+`⋯ → Zawsze w domu`: lista produktów z flagą, wyszukiwarka, *+ Dodaj* (nowy produkt albo
+istniejący ze słownika), usunięcie flagi. Flagę da się też przełączyć w arkuszu pozycji
+i w przeglądzie importu („Zawsze mam / Nie zawsze mam"). Przy pierwszym wejściu słownik
+dostaje zestaw startowy (P-4): sól, pieprz, cukier, mąka pszenna, olej, ocet, proszek
+do pieczenia, soda oczyszczona, mleko, jajka, masło. To zwykłe wpisy słownika, bez
+wyróżnienia: można je usunąć jak każdy inny.
 
 ### 5.6 Most do finansów
 
@@ -508,17 +510,19 @@ Niezmienniki (numeracja robocza):
 - Kwoty i reszta aplikacji **nie** zmieniają zachowania: baner offline z 06 §5 zostaje,
   na ekranie listy ma inną treść.
 
-## 9. Pytania do rozstrzygnięcia przez właściciela
+## 9. Pytania rozstrzygnięte
 
-| # | Pytanie | Propozycja |
+Wszystkie siedem **rozstrzygniętych przez właściciela 2026-11-22**.
+
+| # | Pytanie | Rozstrzygnięcie |
 |---|---|---|
-| P-1 | Czy „Zakupy" mają być w dolnym pasku zakładek (zastępując np. „Cele" albo „Historię")? | Najpierw *Więcej* + skrót z ikony + FAB; po miesiącu używania decyzja o pasku. Jeśli od razu, to zamiast „Cele" (cele ogląda się rzadko i są też w kaflu dashboardu) |
-| P-2 | Pozycje z przepisu: opakowania („Czekolada — 1 szt.") czy dokładne ilości („Czekolada 100 g")? | Opakowania na liście, dokładna potrzeba jako podpis w przeglądzie i w notatce pozycji („100 g · Brownie") |
-| P-3 | Czy obie osoby zawsze widzą wszystkie listy (bez list prywatnych)? | Tak, jak szkic budżetu (ADR-075). Listy prywatne poza zakresem |
-| P-4 | Startowy zestaw „zawsze w domu" | sól, pieprz, cukier, mąka pszenna, olej, ocet, proszek do pieczenia, soda. Mleko, jajka i masło dopisujecie sami, bo to sprawa domu |
-| P-5 | Kolejność działów: stała czy ustawiana pod swój sklep? | Stała w v1 (warzywa → pieczywo → nabiał → mięso → suche → mrożonki → napoje → chemia → higiena → dom → inne); przeciąganie działów później |
-| P-6 | Czy zapamiętywać przepisy („zrób ten sam znowu")? | Nie w v1. Import po zatwierdzeniu zostaje w bazie z tytułem i propozycjami, więc dołożenie „Ostatnie przepisy" później jest tanie |
-| P-7 | Czy zakupy z listy mają zasilać budżet (np. kategoria pozycji)? | Nie. Lista jest bez kwot, mostem jest tylko „Zeskanuj paragon" |
+| P-1 | Czy „Zakupy" mają być w dolnym pasku zakładek? | Na start nie: *Więcej*, pasek boczny, skrót z ikony aplikacji i FAB. Decyzja o pasku po miesiącu używania; jeśli wejdą, to zamiast „Cele" |
+| P-2 | Pozycje z przepisu: opakowania czy dokładne ilości? | Opakowania na liście („Czekolada — 1 szt."), dokładna potrzeba jako dopisek: podpis w przeglądzie i notatka pozycji („100 g · Brownie") |
+| P-3 | Czy obie osoby widzą wszystkie listy? | Tak, wszystkie listy są wspólne (jak szkic budżetu, ADR-075). Listy prywatne poza zakresem |
+| P-4 | Startowy zestaw „zawsze w domu" | sól, pieprz, cukier, mąka pszenna, olej, ocet, proszek do pieczenia, soda oczyszczona, **mleko, jajka, masło**. Zestaw jest tylko startem: produkty „zawsze w domu" można dopisywać i usuwać (§5.5) |
+| P-5 | Kolejność działów | Stała w v1; przeciąganie działów później |
+| P-6 | Zapamiętywanie przepisów | Nie teraz. Import po zatwierdzeniu zostaje w bazie z tytułem, więc „Ostatnie przepisy" da się dołożyć później |
+| P-7 | Czy lista zasila budżet? | Nie teraz. Jedynym mostem jest „Zeskanuj paragon" |
 
 ## 10. Zakres
 
@@ -543,7 +547,7 @@ eksport i „Usuń wszystkie dane".
 
 | ID | Zadanie |
 |---|---|
-| F10-1 | Rozstrzygnięcie P-1…P-7; przeniesienie §6–§8 do 03 / 04 / 05 / 06 / 07 / 08; ADR-093…096 → *przyjęta* |
+| F10-1 | ~~Rozstrzygnięcie P-1…P-7~~ (zrobione 2026-11-22); przeniesienie §6–§8 do 03 / 04 / 05 / 06 / 07 / 08; zestaw startowy „zawsze w domu” w seedzie (03 §5) |
 | F10-2 | Schemat i migracja `0008` (pięć tabel), eksport, „Usuń wszystkie dane", sprzątanie plików przy starcie |
 | F10-3 | DTO `dto/shopping.ts` i `shared/domain/shopping.ts`: normalizacja, opakowania, scalanie, szybkie dopisanie, **100% pokrycia** |
 | F10-4 | Moduł `shopping`: listy, pozycje, słownik, czyszczenie z cofnięciem, `ETag`; testy tras |

@@ -416,7 +416,7 @@ używania) trwa równolegle — planer korzysta ze średnich, a te potrzebują h
 zdjęcia listy oraz z przepisu. Opis, zadania `F10-1`…`F10-10` i kryteria ukończenia:
 [17-shopping-lists.md](./17-shopping-lists.md) §11; decyzje:
 [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096)
-(*proponowane* — czekają na potwierdzenie pytań P-1…P-7 w 17 §9).
+(przyjęte; pytania P-1…P-7 rozstrzygnięte 2026-11-22, 17 §9).
 
 Faza zależy tylko od `F7` (infrastruktura AI) i `F8-3` (PWA); nie zależy od Fazy 9.
 

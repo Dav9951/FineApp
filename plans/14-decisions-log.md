@@ -4596,7 +4596,7 @@ i lista kroków wdrożenia, README.
 
 ## ADR-093 — Listy zakupów: osobny moduł bez kwot, ilość w tysięcznych
 
-**Data:** 2026-11-22 · **Zadanie:** prośba właściciela, Faza 10 (plan) · **Status:** proponowana
+**Data:** 2026-11-22 · **Zadanie:** prośba właściciela, Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
 
 **Kontekst.** Właściciel chce wspólnej listy zakupów: jednej żywej („Spożywcze”), kilku
 okazjonalnych, z odhaczaniem w sklepie i czyszczeniem kupionych. Lista nie planuje kwot.
@@ -4614,6 +4614,11 @@ ciągła i bezkwotowa, więc wspólny model tylko by przeszkadzał. Tysięczne c
 dają 1,5 kg i 0,5 l bez floatów, jak grosze. Słownik zamiast osobnej tabeli „produktów
 podstawowych” daje podpowiedzi, działy i „zawsze w domu” z jednego miejsca.
 
+**Rozstrzygnięcia właściciela (17 §9).** Wszystkie listy wspólne; pozycje z przepisu
+w opakowaniach z dopiskiem dokładnej ilości; stała kolejność działów; zestaw startowy
+„zawsze w domu” z mlekiem, jajkami i masłem, rozszerzalny przez użytkownika; bez
+zapamiętanych przepisów i bez powiązania z budżetem; „Zakupy” na start poza dolnym paskiem.
+
 **Konsekwencje.** Zmienią się: 00 §4 (#15), 03, 04, 05, 06, 07 §14 — w `F10-1`.
 
 ---
@@ -4622,7 +4627,7 @@ podstawowych” daje podpowiedzi, działy i „zawsze w domu” z jednego miejsc
 
 ## ADR-094 — Import listy i przepisu przez AI obok pipeline'u dokumentów
 
-**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** proponowana
+**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
 
 **Kontekst.** Pozycje mają powstawać ze zdjęcia tablicy na lodówce i z przepisu (zrzut,
 link, tekst) z mnożnikiem porcji. Pipeline dokumentów (08) jest zbudowany pod dokumenty
@@ -4653,7 +4658,7 @@ jest deterministyczna i testowalna, a koszt odczytu nie rośnie przy zabawie mno
 
 ## ADR-095 — Pobieranie przepisu z linku po stronie serwera z ochroną SSRF
 
-**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** proponowana
+**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
 
 **Kontekst.** Pierwsze wywołanie zewnętrznego adresu podanego przez użytkownika. Serwer
 na VPS z dostępem do sieci wewnętrznej kontenerów to klasyczny cel SSRF.
@@ -4677,7 +4682,7 @@ przepisu trafiają do modelu) w `F10-1`.
 
 ## ADR-096 — Lista zakupów działa bez sieci (wyjątek od „dane zawsze z sieci”)
 
-**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** proponowana
+**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
 
 **Kontekst.** 06 §5: powłoka PWA z cache, dane zawsze z sieci. W sklepie (piwnica marketu)
 zasięgu często nie ma, a odhaczanie to właśnie ta chwila.

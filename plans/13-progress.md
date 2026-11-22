@@ -24,7 +24,7 @@
 | 7 | OCR i AI | ✅ zrobione (`F7-11` potwierdzone przez właściciela) | 11 / 11 |
 | 8 | Dopracowanie i wdrożenie | 🟡 działa produkcyjnie; zostaje `F8-10` | 9 / 10 |
 | 9 | Planer budżetu ([16](./16-budget-planner.md)) | ✅ zrobione (grupy i kolejność) | 13 / 13 |
-| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 📝 plan do potwierdzenia (P-1…P-7) | 0 / 10 |
+| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 📝 plan potwierdzony; następne `F10-1` (kontrakty do 03–08) | 0 / 10 |
 
 ---
 
@@ -127,4 +127,4 @@ Uzupełniane w miarę postępu prac.
 | 12 | Widok miesiąca, przełączanie, księgowanie wstecz | 3 | ✅ dashboard `/m/:month` z przełącznikiem (siatka, gest), okno księgowania i zamknięte miesiące (`F3-1`…`F3-7`) |
 | 13 | Planowane wydatki z odkładaniem | 6 | ✅ API i ekran `/planned`, sekcja „Nadchodzące” (`F6-1`…`F6-9`) |
 | 14 | Planer budżetu: szkic miesiąca (bieżący … +12) ze źródeł, edycja, zamiana linii w pozycję cykliczną / planowany wydatek, średnie kategorii, ocena celów | 9 | ⬜ zaplanowane (16, ADR-075…079); `F9-1`…`F9-10` |
-| 15 | Listy zakupów: kilka list, odhaczanie offline, „Wyczyść kupione”, import ze zdjęcia i z przepisu | 10 | ⬜ plan (17, ADR-093…096 proponowane); `F10-1`…`F10-10` |
+| 15 | Listy zakupów: kilka list, odhaczanie offline, „Wyczyść kupione”, import ze zdjęcia i z przepisu | 10 | ⬜ plan (17, ADR-093…096 przyjęte); `F10-1`…`F10-10` |
