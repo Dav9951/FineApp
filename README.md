@@ -71,6 +71,12 @@ pnpm db:migrate && pnpm db:seed
 pnpm --filter @fineapp/api user:create -- --email ja@example.com --name "Imię"
 ```
 
+Zapomniany PIN ustawia się od nowa z serwera (nowy PIN zostanie wypisany raz):
+
+```bash
+pnpm --filter @fineapp/api user:reset-pin -- --email ja@example.com
+```
+
 ```bash
 pnpm dev
 ```

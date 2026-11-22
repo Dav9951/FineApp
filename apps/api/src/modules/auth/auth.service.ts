@@ -36,6 +36,7 @@ import { dummyPinHash, generatePin, hashPin, verifyPin } from './auth.pin.js';
 import {
   countActiveUsers,
   deleteAttemptsBefore,
+  deleteAttemptsForEmail,
   deleteDeadSessions,
   deleteOtherFamilies,
   deleteSessionFamily,
@@ -761,6 +762,82 @@ export async function changePin(
 
   updatePinHash(handle, user.id, await hashPin(input.newPin), clock.now().getTime());
   return deleteOtherFamilies(handle, user.id, context.sessionId);
+}
+
+/** Dane resetu PIN-u ze skryptu. */
+export interface ResetPinInput {
+  email: string;
+  /** Nowy PIN; brak oznacza wylosowanie. */
+  pin?: string;
+}
+
+/** Wynik resetu PIN-u. */
+export interface ResetPinResult {
+  /** Profil publiczny — bez hasha PIN-u. */
+  user: UserDto;
+  /** PIN w postaci jawnej — wyłącznie do jednorazowego wypisania przez skrypt. */
+  pin: string;
+  /** Czy PIN został wylosowany, czy podany. */
+  pinGenerated: boolean;
+  /** Liczba usuniętych sesji (wierszy). */
+  sessionsDeleted: number;
+  /** Liczba usuniętych prób logowania na ten adres. */
+  attemptsCleared: number;
+}
+
+/**
+ * Ustawia nowy PIN bez znajomości obecnego — **wyłącznie** dla skryptu
+ * `user:reset-pin` ([09 §10.1](../../../../plans/09-security-auth.md#101-reset-zapomnianego-pin-u),
+ * ADR-092). Nie ma i nie może mieć trasy HTTP: uwierzytelnieniem jest tu dostęp
+ * do powłoki serwera.
+ *
+ * Usuwa **wszystkie** sesje osoby — PIN zapomniany albo wyciekły, więc nie ma
+ * urządzenia, które warto zostawić zalogowane. Czyści też próby logowania na ten
+ * adres, bo blokada po nieudanych próbach trzymałaby jeszcze po resecie.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param config - Konfiguracja (długości PIN-u, sól hasha adresu).
+ * @param clock - Źródło czasu.
+ * @param input - Adres i opcjonalnie nowy PIN.
+ * @returns Profil, PIN w postaci jawnej i liczby usuniętych wierszy.
+ * @throws {ValidationError} Gdy adres albo PIN nie spełniają reguł.
+ * @throws {NotFoundError} Gdy nie ma konta o tym adresie.
+ * @throws {ConflictError} Gdy konto jest wyłączone.
+ */
+export async function resetPin(
+  handle: DbHandle,
+  config: Config,
+  clock: Clock,
+  input: ResetPinInput,
+): Promise<ResetPinResult> {
+  const email = normalizeEmail(input.email);
+
+  const { pinMinLength, pinMaxLength } = config.auth;
+  const pinGenerated = input.pin === undefined;
+  const pin = input.pin ?? generatePin(pinMinLength, pinMinLength, pinMaxLength);
+  const check = checkPin(pin, pinMinLength, pinMaxLength);
+  if (!check.ok) {
+    throw new ValidationError(check.message, [{ path: 'pin', message: check.message }]);
+  }
+
+  const user = findUserByEmail(handle, email);
+  if (user === undefined) {
+    throw new NotFoundError(`Nie ma użytkownika o adresie ${email}.`);
+  }
+  if (!user.isActive) {
+    throw new ConflictError(
+      `Konto ${email} jest wyłączone — reset PIN-u go nie włącza (09 §10.1).`,
+    );
+  }
+
+  updatePinHash(handle, user.id, await hashPin(pin), clock.now().getTime());
+  const sessionsDeleted = deleteOtherFamilies(handle, user.id);
+  const attemptsCleared = deleteAttemptsForEmail(
+    handle,
+    hashWithSalt(email, config.auth.ipHashSalt),
+  );
+
+  return { user: toUserDto(user), pin, pinGenerated, sessionsDeleted, attemptsCleared };
 }
 
 /**

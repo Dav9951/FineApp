@@ -347,6 +347,25 @@ Limit: **maksymalnie dwóch aktywnych użytkowników**, wymuszany w serwisie. To
 ograniczenie techniczne, tylko jawna decyzja produktowa — zapisana, żeby nikt jej
 przypadkiem nie obszedł.
 
+### 10.1 Reset zapomnianego PIN-u
+
+Zmiana PIN-u w aplikacji wymaga obecnego (`PATCH /auth/pin`, 04). Gdy ktoś go
+zapomni, PIN ustawia osoba z dostępem do serwera
+([ADR-092](./14-decisions-log.md#adr-092)):
+
+```bash
+pnpm --filter @fineapp/api user:reset-pin -- --email ja@example.com
+```
+
+- Nowy PIN jest losowany i wypisany **raz** (albo podany `--pin`, z regułami §2.3).
+- Wszystkie sesje tej osoby są usuwane — każde urządzenie loguje się od nowa.
+- Próby logowania na ten adres (`auth_attempts` po `email_hash`) są usuwane, żeby
+  blokada po nieudanych próbach nie trzymała już po resecie.
+- Konto wyłączone (`is_active = 0`) — odmowa; skrypt nie włącza kont.
+
+Dostęp do powłoki serwera jest tu uwierzytelnieniem: kto go ma, i tak czyta bazę.
+Resetu przez e-mail nadal nie ma (§1).
+
 ## 11. Lista kontrolna przed wdrożeniem
 
 Stan wdrożenia referencyjnego po przejściu listy na VPS (2026-09-28):

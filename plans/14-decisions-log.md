@@ -4558,3 +4558,35 @@ Dopasowanie po kategorii głównej — reguła „Czynsz" w Mieszkaniu zbierała
 **Konsekwencje.** `BudgetLedgerRow` i `BudgetActualLine` niosą `categoryId` (dokładną
 kategorię) obok `mainCategoryId`. Testy w `budget.test.ts`. „Poza planem" maleje
 o takie wydatki. Zmienione: 07 §13.8.
+
+---
+
+<a id="adr-092"></a>
+
+## ADR-092 — Skrypt `user:reset-pin` na zapomniany PIN
+
+**Data:** 2026-11-22 · **Zadanie:** prośba właściciela (poza roadmapą) · **Status:** przyjęta
+
+**Kontekst.** Zmiana PIN-u w ustawieniach wymaga obecnego. Zapomniany PIN nie miał
+żadnego wyjścia poza ręczną edycją bazy (wyliczenie hasha argon2id i `UPDATE users`).
+Reset przez e-mail został świadomie odrzucony (09 §1) i to się nie zmienia.
+
+**Decyzja.** Skrypt CLI obok `user:create`:
+`pnpm --filter @fineapp/api user:reset-pin -- --email … [--pin …]`, w obrazie
+`node dist/scripts/reset-pin.js`. Serwis `resetPin`:
+
+1. Nowy PIN losowany i wypisany raz na standardowe wyjście (nie do loggera); `--pin`
+   przechodzi przez te same reguły co przy zakładaniu (09 §2.3).
+2. Usuwa **wszystkie** sesje tej osoby — skoro PIN zapomniany albo wyciekł, nie ma
+   „bieżącego" urządzenia, które warto zostawić.
+3. Usuwa próby logowania z `email_hash` tego adresu — inaczej blokada wykładnicza po
+   nieudanych próbach trzymałaby jeszcze po resecie. Próby po IP zostają.
+4. Konto wyłączone — odmowa. Włączanie kont to osobna decyzja.
+
+**Uzasadnienie.** Dostęp do powłoki serwera jest silniejszym uwierzytelnieniem niż PIN —
+kto go ma, czyta bazę wprost. Skrypt nie otwiera nowej drogi, tylko robi bezpiecznie
+to, co i tak dało się zrobić ręcznie.
+
+**Konsekwencje.** `resetPin` w `auth.service.ts`, `deleteAttemptsForEmail`
+w `auth.repository.ts`, testy w `reset-pin.test.ts`. Zmienione: 09 §10.1, 10 §3
+i lista kroków wdrożenia, README.

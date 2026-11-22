@@ -185,6 +185,19 @@ export function findRecentAttempts(
 }
 
 /**
+ * Usuwa wszystkie próby logowania na dany adres — po resecie PIN-u z serwera
+ * ([09 §10.1](../../../../../../plans/09-security-auth.md#101-reset-zapomnianego-pin-u)),
+ * żeby blokada po nieudanych próbach nie trzymała dłużej. Próby po IP zostają.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param emailHash - Hash znormalizowanego adresu.
+ * @returns Liczba usuniętych wierszy.
+ */
+export function deleteAttemptsForEmail(handle: DbHandle, emailHash: string): number {
+  return handle.db.delete(authAttempts).where(eq(authAttempts.emailHash, emailHash)).run().changes;
+}
+
+/**
  * Usuwa próby starsze niż podana chwila.
  *
  * Wołane przy starcie aplikacji ([03 §3.4](../../../../../../plans/03-data-model.md#34-auth_attempts)).
