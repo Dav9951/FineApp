@@ -141,7 +141,8 @@ wyliczanymi zamiast zapisanych ([ADR-061](./14-decisions-log.md#adr-061)).
 `POST /settings/reset` to lustro eksportu: `settings.reset.repository.ts` kasuje te same
 tabele w **jednej** transakcji bazy — złożone z serwisów dwunastu modułów nie dałoby
 się zatwierdzić naraz ([ADR-072](./14-decisions-log.md#adr-072)). Poza tymi dwoma
-modułami wyjątków nie ma.
+modułami wyjątków nie ma — oba (eksport i reset) obejmują od Fazy 10 tabele
+`shopping_*` (03 §3.23–3.27), a reset także pliki importów list zakupów.
 
 ## 4. Anatomia modułu
 
@@ -315,6 +316,8 @@ w kodzie nie występuje `amount_minor`.
 
 - `...Minor` — kwota w **groszach**, `number` całkowity (`amountMinor`, `targetAmountMinor`).
 - `...Bps` — udział w **punktach bazowych**, 1% = 100 bps (`savingsPercentBps`).
+- `...Milli` — ilość w **tysięcznych częściach jednostki** obok pola `unit`, `number`
+  całkowity (`quantityMilli`: 1,5 kg = 1500). Tylko listy zakupów (Faza 10, ADR-093).
 
 Nazwa niesie jednostkę, więc nie da się pomylić `20` (procent) z `2000` (bps) ani
 `100` (złotówki) z `10000` (grosze). Pola bez sufiksu nie są kwotami ani udziałami.
@@ -371,3 +374,9 @@ Reszta rozsądnie. Fabryki danych w `apps/api/test/factories/`.
   nie może wygasić całego ekranu miesiąca.
   Wyjątek: brak pliku ekranu po wdrożeniu nowej wersji (nieudany dynamiczny import)
   przeładowuje stronę, z ochroną przed pętlą ([ADR-090](./14-decisions-log.md#adr-090)).
+- **Listy zakupów — dwa udokumentowane wyjątki** (Faza 10,
+  [ADR-096](./14-decisions-log.md#adr-096)): (1) zapytania `qk.shopping*` są utrwalane
+  na urządzeniu (IndexedDB), a mutacje pozycji mają `networkMode: 'offlineFirst'`
+  i wznawiają się po powrocie sieci; reszta cache żyje tylko w pamięci. (2) Nowa pozycja
+  dostaje **ULID od klienta** (`POST …/items` z `id`) — jedyne miejsce, gdzie identyfikator
+  nie powstaje na serwerze; serwer sprawdza format i przynależność (04 §14b).

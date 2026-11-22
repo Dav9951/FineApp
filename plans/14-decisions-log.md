@@ -4699,3 +4699,34 @@ w kwotach fałszuje budżet, dlatego wyjątek nie rozszerza się na resztę apli
 
 **Konsekwencje.** Zmienią się 06 §5, 02 (identyfikator od klienta jako udokumentowany
 wyjątek), 01 (utrwalanie zapytań) w `F10-1`.
+
+---
+
+<a id="adr-097"></a>
+
+## ADR-097 — Listy zakupów: ustalenia przy przenoszeniu kontraktu (`F10-1`)
+
+**Data:** 2026-11-22 · **Zadanie:** `F10-1` · **Status:** przyjęta
+
+**Kontekst.** Szkic w 17 §6–§7 miał kilka rzeczy niezgodnych z konwencjami 03 albo
+niedookreślonych.
+
+**Decyzja.**
+
+1. **Znaczniki czasu** `INTEGER` (epoch ms), jak w całym 03 — szkic miał `TEXT`.
+2. **Enumy po angielsku** w bazie i kontrakcie: jednostki `pcs | pack | kg | g | l | ml`
+   (szkic: `szt`, `opak`), działy `produce`, `dairy`… (05 §2); polskie nazwy tylko
+   w interfejsie, jak w pozostałych enumach.
+3. **Zestaw startowy** nie jest seedem bazy: zakłada go pierwsze `GET /shopping-lists`,
+   pilnowane kolumną `households.shopping_initialized_at` (03 §5a, 07 §14.6) — tak działa
+   też dla gospodarstwa, które już istnieje na produkcji, a reset danych zeruje znacznik.
+4. **Pobieranie strony** w `core/safe-fetch.ts` z połączeniem na sprawdzony adres
+   (ochrona przed DNS rebinding), 09 §7a.
+5. **Kody błędów importu** `RECIPE_FETCH_BLOCKED`, `RECIPE_FETCH_FAILED`,
+   `RECIPE_NOT_FOUND` jako `errorCode` importu w stanie `failed`, nie jako kody HTTP.
+6. **Ilość od modelu** przychodzi jako liczba dziesiętna i jest przeliczana na tysięczne
+   w jednym miejscu na wejściu (08 §17.2); dalej wyłącznie liczby całkowite.
+7. **Bez `document_logs`** dla importów w v1 — `error_code` i `ai_raw_response` importu.
+
+**Konsekwencje.** Zmienione: 01, 02, 03, 04, 05, 06, 07, 08, 09, 17 §4 i §6 (szkic zastąpiony
+mapą odwołań).

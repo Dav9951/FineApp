@@ -24,7 +24,7 @@ to, co tu opisano; jeżeli kod i plan się rozjeżdżają — najpierw aktualizu
 | 14 | [14-decisions-log.md](./14-decisions-log.md) | Dziennik decyzji (ADR) i odstępstw od założeń | wszyscy |
 | 15 | [15-design-system.md](./15-design-system.md) | Tokeny, prymitywy, reguły wizualne | implementacja FE |
 | 16 | [16-budget-planner.md](./16-budget-planner.md) | Planer budżetu (Faza 9): po co, pojęcia, scenariusze, zakres | wszyscy |
-| 17 | [17-shopping-lists.md](./17-shopping-lists.md) | Listy zakupów (Faza 10, plan): pojęcia, scenariusze, AI ze zdjęcia i przepisu, szkic kontraktu | wszyscy |
+| 17 | [17-shopping-lists.md](./17-shopping-lists.md) | Listy zakupów (Faza 10): po co, pojęcia, scenariusze, zakres, mapa kontraktów w 03–09 | wszyscy |
 
 ## Zasada aktualizacji
 

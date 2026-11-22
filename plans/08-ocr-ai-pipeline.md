@@ -443,7 +443,7 @@ UPLOAD_DIR/
 
 ## 13. Prywatność
 
-Do Anthropic trafia **wyłącznie obraz dokumentu i lista nazw kategorii**. Nie wysyłamy:
+Do Anthropic trafia **wyłącznie obraz dokumentu i lista nazw kategorii** (listy zakupów: §17.5). Nie wysyłamy:
 sald kont, historii transakcji, celów, danych użytkowników ani nazwy gospodarstwa.
 
 Metadane EXIF (w tym współrzędne GPS zdjęcia zrobionego w sklepie) są usuwane przed
@@ -531,3 +531,151 @@ Typowe odczyty dziennika: `AI_UNAVAILABLE` z `errorType: APIConnectionTimeoutErr
 i `durationMs` ≈ 3 × 120 s — model nie zdążył (długi paragon, dużo myślenia);
 `AI_OUTPUT_TRUNCATED` z `outputTokens` = `maxOutputTokens` — odpowiedź się nie zmieściła;
 `prepared` z ostrzeżeniem o wąskim obrazie — paragon za długi na jedno zdjęcie.
+
+## 17. Listy zakupów: zdjęcie listy i przepis
+
+> **Faza 10 — plan** ([ADR-094](./14-decisions-log.md#adr-094),
+> [ADR-095](./14-decisions-log.md#adr-095)). Tabele: 03 §3.26–3.27, endpointy: 04 §14b,
+> reguły: 07 §14. Opis funkcji: [17](./17-shopping-lists.md).
+
+Zasada z §1 obowiązuje bez zmian: **AI proponuje, człowiek zatwierdza**. Propozycje żyją
+w `shopping_import_items`, na listę trafiają wyłącznie przez commit (I-30).
+
+### 17.1 Co dzielimy z dokumentami, a co nie
+
+| Wspólne z §2–§9 | Inne |
+|---|---|
+| `prepareForVision` (obrót, EXIF, 1568 px, JPEG q80), skalowanie i HEIC w przeglądarce | osobne tabele; brak SHA-256 i wykrywania ponownego wrzucenia |
+| model z `households.ai_model` / `AI_MODEL`, structured outputs (`output_config.format`), `max_tokens`, timeout, ponowienia | do 3 obrazów na import (przepis na kilku ekranach) |
+| licznik `ai_spend_<YYYY-MM>_minor`, `AI_MONTHLY_BUDGET_MINOR`, `AI_ENABLED`, limit 20 / godz. | pliki w `UPLOAD_DIR/shopping/YYYY/MM/`, usuwane po commit / discard, najpóźniej po 7 dniach (I-31) |
+| praca w tle, `processing` starsze niż 10 min → `failed` (`INTERRUPTED`) przy starcie | wejście tekstowe (link, wklejony tekst) bez obrazu |
+| błędy `AI_REFUSED`, `AI_OUTPUT_TRUNCATED`, `AI_UNAVAILABLE`, `AI_SCHEMA_MISMATCH` | bez dziennika `document_logs` w v1 — `error_code` i `ai_raw_response` importu wystarczają |
+
+Ekstraktor to druga metoda obok `DocumentExtractor`: `ShoppingExtractor` z `extractList`
+i `extractRecipe` w `apps/api/src/ai/`, prompty w `ai/prompts/shopping-*.ts`, schematy
+w `ai/schemas/shopping.ts`. Moduł `shopping` woła go przez interfejs, jak `documents`.
+
+### 17.2 Schematy odpowiedzi
+
+Wszystkie pola wymagane (brak = `null`), `additionalProperties: false`, `section` to enum
+`ShoppingSectionSchema` (05 §2). Liczby od modelu to liczby dziesiętne w jednostce
+naturalnej; **serwer** przelicza je na tysięczne (`Math.round(x × 1000)` na wejściu jest
+jedynym miejscem z ułamkiem i ma test), odrzuca ujemne i zerowe.
+
+```ts
+/** Zdjęcie listy (tablica, kartka). */
+extract_shopping_list = {
+  items: [{
+    name: string,              // forma, w jakiej się kupuje: „Jajka", „Jogurt naturalny"
+    sourceText: string,        // dokładnie to, co odczytano: „jogurt nat. x2"
+    quantity: number | null,   // 2 — tylko gdy napisane na kartce
+    unit: 'pcs' | 'pack' | 'kg' | 'g' | 'l' | 'ml' | null,
+    section: ShoppingSection,
+    confidence: number,        // 0–1
+  }],
+  notes: string | null,
+}
+
+/** Przepis (obrazy, tekst wklejony albo pobrany). */
+extract_recipe_ingredients = {
+  title: string | null,
+  baseServings: integer | null,
+  ingredients: [{
+    name: string,              // „Czekolada gorzka"
+    sourceText: string,        // „100 g gorzkiej czekolady"
+    amount: number | null,     // ilość BAZOWA z przepisu w `unit`; null = do smaku / szczypta
+    unit: 'g' | 'ml' | 'pcs' | null,
+    packageAmount: number | null,  // typowe opakowanie w Polsce, w tej samej jednostce
+    packageLabel: string | null,   // „tabliczka", „kostka", „opak. 10 szt."
+    pantryStaple: boolean,         // rzecz, którą prawie każdy dom ma: sól, pieprz, woda, olej
+    section: ShoppingSection,
+    confidence: number,
+  }],
+  notes: string | null,
+}
+```
+
+`confidence` → `confidence_bps = round(confidence × 10 000)`; `< 6000` daje w przeglądzie
+plakietkę „Sprawdź" i tekst źródłowy pod nazwą.
+
+### 17.3 Prompty
+
+Wspólny wstęp: „Jesteś asystentem w aplikacji listy zakupów gospodarstwa domowego
+w Polsce. Odpowiadasz wyłącznie w podanym formacie." Dalej:
+
+**Zdjęcie listy**
+
+1. Przepisz pozycje listy zakupów z obrazu. Pomiń pozycje **skreślone, przekreślone,
+   odhaczone** albo wyraźnie oznaczone jako kupione — to rzeczy już załatwione.
+2. Jedna pozycja = jeden produkt. „masło i jajka" to dwie pozycje.
+3. Nazwa w formie, w jakiej produkt się kupuje, z wielkiej litery, bez marki, chyba że
+   marka jest napisana wprost.
+4. Ilość tylko wtedy, gdy jest na kartce. Nie wymyślaj ilości.
+5. Słowa nieczytelne: podaj najlepszy odczyt, niską pewność i dokładny tekst
+   w `sourceText`. Nie pomijaj pozycji tylko dlatego, że jest niewyraźna.
+6. Pomijaj wszystko, co nie jest listą zakupów (magnesy, kartki z innymi notatkami,
+   kalendarz) — jeśli na zdjęciu nie ma listy, zwróć pustą `items` i powód w `notes`.
+7. Dział wybierz z podanej listy działów.
+
+**Przepis**
+
+1. Wypisz składniki potrzebne do przepisu. Pomiń kroki przygotowania, wartości odżywcze,
+   reklamy i komentarze.
+2. `amount` i `unit` to ilość **z przepisu, bez mnożenia i bez zaokrąglania**.
+   Przelicz łyżki, łyżeczki i szklanki na g albo ml dla danego produktu
+   (łyżka mąki ≈ 10 g, łyżka oleju ≈ 15 ml, szklanka mleka = 250 ml).
+   Sztuki („3 jajka", „2 cebule") w `pcs`.
+3. „do smaku", „szczypta", „opcjonalnie" → `amount: null`.
+4. `packageAmount` i `packageLabel`: najczęstsze opakowanie w polskim sklepie, w tej samej
+   jednostce (czekolada 100 g, masło 200 g, jajka 10 szt., mleko 1000 ml, mąka 1000 g).
+   Gdy produkt sprzedaje się na sztuki lub na wagę bez opakowania (cebula, pomidory), daj
+   `null`.
+5. Ten sam produkt w kilku miejscach przepisu (ciasto i polewa) połącz w jedną pozycję
+   z sumą ilości i oba fragmenty w `sourceText`.
+6. `pantryStaple: true` tylko dla rzeczy, które ma prawie każdy dom; lista produktów
+   „zawsze w domu" tego gospodarstwa jest w kontekście — nie musisz jej powtarzać,
+   oceniasz resztę.
+7. `baseServings` — liczba porcji z przepisu (z „na 4 osoby", „12 kawałków"); brak → `null`.
+8. Jeśli to nie jest przepis, zwróć pustą `ingredients` i powód w `notes`
+   (→ `RECIPE_NOT_FOUND`).
+
+**Kontekst** (po stałym prompcie, żeby stały prefiks dało się buforować): nazwy działów
+z opisem i lista nazw produktów „zawsze w domu". Nic więcej.
+
+### 17.4 Pobranie przepisu z linku
+
+`fetchRecipeSource(url)` w `apps/api/src/core/safe-fetch.ts` (pierwszy wychodzący
+`fetch` aplikacji poza Anthropic; ochrona: [09 §7a](./09-security-auth.md#7a-pobieranie-adresów-podanych-przez-użytkownika)):
+
+1. Pobierz stronę (10 s, 3 MB, `text/html`, max 3 przekierowania).
+2. Szukaj `<script type="application/ld+json">` z `@type` `Recipe` (także w `@graph`
+   i w tablicy typów). Jest → do modelu idzie tekst złożony z `name`, `recipeYield`
+   i `recipeIngredient[]` — zwykle kilkaset tokenów.
+3. Nie ma → widoczny tekst strony (bez `script`, `style`, `nav`, `header`, `footer`,
+   `aside`), białe znaki zwinięte, ucięty do 30 000 znaków.
+4. Tekst trafia do `shopping_imports.source_text` (diagnoza, ponowienie bez ponownego
+   pobierania).
+
+Odrzucone: narzędzie `web_fetch` po stronie Anthropic (ADR-095).
+
+### 17.5 Prywatność
+
+Do Anthropic trafia: obraz listy albo przepisu (bez EXIF), tekst przepisu (wklejony
+albo pobrany) oraz nazwy działów i produktów „zawsze w domu". **Nie** trafiają: nazwy
+list, inne pozycje list, dane domowników, nic finansowego. Adres przepisu wychodzi tylko
+do serwisu z przepisem (pobranie przez nasz serwer). Uzupełnia §13.
+
+### 17.6 Ocena jakości (`F10-10`)
+
+Zestaw: 10 zdjęć tablicy / kartki (różne charaktery pisma, skreślenia) i 10 przepisów
+(5 linków z JSON-LD, 2 bez, 3 zrzuty ekranu), pliki poza repozytorium jak w §15. Narzędzie
+`shopping:evaluate` obok `ocr:evaluate`; `nazwa.expected.json` z oczekiwanymi nazwami
+(po normalizacji), ilościami i — dla przepisów — liczbą opakowań przy ×1.
+
+| Wskaźnik | Cel |
+|---|---|
+| Zdjęcie: odczytane pozycje (trafione / oczekiwane) | ≥ 90% |
+| Zdjęcie: skreślone pominięte | 100% |
+| Przepis: składniki znalezione | ≥ 95% |
+| Przepis: liczba opakowań zgodna przy ×1 | ≥ 85% |
+| Przepis: „Już mam" bez fałszywego „mam" dla produktu spoza słownika | ≥ 90% |

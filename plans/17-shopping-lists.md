@@ -6,10 +6,9 @@
 
 Ten dokument opisuje funkcję w całości: po co jest, jak się z niej korzysta i jak łączy się
 z resztą aplikacji. Jak przy planerze budżetu ([16](./16-budget-planner.md)), szczegóły
-kontraktowe trafią do dokumentów 03–07 w zadaniu `F10-1` (pytania z §9 są już
-rozstrzygnięte). Do tego czasu kontraktem jest szkic w §6–§7 poniżej.
+kontraktowe żyją w dokumentach 03–09 (przeniesione w `F10-1`) i to one są wiążące.
 
-| Co | Gdzie (po `F10-1`) |
+| Co | Gdzie |
 |---|---|
 | tabele `shopping_lists`, `shopping_items`, `shopping_products`, `shopping_imports`, `shopping_import_items`, niezmienniki I-26…I-31 | 03 §3.23–3.27 |
 | endpointy `/api/v1/shopping-lists`, `/api/v1/shopping-imports`, `/api/v1/shopping-products` | 04 §14b |
@@ -17,6 +16,7 @@ rozstrzygnięte). Do tego czasu kontraktem jest szkic w §6–§7 poniżej.
 | ekrany `/shopping`, `/shopping/:listId`, `/shopping/:listId/import/:importId` | 06 §3.15 |
 | normalizacja nazw, scalanie, przeliczanie opakowań, szybkie dopisywanie, czyszczenie | 07 §14 |
 | odczyt zdjęcia listy i przepisu przez AI | 08 §17 |
+| pobieranie linku do przepisu (SSRF) | 09 §7a |
 
 ---
 
@@ -167,25 +167,11 @@ dniach), bo tablica z lodówki nie jest dowodem zakupu.
 
 ### 4.1 Zdjęcie listy
 
-Schemat odpowiedzi (`extract_shopping_list`), wszystkie pola wymagane, brak = `null`:
-
-```ts
-{
-  items: Array<{
-    name: string;                 // „Mleko" — forma mianownika, z wielkiej litery
-    sourceText: string;           // dokładnie to, co odczytano („mlko 2x")
-    quantity: number | null;      // 2 — liczba z kartki, null gdy brak
-    unit: 'szt' | 'opak' | 'kg' | 'g' | 'l' | 'ml' | null;
-    section: ShoppingSection;     // enum działów
-    confidence: number;           // 0–1
-  }>;
-  notes: string | null;           // „część tablicy nieczytelna"
-}
-```
+Schemat odpowiedzi modelu: [08 §17.2](./08-ocr-ai-pipeline.md#172-schematy-odpowiedzi).
 
 Reguły promptu (szczegóły w 08 §17): pomijaj pozycje skreślone i odhaczone na kartce; nie
-zgaduj nieczytelnych słów, tylko daj niską pewność i tekst źródłowy; nie dziel „masło
-i jajka" na jedną pozycję; podawaj nazwę ogólną („Jogurt naturalny"), bez marek, chyba że
+zgaduj nieczytelnych słów, tylko daj niską pewność i tekst źródłowy; „masło
+i jajka" to dwie pozycje; podawaj nazwę ogólną („Jogurt naturalny"), bez marek, chyba że
 marka jest napisana wprost.
 
 ### 4.2 Przepis
@@ -207,26 +193,7 @@ serwera, ale wysyła do modelu całą stronę (koszt), nie każdy model z katalo
 je obsługuje, a JSON-LD i tak trzeba by wyłuskać. Wraca do rozważenia, jeśli własne
 pobieranie okaże się zawodne.
 
-Schemat odpowiedzi (`extract_recipe_ingredients`):
-
-```ts
-{
-  title: string | null;           // „Brownie"
-  baseServings: number | null;    // 12 — z przepisu, null gdy nie podano
-  ingredients: Array<{
-    name: string;                 // „Czekolada gorzka"
-    sourceText: string;           // „100 g gorzkiej czekolady"
-    amount: number | null;        // ilość BAZOWA z przepisu w unit; null = „do smaku", „szczypta"
-    unit: 'g' | 'ml' | 'szt' | null; // łyżki, szklanki → przeliczone na g/ml przez model
-    packageAmount: number | null; // typowe opakowanie w PL w tej samej jednostce: 100 (g)
-    packageLabel: string | null;  // „tabliczka", „kostka", „opak. 10 szt."
-    pantryStaple: boolean;        // ocena modelu: sól, pieprz, woda, olej…
-    section: ShoppingSection;
-    confidence: number;
-  }>;
-  notes: string | null;
-}
-```
+Schemat odpowiedzi modelu: [08 §17.2](./08-ocr-ai-pipeline.md#172-schematy-odpowiedzi).
 
 **Model nie mnoży i nie zaokrągla.** Dostaje przepis, nie mnożnik. Ilości bazowe i typowe
 opakowanie to fakty, które umie odczytać i ocenić. Liczba opakowań to arytmetyka, którą
@@ -243,7 +210,7 @@ w całości).
 
 ## 5. Interfejs
 
-Szkic. Pełny opis z czterema stanami każdego ekranu trafi do 06 §3.15 w `F10-1`.
+Skrót. Wiążący opis z czterema stanami każdego ekranu: [06 §3.15](./06-ui-views.md#315-listy-zakupów--shopping-shoppinglistid-shoppinglistidimportimportid).
 
 ### 5.1 Wejścia
 
@@ -328,169 +295,23 @@ wyróżnienia: można je usunąć jak każdy inny.
 Jedyny: po „Wyczyść kupione" jednorazowa podpowiedź „Zeskanuj paragon?" → `/scan`. Lista
 nie wie nic o kwotach i niczego nie księguje.
 
-## 6. Szkic modelu danych
+## 6. Model danych, API i reguły
 
-> Przenosi się do 03 w `F10-1`; migracja `0008`. Wszystkie tabele mają `household_id`
-> jako pierwszą kolumnę filtrującą (twarda zasada 4). Eksport JSON i „Usuń wszystkie dane"
-> obejmują nowe tabele; pliki importów są usuwane razem z resetem.
+Od `F10-1` kontrakt żyje w dokumentach kontraktowych — ten rozdział tylko wskazuje:
 
-```sql
-CREATE TABLE shopping_lists (
-  id            TEXT PRIMARY KEY,                 -- ULID
-  household_id  TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
-  name          TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 60),
-  is_default    INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
-  position      INTEGER NOT NULL DEFAULT 0,
-  archived_at   TEXT,                             -- ISO UTC
-  created_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
-  created_at    TEXT NOT NULL,
-  updated_at    TEXT NOT NULL
-);
-CREATE UNIQUE INDEX uq_shopping_lists_default
-  ON shopping_lists(household_id) WHERE is_default = 1;
-
-CREATE TABLE shopping_products (
-  id               TEXT PRIMARY KEY,
-  household_id     TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
-  name             TEXT NOT NULL,                 -- forma wyświetlana: „Mąka pszenna"
-  normalized_name  TEXT NOT NULL,                 -- 07 §14.1: „maka pszenna"
-  section          TEXT NOT NULL,                 -- enum działów
-  is_staple        INTEGER NOT NULL DEFAULT 0 CHECK (is_staple IN (0,1)),
-  use_count        INTEGER NOT NULL DEFAULT 0,
-  last_used_at     TEXT,
-  created_at       TEXT NOT NULL,
-  updated_at       TEXT NOT NULL
-);
-CREATE UNIQUE INDEX uq_shopping_products_name
-  ON shopping_products(household_id, normalized_name);
-
-CREATE TABLE shopping_items (
-  id               TEXT PRIMARY KEY,
-  household_id     TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
-  list_id          TEXT NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
-  product_id       TEXT REFERENCES shopping_products(id) ON DELETE SET NULL,
-  name             TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
-  normalized_name  TEXT NOT NULL,
-  quantity_milli   INTEGER CHECK (quantity_milli IS NULL OR quantity_milli > 0),
-  unit             TEXT CHECK (unit IN ('szt','opak','kg','g','l','ml')),
-  note             TEXT CHECK (note IS NULL OR length(note) <= 120),
-  section          TEXT NOT NULL,
-  source           TEXT NOT NULL DEFAULT 'manual'
-                     CHECK (source IN ('manual','photo','recipe')),
-  import_id        TEXT REFERENCES shopping_imports(id) ON DELETE SET NULL,
-  checked_at       TEXT,
-  checked_by       TEXT REFERENCES users(id) ON DELETE SET NULL,
-  cleared_at       TEXT,                          -- „Wyczyść kupione" (miękko, dla Cofnij)
-  created_by       TEXT REFERENCES users(id) ON DELETE SET NULL,
-  created_at       TEXT NOT NULL,
-  updated_at       TEXT NOT NULL
-);
-CREATE INDEX idx_shopping_items_list
-  ON shopping_items(household_id, list_id, cleared_at, checked_at);
-
-CREATE TABLE shopping_imports (
-  id                   TEXT PRIMARY KEY,
-  household_id         TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
-  list_id              TEXT NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
-  kind                 TEXT NOT NULL CHECK (kind IN ('list_photo','recipe')),
-  input                TEXT NOT NULL CHECK (input IN ('image','url','text')),
-  status               TEXT NOT NULL
-                         CHECK (status IN ('processing','parsed','committed','discarded','failed')),
-  source_url           TEXT,
-  file_paths           TEXT,                      -- JSON, usuwane po committed/discarded
-  servings_factor_bps  INTEGER CHECK (servings_factor_bps BETWEEN 2500 AND 40000),
-  recipe_title         TEXT,
-  base_servings        INTEGER,
-  ai_model             TEXT,
-  cost_minor           INTEGER NOT NULL DEFAULT 0,
-  error_code           TEXT,
-  created_by           TEXT REFERENCES users(id) ON DELETE SET NULL,
-  created_at           TEXT NOT NULL,
-  updated_at           TEXT NOT NULL
-);
-
-CREATE TABLE shopping_import_items (
-  id                   TEXT PRIMARY KEY,
-  household_id         TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
-  import_id            TEXT NOT NULL REFERENCES shopping_imports(id) ON DELETE CASCADE,
-  position             INTEGER NOT NULL,
-  name                 TEXT NOT NULL,
-  source_text          TEXT NOT NULL,
-  -- ilość na listę (zdjęcie: z kartki; przepis: wyliczona z 07 §14.2 albo poprawiona)
-  quantity_milli       INTEGER,
-  unit                 TEXT CHECK (unit IN ('szt','opak','kg','g','l','ml')),
-  quantity_overridden  INTEGER NOT NULL DEFAULT 0, -- poprawiona ręcznie: mnożnik jej nie zmienia
-  -- tylko przepis: dane bazowe od modelu
-  base_amount_milli    INTEGER,
-  base_unit            TEXT CHECK (base_unit IN ('g','ml','szt')),
-  package_amount_milli INTEGER,
-  package_label        TEXT,
-  section              TEXT NOT NULL,
-  confidence_bps       INTEGER NOT NULL,          -- 0–10000
-  already_have         INTEGER NOT NULL DEFAULT 0, -- sekcja „Już mam"
-  selected             INTEGER NOT NULL DEFAULT 1,
-  merge_into_item_id   TEXT REFERENCES shopping_items(id) ON DELETE SET NULL
-);
-```
-
-Niezmienniki (numeracja robocza):
-
-| # | Niezmiennik |
+| Co | Gdzie |
 |---|---|
-| I-26 | Gospodarstwo ma dokładnie jedną listę domyślną, jeśli ma jakąkolwiek niezarchiwizowaną. Archiwizacja domyślnej przenosi flagę na pierwszą pozostałą. Pierwsza lista powstaje sama („Spożywcze") przy pierwszym wejściu. |
-| I-27 | `quantity_milli` i `unit` są oba `NULL` albo oba ustawione. |
-| I-28 | `cleared_at IS NOT NULL` ⇒ `checked_at IS NOT NULL`. Wyczyszczone pozycje nie są zwracane w liście ani liczone; fizycznie usuwa je następne czyszczenie, jeśli są starsze niż 24 h. |
-| I-29 | Na jednej liście najwyżej jedna pozycja *do kupienia* o danym `normalized_name` i jednostce. Dopisanie istniejącej scala ilości (07 §14.3). |
-| I-30 | Propozycje importu nie trafiają na listę inaczej niż przez `commit`; `commit` w jednej transakcji bazy: pozycje, słownik, status `committed`. |
-| I-31 | Import `committed` / `discarded` nie ma plików na dysku; zadanie przy starcie usuwa pliki importów starszych niż 7 dni. |
+| tabele `shopping_lists`, `shopping_products`, `shopping_items`, `shopping_imports`, `shopping_import_items`; `households.shopping_initialized_at`; zestaw startowy | [03 §3.23–3.27](./03-data-model.md#323-shopping_lists), [03 §5a](./03-data-model.md#5a-zestaw-startowy-list-zakupów) |
+| niezmienniki I-26…I-31 | [03 §4](./03-data-model.md#4-niezmienniki-wymuszane-w-serwisach) |
+| endpointy i kody błędów | [04 §14b](./04-api-spec.md#14b-listy-zakupów--apiv1shopping-lists-shopping-items-shopping-products-shopping-imports) |
+| enumy i DTO | [05 §2](./05-dto-contracts.md#2-enumy--domainenumsts), [05 §13c](./05-dto-contracts.md#13c-listy-zakupów--dtoshoppingts) |
+| normalizacja, opakowania, scalanie, szybkie dopisanie, słownik, czyszczenie, przypadki brzegowe | [07 §14](./07-domain-rules.md#14-listy-zakupów) |
+| prompty, schematy odpowiedzi modelu, pobieranie przepisu, ocena jakości | [08 §17](./08-ocr-ai-pipeline.md#17-listy-zakupów-zdjęcie-listy-i-przepis) |
+| ochrona przed SSRF | [09 §7a](./09-security-auth.md#7a-pobieranie-adresów-podanych-przez-użytkownika) |
+| ekrany | [06 §3.15](./06-ui-views.md#315-listy-zakupów--shopping-shoppinglistid-shoppinglistidimportimportid) |
 
-## 7. Szkic API i reguł
-
-**API** (`/api/v1`, wszystko z `householdId` z tokenu):
-
-| Metoda i ścieżka | Co robi |
-|---|---|
-| `GET /shopping-lists` | listy z licznikami (`toBuyCount`, `checkedCount`), ostatnią zmianą i importami do przejrzenia; `?archived=true` |
-| `POST /shopping-lists` · `PATCH /:id` · `DELETE /:id` | utworzenie, nazwa / domyślna / archiwizacja / kolejność, usunięcie |
-| `POST /shopping-lists/:id/duplicate` | kopia z pozycjami jako *do kupienia* |
-| `GET /shopping-lists/:id/items` | pozycje (bez wyczyszczonych), `ETag` po `max(updated_at)` → `304` przy odpytywaniu |
-| `POST /shopping-lists/:id/items` | dopisanie, ze scalaniem (I-29); odpowiedź mówi `merged: true` |
-| `PATCH /shopping-items/:id` | nazwa, ilość, notatka, dział, `checked: boolean`, `listId` (przeniesienie). Idempotentny: drugi raz „checked: true" nic nie zmienia |
-| `DELETE /shopping-items/:id` | usunięcie pozycji |
-| `POST /shopping-lists/:id/clear-checked` | ustawia `cleared_at` kupionym; zwraca `clearedIds` |
-| `POST /shopping-lists/:id/restore-cleared` | `{ itemIds }` → cofnięcie czyszczenia (do 24 h) |
-| `GET /shopping-products?q=&limit=` | podpowiedzi ze słownika; `?staple=true`; `?frequent=true&listId=` dla żetonów |
-| `PATCH /shopping-products/:id` · `POST` · `DELETE` | słownik i flaga „zawsze w domu" |
-| `POST /shopping-imports` | multipart (obrazy) albo JSON (`url` / `text`), `listId`, `kind`, `servingsFactorBps` → `202` + id |
-| `GET /shopping-imports/:id` | stan i propozycje |
-| `PATCH /shopping-imports/:id` | `servingsFactorBps`, `listId` (przeliczenie propozycji bez AI) |
-| `PATCH /shopping-imports/:id/items/:itemId` | korekta propozycji |
-| `POST /shopping-imports/:id/commit` · `/discard` · `/retry` | zatwierdzenie (`Idempotency-Key`), odrzucenie, ponowienie po `failed` |
-
-**Reguły domenowe** (07 §14, czyste funkcje w `shared/domain/shopping.ts`, każda z testami):
-
-1. **Normalizacja nazwy** (§14.1): przycięcie, pojedyncze spacje, małe litery, bez polskich
-   znaków i bez kropki na końcu („Mąka  pszenna." → „maka pszenna"). Służy do scalania,
-   słownika i podpowiedzi. Bez stemmingu w v1 („jajko" ≠ „jajka"), a model podaje
-   mianownik liczby mnogiej tam, gdzie to naturalne.
-2. **Opakowania z przepisu** (§14.2):
-   `potrzeba = base × factorBps / 10 000`;
-   `opakowania = max(1, ceil((potrzeba − 10% × opakowanie) / opakowanie))`.
-   Tolerancja 10% sprawia, że 105 g przy tabliczce 100 g to 1 tabliczka, a nie 2. Brak
-   `amount` albo opakowania daje 1 szt. z dopiskiem „ilość: do smaku". Wynik zawsze w `szt`
-   albo `opak`. Liczby całkowite w tysięcznych, bez floatów; przypadki brzegowe: ×0,25,
-   ×4, potrzeba równa opakowaniu, potrzeba tuż ponad tolerancją, `amount = null`.
-3. **Scalanie** (§14.3): ta sama `normalized_name` + ta sama jednostka → suma ilości;
-   ta sama nazwa, jedna bez ilości → zostaje ta z ilością; różne jednostki (1 kg i 2 szt.)
-   → osobne pozycje (I-29 obejmuje jednostkę). Pozycje *kupione* nie są celem scalania:
-   kupione mleko i nowe mleko to dwie pozycje.
-4. **Szybkie dopisanie** (§14.4): `"2 mleko"`, `"mleko 2"`, `"mleko x2"`, `"2x mleko"` →
-   2 szt.; `"mąka 1kg"`, `"1,5 kg ziemniaki"` → kg; liczba bez jednostki → szt. Liczba
-   w środku nazwy nie jest ilością („Mleko 3,2%", „7 Days"): rozpoznajemy tylko na początku
-   albo końcu i tylko z jednostką lub `x`, albo samą liczbę do 99 na początku.
-5. **Słownik** (§14.5): dopisanie pozycji robi upsert produktu (`use_count + 1`,
-   `last_used_at`), zmiana działu pozycji aktualizuje dział produktu. „Często kupowane" to
-   top 12 po `use_count` z ostatnich 90 dni, bez tych, które są na liście do kupienia.
+Uwaga do nazw: w bazie i w kontrakcie jednostki są angielskie (`pcs` = szt., `pack` = opak.,
+`kg`, `g`, `l`, `ml`) i działy też (`dairy`, `bakery`…); polskie nazwy daje wyłącznie interfejs.
 
 ## 8. Współdzielenie i praca bez sieci
 
@@ -547,7 +368,7 @@ eksport i „Usuń wszystkie dane".
 
 | ID | Zadanie |
 |---|---|
-| F10-1 | ~~Rozstrzygnięcie P-1…P-7~~ (zrobione 2026-11-22); przeniesienie §6–§8 do 03 / 04 / 05 / 06 / 07 / 08; zestaw startowy „zawsze w domu” w seedzie (03 §5) |
+| F10-1 | ✅ Rozstrzygnięcie P-1…P-7; kontrakty w 01 / 02 / 03 / 04 / 05 / 06 / 07 / 08 / 09; zestaw startowy (03 §5a) — **zrobione 2026-11-22** |
 | F10-2 | Schemat i migracja `0008` (pięć tabel), eksport, „Usuń wszystkie dane", sprzątanie plików przy starcie |
 | F10-3 | DTO `dto/shopping.ts` i `shared/domain/shopping.ts`: normalizacja, opakowania, scalanie, szybkie dopisanie, **100% pokrycia** |
 | F10-4 | Moduł `shopping`: listy, pozycje, słownik, czyszczenie z cofnięciem, `ETag`; testy tras |

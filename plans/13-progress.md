@@ -3,7 +3,7 @@
 > Stan realizacji faz, sprawy zauważone do rozważenia i wskaźniki jakości.
 > Plan zadań: [11-roadmap.md](./11-roadmap.md).
 
-**Ostatnia aktualizacja:** 2026-11-16 (niestabilny test arkusza transakcji w CI — limit tylko na otwarcie arkusza, Z-53)
+**Ostatnia aktualizacja:** 2026-11-22 (Faza 10 — listy zakupów: plan potwierdzony, kontrakty w 03–09, `F10-1`)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
 **Stan:** ✅ typecheck · lint · format · **2409 testów zielonych**
 
@@ -24,7 +24,7 @@
 | 7 | OCR i AI | ✅ zrobione (`F7-11` potwierdzone przez właściciela) | 11 / 11 |
 | 8 | Dopracowanie i wdrożenie | 🟡 działa produkcyjnie; zostaje `F8-10` | 9 / 10 |
 | 9 | Planer budżetu ([16](./16-budget-planner.md)) | ✅ zrobione (grupy i kolejność) | 13 / 13 |
-| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 📝 plan potwierdzony; następne `F10-1` (kontrakty do 03–08) | 0 / 10 |
+| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 🟡 plan i kontrakty gotowe (`F10-1`); następne `F10-2` (schemat i migracja `0008`) | 1 / 10 |
 
 ---
 
@@ -127,4 +127,4 @@ Uzupełniane w miarę postępu prac.
 | 12 | Widok miesiąca, przełączanie, księgowanie wstecz | 3 | ✅ dashboard `/m/:month` z przełącznikiem (siatka, gest), okno księgowania i zamknięte miesiące (`F3-1`…`F3-7`) |
 | 13 | Planowane wydatki z odkładaniem | 6 | ✅ API i ekran `/planned`, sekcja „Nadchodzące” (`F6-1`…`F6-9`) |
 | 14 | Planer budżetu: szkic miesiąca (bieżący … +12) ze źródeł, edycja, zamiana linii w pozycję cykliczną / planowany wydatek, średnie kategorii, ocena celów | 9 | ⬜ zaplanowane (16, ADR-075…079); `F9-1`…`F9-10` |
-| 15 | Listy zakupów: kilka list, odhaczanie offline, „Wyczyść kupione”, import ze zdjęcia i z przepisu | 10 | ⬜ plan (17, ADR-093…096 przyjęte); `F10-1`…`F10-10` |
+| 15 | Listy zakupów: kilka list, odhaczanie offline, „Wyczyść kupione”, import ze zdjęcia i z przepisu | 10 | ⬜ kontrakty gotowe (`F10-1`: 03 §3.23–3.27, 04 §14b, 05 §13c, 06 §3.15, 07 §14, 08 §17, 09 §7a); implementacja `F10-2`…`F10-10` |

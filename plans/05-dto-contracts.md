@@ -118,6 +118,19 @@ export const BudgetLineOriginSchema = z.enum([
 ]);
 // Sekcja szkicu — CHECK w `budget_draft_groups` (`F9-11`, ADR-081)
 export const BudgetSectionSchema = z.enum(['income', 'expense', 'pools']);
+// Listy zakupów (Faza 10) — CHECK w tabelach shopping_* (03 §3.23–3.27)
+export const ShoppingSectionSchema = z.enum([
+  'produce', 'bakery', 'dairy', 'meat_fish', 'dry_goods', 'frozen',
+  'drinks', 'household_chemicals', 'hygiene', 'home', 'other',
+]);
+/** pcs = szt., pack = opak.; polskie skróty tylko w formatowaniu. */
+export const ShoppingUnitSchema = z.enum(['pcs', 'pack', 'kg', 'g', 'l', 'ml']);
+export const ShoppingItemSourceSchema = z.enum(['manual', 'list_photo', 'recipe']);
+export const ShoppingImportKindSchema = z.enum(['list_photo', 'recipe']);
+export const ShoppingImportInputSchema = z.enum(['image', 'url', 'text']);
+export const ShoppingImportStatusSchema = z.enum([
+  'processing', 'parsed', 'committed', 'discarded', 'failed',
+]);
 ```
 
 Enumy są **jedynym** źródłem tych wartości — te same stringi trafiają do `CHECK` w DDL
@@ -2008,6 +2021,191 @@ export const UpdateBudgetLayoutRequestSchema = z.object({
 });
 export const BudgetGroupParamsSchema = z.object({ monthKey: MonthKeySchema, groupId: IdSchema });
 ```
+
+## 13c. Listy zakupów — `dto/shopping.ts`
+
+> **Faza 10 — plan** (`F10-3`). Czyste funkcje: `domain/shopping.ts` (07 §14), stałe:
+> `constants/shopping.ts` (`STARTER_STAPLES`, `SECTION_ORDER`, `SECTION_KEYWORDS`).
+> Endpointy: [04 §14b](./04-api-spec.md#14b-listy-zakupów--apiv1shopping-lists-shopping-items-shopping-products-shopping-imports).
+
+```ts
+// ShoppingSectionSchema, ShoppingUnitSchema, ShoppingImport*Schema — w `domain/enums.ts` (§2).
+
+/** Ilość w tysięcznych częściach jednostki: 1,5 kg = 1500 (ADR-093). */
+export const QuantityMilliSchema = z.number().int().positive().max(1_000_000);
+/** Mnożnik porcji przepisu w bps: ×1 = 10 000, zakres ×0,25…×4. */
+export const ServingsFactorBpsSchema = z.number().int().min(2_500).max(40_000);
+
+const ShoppingNameSchema = z.string().trim().min(1, 'Podaj nazwę').max(80);
+
+/** Ilość z jednostką albo brak obu (I-27). */
+const QuantityFields = {
+  quantityMilli: QuantityMilliSchema.nullable(),
+  unit: ShoppingUnitSchema.nullable(),
+};
+const bothOrNone = (v: { quantityMilli?: number | null; unit?: string | null }) =>
+  (v.quantityMilli == null) === (v.unit == null);
+
+export const ShoppingListDtoSchema = z.object({
+  id: IdSchema,
+  name: z.string(),
+  isDefault: z.boolean(),
+  archived: z.boolean(),
+  sortOrder: z.number().int(),
+  toBuyCount: z.number().int().nonnegative(),
+  checkedCount: z.number().int().nonnegative(),
+  lastActivityAt: TimestampSchema.nullable(),
+  /** Imię domownika, który ostatnio coś zmienił. */
+  lastActivityBy: z.string().nullable(),
+  /** Importy `processing` / `parsed` tej listy — kafel „Odczyt gotowy do przejrzenia". */
+  pendingImports: z.array(z.object({ id: IdSchema, status: ShoppingImportStatusSchema, kind: ShoppingImportKindSchema })),
+});
+
+export const ShoppingItemDtoSchema = z.object({
+  id: IdSchema,
+  listId: IdSchema,
+  productId: IdSchema.nullable(),
+  name: z.string(),
+  ...QuantityFields,
+  note: z.string().nullable(),
+  section: ShoppingSectionSchema,
+  source: ShoppingItemSourceSchema,
+  checked: z.boolean(),
+  checkedAt: TimestampSchema.nullable(),
+  /** Inicjały domownika, który odhaczył (17 §8). */
+  checkedByInitials: z.string().nullable(),
+  isStaple: z.boolean(),
+  createdAt: TimestampSchema,
+  updatedAt: TimestampSchema,
+});
+
+export const CreateShoppingListRequestSchema = z.object({ name: z.string().trim().min(1).max(60) });
+export const UpdateShoppingListRequestSchema = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  isDefault: z.literal(true).optional(),
+  archived: z.boolean().optional(),
+});
+export const ReorderShoppingListsRequestSchema = z.object({ listIds: z.array(IdSchema).min(1) });
+
+export const CreateShoppingItemRequestSchema = z
+  .object({
+    /** ULID od klienta przy dopisaniu offline (ADR-096). */
+    id: IdSchema.optional(),
+    name: ShoppingNameSchema,
+    quantityMilli: QuantityMilliSchema.nullish(),
+    unit: ShoppingUnitSchema.nullish(),
+    note: z.string().trim().max(120).nullish(),
+    section: ShoppingSectionSchema.optional(),
+  })
+  .refine(bothOrNone, { message: 'Podaj ilość razem z jednostką', path: ['unit'] });
+
+export const UpdateShoppingItemRequestSchema = z
+  .object({
+    name: ShoppingNameSchema.optional(),
+    quantityMilli: QuantityMilliSchema.nullable().optional(),
+    unit: ShoppingUnitSchema.nullable().optional(),
+    note: z.string().trim().max(120).nullable().optional(),
+    section: ShoppingSectionSchema.optional(),
+    checked: z.boolean().optional(),
+    listId: IdSchema.optional(),
+  })
+  .refine((v) => (v.quantityMilli === undefined) === (v.unit === undefined) && bothOrNone(v), {
+    message: 'Ilość i jednostkę zmienia się razem', path: ['unit'],
+  });
+
+export const CreateShoppingItemResultSchema = z.object({ item: ShoppingItemDtoSchema, merged: z.boolean() });
+export const ClearCheckedResultSchema = z.object({ clearedIds: z.array(IdSchema), listEmpty: z.boolean() });
+export const RestoreClearedRequestSchema = z.object({ itemIds: z.array(IdSchema).min(1).max(500) });
+export const RestoreClearedResultSchema = z.object({ restoredIds: z.array(IdSchema) });
+
+export const ShoppingProductDtoSchema = z.object({
+  id: IdSchema,
+  name: z.string(),
+  section: ShoppingSectionSchema,
+  isStaple: z.boolean(),
+  useCount: z.number().int().nonnegative(),
+  lastUsedAt: TimestampSchema.nullable(),
+});
+export const ShoppingProductsQuerySchema = z.object({
+  q: z.string().trim().max(80).optional(),
+  staple: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+export const UpsertShoppingProductRequestSchema = z.object({
+  name: ShoppingNameSchema,
+  section: ShoppingSectionSchema.optional(),
+  isStaple: z.boolean(),
+});
+export const UpdateShoppingProductRequestSchema = UpsertShoppingProductRequestSchema.partial();
+
+/** Propozycja z odczytu AI. */
+export const ShoppingImportItemDtoSchema = z.object({
+  id: IdSchema,
+  name: z.string(),
+  sourceText: z.string(),
+  ...QuantityFields,
+  quantityOverridden: z.boolean(),
+  /** Tylko przepis: potrzeba po mnożniku, do dopisku „potrzeba 100 g" (P-2). */
+  neededAmountMilli: QuantityMilliSchema.nullable(),
+  baseUnit: z.enum(['g', 'ml', 'pcs']).nullable(),
+  packageAmountMilli: QuantityMilliSchema.nullable(),
+  packageLabel: z.string().nullable(),
+  section: ShoppingSectionSchema,
+  confidenceBps: BpsSchema,
+  needsReview: z.boolean(),           // confidenceBps < 6000
+  alreadyHave: z.boolean(),
+  isStaple: z.boolean(),              // produkt ze słownika z flagą
+  selected: z.boolean(),
+  mergeInto: z.object({ itemId: IdSchema, ...QuantityFields }).nullable(),
+});
+
+export const ShoppingImportDtoSchema = z.object({
+  id: IdSchema,
+  listId: IdSchema,
+  kind: ShoppingImportKindSchema,
+  input: ShoppingImportInputSchema,
+  status: ShoppingImportStatusSchema,
+  sourceUrl: z.string().nullable(),
+  servingsFactorBps: ServingsFactorBpsSchema.nullable(),
+  recipeTitle: z.string().nullable(),
+  baseServings: z.number().int().positive().nullable(),
+  notes: z.string().nullable(),
+  errorCode: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  items: z.array(ShoppingImportItemDtoSchema),
+  createdAt: TimestampSchema,
+});
+
+/** JSON-owa odmiana POST /shopping-imports (multipart ma te same pola tekstowe). */
+export const CreateShoppingImportRequestSchema = z.discriminatedUnion('input', [
+  z.object({ input: z.literal('url'), listId: IdSchema, kind: z.literal('recipe'),
+    url: z.url({ protocol: /^https?$/ }).max(2000), servingsFactorBps: ServingsFactorBpsSchema }),
+  z.object({ input: z.literal('text'), listId: IdSchema, kind: z.literal('recipe'),
+    text: z.string().trim().min(20).max(30_000), servingsFactorBps: ServingsFactorBpsSchema }),
+]);
+export const UpdateShoppingImportRequestSchema = z.object({
+  servingsFactorBps: ServingsFactorBpsSchema.optional(),
+  listId: IdSchema.optional(),
+});
+export const UpdateShoppingImportItemRequestSchema = z
+  .object({
+    name: ShoppingNameSchema.optional(),
+    quantityMilli: QuantityMilliSchema.nullable().optional(),
+    unit: ShoppingUnitSchema.nullable().optional(),
+    section: ShoppingSectionSchema.optional(),
+    selected: z.boolean().optional(),
+    alreadyHave: z.boolean().optional(),
+  })
+  .refine((v) => (v.quantityMilli === undefined) === (v.unit === undefined) && bothOrNone(v), {
+    message: 'Ilość i jednostkę zmienia się razem', path: ['unit'],
+  });
+export const CommitShoppingImportResultSchema = z.object({
+  listId: IdSchema, addedCount: z.number().int(), mergedCount: z.number().int(),
+});
+```
+
+Wynik AI (schematy odpowiedzi modelu) żyje w `apps/api/src/ai/schemas/shopping.ts`, nie
+w `shared` — front nigdy go nie widzi (08 §17).
 
 ## 14. Helpery izomorficzne
 

@@ -46,6 +46,8 @@ households ──┬─< users ──< auth_sessions
              ├─< documents ──< document_items
              ├─< budget_drafts ──< budget_draft_lines   (Faza 9; → reguły, planowane, cele, zobowiązania)
              │        └──────< budget_draft_groups >── (linie: group_id; ADR-081)
+             ├─< shopping_lists ──< shopping_items >── shopping_products   (Faza 10)
+             │        └──────< shopping_imports ──< shopping_import_items
              └─< transactions ──────────┘
                     │  account_id, counter_account_id  → accounts
                     │  category_id                     → categories
@@ -84,6 +86,9 @@ CREATE TABLE households (
   -- Model odczytu dokumentów z ustawień (ADR-085); NULL = AI_MODEL z konfiguracji.
   -- Dozwolone wartości pilnuje kontrakt (AI_MODELS), nie CHECK — nowy model bez migracji.
   ai_model                  TEXT,
+  -- Kiedy założono listę „Spożywcze" i zestaw „zawsze w domu" (07 §14.6, Faza 10).
+  -- NULL = przy pierwszym wejściu w Zakupy; reset danych zeruje pole.
+  shopping_initialized_at   INTEGER,
   created_at                INTEGER NOT NULL,
   updated_at                INTEGER NOT NULL
 );
@@ -902,6 +907,171 @@ Bez `updated_at` — wpis się nie zmienia. Wpisy starsze niż **90 dni** usuwa 
 każdej analizy (`LOG_RETENTION_MS`, jedno zapytanie na analizę). Nie wchodzi do eksportu (`EXPORT_TABLES`) — to diagnostyka,
 nie dane gospodarstwa; „Usuń wszystkie dane" (ADR-072) czyści go razem z dokumentami.
 
+### 3.23 `shopping_lists`
+
+> **Faza 10 — plan** (migracja `0008_shopping`, schemat Drizzle `db/schema/shopping.ts`).
+> Opis funkcji: [17](./17-shopping-lists.md), decyzje:
+> [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096).
+
+Lista zakupów gospodarstwa (wymaganie #15), wspólna dla obu domowników (17 §9, P-3).
+Bez kwot — żadna z tabel §3.23–3.27 nie ma kolumn `_minor` poza kosztem odczytu AI.
+
+```sql
+CREATE TABLE shopping_lists (
+  id            TEXT PRIMARY KEY,
+  household_id  TEXT    NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  name          TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 60),
+  -- Lista, do której trafia szybkie dopisanie (FAB, skrót, udostępnienie). I-26.
+  is_default    INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  archived_at   INTEGER,
+  created_by    TEXT    REFERENCES users(id) ON DELETE SET NULL,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX uq_shopping_lists_default
+  ON shopping_lists(household_id) WHERE is_default = 1;
+CREATE INDEX idx_shopping_lists_household ON shopping_lists(household_id, archived_at, sort_order);
+```
+
+Liczniki (`toBuyCount`, `checkedCount`) i „ostatnia zmiana" **nie są przechowywane** —
+liczy je odczyt z `shopping_items`.
+
+### 3.24 `shopping_products`
+
+Słownik produktów gospodarstwa: podpowiedzi przy dopisywaniu, zapamiętany dział, flaga
+„zawsze w domu" (ADR-093). Wiersz powstaje sam przy dopisaniu pozycji (07 §14.5).
+
+```sql
+CREATE TABLE shopping_products (
+  id               TEXT PRIMARY KEY,
+  household_id     TEXT    NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  name             TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 80),  -- „Mąka pszenna"
+  normalized_name  TEXT    NOT NULL,                                        -- 07 §14.1: „maka pszenna"
+  section          TEXT    NOT NULL CHECK (section IN (
+                     'produce','bakery','dairy','meat_fish','dry_goods','frozen',
+                     'drinks','household_chemicals','hygiene','home','other')),
+  is_staple        INTEGER NOT NULL DEFAULT 0 CHECK (is_staple IN (0,1)),
+  use_count        INTEGER NOT NULL DEFAULT 0,
+  last_used_at     INTEGER,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX uq_shopping_products_name ON shopping_products(household_id, normalized_name);
+CREATE INDEX idx_shopping_products_usage ON shopping_products(household_id, last_used_at);
+```
+
+### 3.25 `shopping_items`
+
+```sql
+CREATE TABLE shopping_items (
+  id               TEXT PRIMARY KEY,   -- może przyjść od klienta (dopisanie offline, ADR-096)
+  household_id     TEXT    NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  list_id          TEXT    NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+  product_id       TEXT    REFERENCES shopping_products(id) ON DELETE SET NULL,
+  name             TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+  normalized_name  TEXT    NOT NULL,
+  -- Ilość opcjonalna, w tysięcznych częściach jednostki: 1,5 kg = 1500, 2 szt. = 2000 (ADR-093).
+  quantity_milli   INTEGER CHECK (quantity_milli IS NULL OR quantity_milli > 0),
+  unit             TEXT    CHECK (unit IN ('pcs','pack','kg','g','l','ml')),
+  note             TEXT    CHECK (note IS NULL OR length(note) <= 120),
+  section          TEXT    NOT NULL,  -- te same wartości co shopping_products.section
+  source           TEXT    NOT NULL DEFAULT 'manual'
+                     CHECK (source IN ('manual','list_photo','recipe')),
+  import_id        TEXT    REFERENCES shopping_imports(id) ON DELETE SET NULL,
+  checked_at       INTEGER,
+  checked_by       TEXT    REFERENCES users(id) ON DELETE SET NULL,
+  -- „Wyczyść kupione" — miękko, żeby działało „Cofnij" (I-28).
+  cleared_at       INTEGER,
+  created_by       TEXT    REFERENCES users(id) ON DELETE SET NULL,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL
+);
+
+CREATE INDEX idx_shopping_items_list
+  ON shopping_items(household_id, list_id, cleared_at, checked_at);
+CREATE INDEX idx_shopping_items_name
+  ON shopping_items(household_id, list_id, normalized_name);
+```
+
+Jednostki w bazie są angielskie (`pcs` = szt., `pack` = opak.) jak inne enumy; polskie
+skróty daje wyłącznie formatowanie w interfejsie.
+
+### 3.26 `shopping_imports`
+
+Jeden odczyt przez AI: zdjęcie listy albo przepis (ADR-094). Nie jest dokumentem
+finansowym — bez SHA-256, bez powiązania z `documents`.
+
+```sql
+CREATE TABLE shopping_imports (
+  id                   TEXT PRIMARY KEY,
+  household_id         TEXT    NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  list_id              TEXT    NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+  kind                 TEXT    NOT NULL CHECK (kind IN ('list_photo','recipe')),
+  input                TEXT    NOT NULL CHECK (input IN ('image','url','text')),
+  status               TEXT    NOT NULL DEFAULT 'processing'
+                         CHECK (status IN ('processing','parsed','committed','discarded','failed')),
+  source_url           TEXT,          -- input='url'
+  source_text          TEXT,          -- input='text' albo tekst pobrany z linku (≤ 30 tys. znaków)
+  -- JSON: ścieżki obrazów względem UPLOAD_DIR (shopping/YYYY/MM/<id>-<n>.jpg); I-31.
+  file_paths           TEXT    NOT NULL DEFAULT '[]',
+  -- Tylko przepis. ×1 = 10 000; zakres ×0,25 … ×4.
+  servings_factor_bps  INTEGER CHECK (servings_factor_bps BETWEEN 2500 AND 40000),
+  recipe_title         TEXT,
+  base_servings        INTEGER,
+  notes                TEXT,          -- uwagi modelu („część tablicy nieczytelna")
+  ai_model             TEXT,
+  ai_raw_response      TEXT,          -- do diagnozy AI_SCHEMA_MISMATCH; czyszczone przy commit
+  cost_minor           INTEGER NOT NULL DEFAULT 0,
+  error_code           TEXT,
+  created_by           TEXT    NOT NULL REFERENCES users(id),
+  created_at           INTEGER NOT NULL,
+  updated_at           INTEGER NOT NULL
+);
+
+CREATE INDEX idx_shopping_imports_status ON shopping_imports(household_id, status, created_at);
+```
+
+### 3.27 `shopping_import_items`
+
+Propozycja z odczytu, czekająca na przegląd (I-30).
+
+```sql
+CREATE TABLE shopping_import_items (
+  id                    TEXT PRIMARY KEY,
+  household_id          TEXT    NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  import_id             TEXT    NOT NULL REFERENCES shopping_imports(id) ON DELETE CASCADE,
+  sort_order            INTEGER NOT NULL,
+  name                  TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+  source_text           TEXT    NOT NULL,     -- dokładnie to, co odczytał model
+  -- Ilość na listę: ze zdjęcia z kartki; z przepisu wyliczona (07 §14.2) albo poprawiona.
+  quantity_milli        INTEGER CHECK (quantity_milli IS NULL OR quantity_milli > 0),
+  unit                  TEXT    CHECK (unit IN ('pcs','pack','kg','g','l','ml')),
+  quantity_overridden   INTEGER NOT NULL DEFAULT 0 CHECK (quantity_overridden IN (0,1)),
+  -- Tylko przepis: dane bazowe od modelu, w tysięcznych.
+  base_amount_milli     INTEGER CHECK (base_amount_milli IS NULL OR base_amount_milli > 0),
+  base_unit             TEXT    CHECK (base_unit IN ('g','ml','pcs')),
+  package_amount_milli  INTEGER CHECK (package_amount_milli IS NULL OR package_amount_milli > 0),
+  package_label         TEXT,                 -- „tabliczka", „kostka", „opak. 10 szt."
+  pantry_staple         INTEGER NOT NULL DEFAULT 0 CHECK (pantry_staple IN (0,1)), -- ocena modelu
+  section               TEXT    NOT NULL,
+  confidence_bps        INTEGER NOT NULL CHECK (confidence_bps BETWEEN 0 AND 10000),
+  already_have          INTEGER NOT NULL DEFAULT 0 CHECK (already_have IN (0,1)), -- sekcja „Już mam"
+  selected              INTEGER NOT NULL DEFAULT 1 CHECK (selected IN (0,1)),
+  -- Pozycja do kupienia na liście docelowej, z którą propozycja się scali (07 §14.3).
+  merge_into_item_id    TEXT    REFERENCES shopping_items(id) ON DELETE SET NULL,
+  updated_at            INTEGER NOT NULL
+);
+
+CREATE INDEX idx_shopping_import_items_import ON shopping_import_items(import_id, sort_order);
+```
+
+**Eksport i reset.** Tabele §3.23–3.27 wchodzą do `EXPORT_TABLES` (bez `ai_raw_response`,
+`source_text` importów i ścieżek plików) i do „Usuń wszystkie dane" (ADR-072), które kasuje
+też pliki importów i zeruje `households.shopping_initialized_at`.
+
 ## 4. Niezmienniki wymuszane w serwisach
 
 SQLite nie wyrazi ich deklaratywnie. Każdy musi mieć test jednostkowy.
@@ -935,6 +1105,12 @@ SQLite nie wyrazi ich deklaratywnie. Każdy musi mieć test jednostkowy.
 | I-23 | `category_id` linii zgodna z `flow` jak I-4: `income` → kategoria `income`, `expense` → `expense`; linie `savings`/`investment` bez kategorii. *(Faza 9)* |
 | I-24 | `is_excluded=1` ⇒ `origin ≠ 'manual'` (linię własną się usuwa, nie wyklucza). Linie wykluczone nie wchodzą do sum ani oceny. *(Faza 9)* |
 | I-25 | `budget_draft_lines.group_id` wskazuje grupę **tego samego szkicu** i tej samej sekcji: `income` → `income`, `expense` → `expense`, `savings`/`investment` → `pools`. Nazwa grupy niepusta, ≤ 40 znaków, unikalna w sekcji szkicu bez względu na wielkość liter. *(Faza 9, ADR-081)* |
+| I-26 | Gospodarstwo z co najmniej jedną niezarchiwizowaną listą zakupów ma dokładnie jedną domyślną (`is_default=1`) i jest ona niezarchiwizowana. Archiwizacja lub usunięcie domyślnej przenosi flagę na pierwszą pozostałą wg `sort_order`. *(Faza 10)* |
+| I-27 | `shopping_items`, `shopping_import_items`: `quantity_milli` i `unit` są oba `NULL` albo oba ustawione. *(Faza 10)* |
+| I-28 | `cleared_at IS NOT NULL` ⇒ `checked_at IS NOT NULL`. Pozycje wyczyszczone nie są zwracane ani liczone; fizycznie usuwa je następne czyszczenie tej listy, gdy są starsze niż 24 h. Odhaczenie pozycji wyczyszczonej → `409`. *(Faza 10)* |
+| I-29 | Na jednej liście najwyżej jedna pozycja *do kupienia* (`checked_at IS NULL`) o danej parze (`normalized_name`, `unit`), przy czym `unit IS NULL` traktujemy jak osobną wartość. Dopisanie istniejącej scala (07 §14.3). *(Faza 10)* |
+| I-30 | Propozycje importu trafiają na listę wyłącznie przez `commit`, w jednej transakcji bazy: pozycje, słownik, `status='committed'`. Commit tylko ze stanu `parsed`. *(Faza 10)* |
+| I-31 | Import w stanie `committed`, `discarded` albo `failed` starszy niż 7 dni ma `file_paths = '[]'` i nie ma plików na dysku; przy commit i discard pliki znikają od razu. `list_id` importu i `shopping_items.list_id` należą do tego samego gospodarstwa co wiersz. *(Faza 10)* |
 
 ## 5. Kategorie domyślne (seed)
 
@@ -977,6 +1153,22 @@ i dywidendy, Zwrot podatku, Świadczenia (800+, zasiłki), Sprzedaż, Prezent, I
 >
 > Gdyby kiedyś trzeba było prowadzić budżet brutto, wystarczy dodać kategorie i zmienić
 > sposób wpisywania — schemat tego nie blokuje.
+
+## 5a. Zestaw startowy list zakupów
+
+Nie jest seedem bazy, tylko jednorazowym założeniem przy pierwszym wejściu w *Zakupy*
+(`households.shopping_initialized_at IS NULL`, 07 §14.6): lista **„Spożywcze"**
+(domyślna) i produkty z `is_staple=1` (17 §9, P-4) — zwykłe wpisy słownika, do usunięcia
+jak każdy inny:
+
+| Produkt | Dział |
+|---|---|
+| Sól, Pieprz, Cukier, Mąka pszenna, Proszek do pieczenia, Soda oczyszczona | `dry_goods` |
+| Olej, Ocet | `dry_goods` |
+| Mleko, Jajka, Masło | `dairy` |
+
+Lista jest stałą w `packages/shared/src/constants/shopping.ts` (`STARTER_STAPLES`) razem
+ze słownikiem słów kluczowych działów (07 §14.5).
 
 ## 6. Strategia migracji
 

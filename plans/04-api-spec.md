@@ -1404,6 +1404,71 @@ z zapytania, domyślnie 3, inne wartości → `400`.
 
 ---
 
+## 14b. Listy zakupów — `/api/v1/shopping-lists`, `/shopping-items`, `/shopping-products`, `/shopping-imports`
+
+> **Faza 10 — plan**. Opis: [17](./17-shopping-lists.md), reguły:
+> [07 §14](./07-domain-rules.md#14-listy-zakupów), DTO: [05 §13c](./05-dto-contracts.md#13c-listy-zakupów--dtoshoppingts),
+> AI: [08 §17](./08-ocr-ai-pipeline.md#17-listy-zakupów-zdjęcie-listy-i-przepis).
+
+**Listy i pozycje**
+
+| Metoda | Ścieżka | Opis |
+|---|---|---|
+| GET | `/shopping-lists` | Listy niezarchiwizowane (`?archived=true` — archiwum) z `toBuyCount`, `checkedCount`, `lastActivityAt`, `lastActivityBy` i importami w stanie `processing` / `parsed`. Pierwsze wywołanie zakłada zestaw startowy (07 §14.6). |
+| POST | `/shopping-lists` | `{ name }` → `201`. Pierwsza lista gospodarstwa zostaje domyślną. |
+| PATCH | `/shopping-lists/:id` | `{ name?, isDefault?: true, archived?: boolean }`. `isDefault: false` → `400` (domyślną zmienia się, ustawiając inną). |
+| PATCH | `/shopping-lists/order` | `{ listIds }` — kolejność list. |
+| DELETE | `/shopping-lists/:id` | Usunięcie z pozycjami i importami (`204`). Ostatnia lista → dozwolone; I-26 przenosi flagę. |
+| POST | `/shopping-lists/:id/duplicate` | `{ name }` → nowa lista z pozycjami *do kupienia* i kupionymi (niewyczyszczonymi) jako *do kupienia*. |
+| GET | `/shopping-lists/:id/items` | Pozycje bez wyczyszczonych. `ETag` z `max(updated_at)` listy i pozycji (z usuniętymi włącznie — licznik zmian listy); `If-None-Match` → `304`. |
+| POST | `/shopping-lists/:id/items` | `{ id?, name, quantityMilli?, unit?, note?, section? }`. `id` od klienta (ADR-096): istniejący w tym gospodarstwie → `200` z tą pozycją bez zmian (ponowienie), zajęty gdzie indziej → `409`. Scalanie (I-29) → `200` z `merged: true`; nowa → `201`. Brak `section` → ze słownika albo słów kluczowych (07 §14.5). |
+| PATCH | `/shopping-items/:id` | `{ name?, quantityMilli?, unit?, note?, section?, checked?, listId? }`. `checked` idempotentne; `listId` przenosi (ze scalaniem na liście docelowej). |
+| DELETE | `/shopping-items/:id` | `204`; nieistniejąca → `204` (ponowienie z kolejki offline). |
+| POST | `/shopping-lists/:id/clear-checked` | Ustawia `cleared_at` kupionym → `{ clearedIds, listEmpty }`. |
+| POST | `/shopping-lists/:id/restore-cleared` | `{ itemIds }` → pozycje wracają jako kupione. Starsze niż 24 h albo już usunięte są pomijane (`restoredIds` w odpowiedzi). |
+
+**Słownik**
+
+| Metoda | Ścieżka | Opis |
+|---|---|---|
+| GET | `/shopping-products?q=&limit=10` | Podpowiedzi: prefiks słów po normalizacji (07 §14.1), kolejność `use_count` malejąco. |
+| GET | `/shopping-products?staple=true` | Produkty „zawsze w domu". |
+| GET | `/shopping-products/frequent?listId=` | „Często kupowane" (07 §14.5), bez pozycji do kupienia na tej liście. |
+| POST | `/shopping-products` | `{ name, section?, isStaple }` — ręczne dopisanie (ekran *Zawsze w domu*). Istniejąca nazwa → `200` z aktualizacją flagi. |
+| PATCH | `/shopping-products/:id` | `{ name?, section?, isStaple? }`. |
+| DELETE | `/shopping-products/:id` | `204`; pozycje tracą `product_id`, zostają na listach. |
+
+**Importy (AI)**
+
+| Metoda | Ścieżka | Opis |
+|---|---|---|
+| POST | `/shopping-imports` | `multipart/form-data` (pola `listId`, `kind`, `servingsFactorBps?`, pliki `image` ×1…3) albo JSON `{ listId, kind: 'recipe', input: 'url' \| 'text', url?, text?, servingsFactorBps }` → `202` z importem w `processing`. |
+| GET | `/shopping-imports/:id` | Stan, propozycje, dane przepisu. Front odpytuje co 2 s, póki `processing`. |
+| PATCH | `/shopping-imports/:id` | `{ servingsFactorBps?, listId? }` — przeliczenie propozycji bez AI (07 §14.2) i ponowne wyznaczenie `mergeIntoItemId` dla nowej listy. Tylko `parsed`. |
+| PATCH | `/shopping-imports/:id/items/:itemId` | `{ name?, quantityMilli?, unit?, section?, selected?, alreadyHave? }`; zmiana ilości ustawia `quantityOverridden`. |
+| POST | `/shopping-imports/:id/commit` | **`Idempotency-Key`.** Zaznaczone propozycje → pozycje listy (I-30); odpowiedź `{ listId, addedCount, mergedCount }`. Ponowienie z tym samym kluczem zwraca ten sam wynik. |
+| POST | `/shopping-imports/:id/discard` | `204`; pliki usunięte. |
+| POST | `/shopping-imports/:id/retry` | Tylko `failed` (z plikami albo z `url`/`text`) → `202`. |
+
+**Zachowanie**
+
+- Kody standardowe (§2–§3), rozróżnia je komunikat. Lista, pozycja, produkt albo import
+  innego gospodarstwa → `404`.
+- Zmiana pozycji na liście zarchiwizowanej → `409` „Lista jest w archiwum. Przywróć ją,
+  żeby coś zmienić.". Odhaczenie pozycji wyczyszczonej → `409` (I-28).
+- Ilość: `quantityMilli` bez `unit` albo odwrotnie → `400` (I-27); `quantityMilli`
+  > 1 000 000 (1000 jednostek) → `400`.
+- Import: pliki jak w §13 (10 MB, magic bytes, HEIC tylko po konwersji w przeglądarce);
+  `kind='list_photo'` z `input` innym niż obraz → `400`; `servingsFactorBps` poza
+  2500…40 000 → `400`. `AI_ENABLED=false` → `503` „Odczyt przez AI jest wyłączony.";
+  limit kosztów → `AI_BUDGET_EXCEEDED` jak w §13.
+- Pobranie przepisu (`input='url'`) odbywa się w tle; porażka kończy import jako `failed`
+  z `errorCode` `RECIPE_FETCH_BLOCKED` (adres prywatny / zły port / zły schemat),
+  `RECIPE_FETCH_FAILED` (timeout, status ≠ 2xx, za duża strona, nie HTML) albo
+  `RECIPE_NOT_FOUND` (model nie znalazł składników). Ekran proponuje wklejenie tekstu
+  albo zrzut. Zły format URL → `400` od razu.
+- Commit importu nie w stanie `parsed` → `409`; bez zaznaczonych propozycji → `422`.
+
 ## 15. Ustawienia — `/api/v1/settings`
 
 | Metoda | Ścieżka | Opis |
@@ -1463,4 +1528,5 @@ z zapytania, domyślnie 3, inne wartości → `400`.
 | `POST /auth/refresh` | 60 / godz. na sesję |
 | `POST /documents` | 20 / godz. na gospodarstwo (ochrona kosztów AI) |
 | `POST /documents/:id/analyze` | 5 / godz. na dokument |
+| `POST /shopping-imports`, `/shopping-imports/:id/retry` | wliczane do tych samych 20 / godz. co `POST /documents` (wspólny limit AI, ADR-094) |
 | Pozostałe | 300 / min na użytkownika |

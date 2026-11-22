@@ -45,7 +45,8 @@ Dolny pasek zakładek — pięć pozycji, stały, z `safe-area-inset-bottom`:
 FAB jest kontekstowy: na *Miesiącu* i *Historii* otwiera formularz transakcji,
 na *Celach* — wpłatę na cel, na *Skanie* — aparat.
 
-Długie przytrzymanie FAB otwiera menu szybkich akcji: **Wydatek / Przychód / Przelew / Paragon**.
+Długie przytrzymanie FAB otwiera menu szybkich akcji: **Wydatek / Przychód / Przelew / Paragon**
+(od Fazy 10 także **Do listy zakupów** — arkusz szybkiego dopisania do listy domyślnej, §3.15).
 
 Ekran „Więcej" (`/more`, od `F2-6`) to lista podsekcji z `planningNav()` i `settingsNav()` —
 tych samych, z których buduje się pasek boczny desktopu. Na telefonie to jedyne wejście do
@@ -75,7 +76,7 @@ Pasek zwija się do szyny z samymi ikonami; stan zapamiętany na urządzeniu
 │ MIESIĄC                  │
 │  Miesiąc · Historia · Cele · Skan
 │ PLANOWANIE               │
-│  Konta · Zobowiązania · Cykliczne · Planowane · Budżet · Rozkład docelowy
+│  Konta · Zobowiązania · Cykliczne · Planowane · Zakupy · Budżet · Rozkład docelowy
 │            …             │
 │ ──────────────────────── │
 │  Kategorie               │ ← bez nagłówka — oddziela je miejsce, nie napis
@@ -112,7 +113,8 @@ miejsce marki zajmuje profil.
 | `/recurring` `/recurring/:id` | Pozycje cykliczne | |
 | `/planned` `/planned/:id` | Planowane wydatki | Wymaganie #13 |
 | `/scan` `/scan/:documentId` | Skanowanie i przegląd | |
-| `/budget` `/budget/:month` | Planer budżetu | Wymaganie #14, Faza 9 (plan) |
+| `/budget` `/budget/:month` | Planer budżetu | Wymaganie #14, Faza 9 |
+| `/shopping` `/shopping/:listId` `/shopping/:listId/import/:importId` `/shopping/staples` | Listy zakupów | Wymaganie #15, Faza 10 (plan). `default`, `staples`, `share` to zarezerwowane segmenty — identyfikator listy (ULID) nigdy ich nie przyjmie |
 | `/settings` `/settings/*` | Ustawienia, kategorie, źródła przychodu | |
 
 **Miesiąc jest w URL.** Dzięki temu przycisk „wstecz" w przeglądarce cofa do poprzednio
@@ -1305,6 +1307,132 @@ makieta [`design/mockups/budget-layout.html`](../design/mockups/budget-layout.ht
   i pasek 4 px, gdy grupa ma wykonanie (07 §13.10); inaczej sam plan.
 - Szkic minionego miesiąca — bez „Układaj"; grupy i zwijanie działają.
 
+### 3.15 Listy zakupów — `/shopping`, `/shopping/:listId`, `/shopping/:listId/import/:importId`
+
+> **Faza 10 — plan**. Opis funkcji i scenariusze: [17](./17-shopping-lists.md), reguły:
+> [07 §14](./07-domain-rules.md#14-listy-zakupów), decyzje:
+> [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096).
+
+Wymaganie #15. **Wejścia** (P-1): *Więcej → Zakupy* i pasek boczny (grupa „Planowanie",
+nad „Budżet"), pozycja **Do listy zakupów** w menu szybkich akcji FAB, skrót „Lista
+zakupów" w manifeście PWA (`shortcuts` → `/shopping/default`) i cel udostępniania
+(`share_target` → `/shopping/share?url=&text=`, tylko Android). Bez zakładki w dolnym
+pasku — decyzja po miesiącu używania; jeśli wejdzie, to zamiast „Cele".
+
+**`/shopping`** — listy:
+
+```
+┌─────────────────────────────────────────────┐
+│ Zakupy                                [⋯]  │ ⋯ = Archiwum · Zawsze w domu
+├─────────────────────────────────────────────┤
+│ ★ Spożywcze                7 do kupienia ›  │ ← karta; podpis „Ania · 12 min temu"
+│   ⏳ Odczyt gotowy do przejrzenia        ›  │ ← import parsed (processing: „Czytam…")
+├─────────────────────────────────────────────┤
+│   Decathlon                3 do kupienia ›  │
+├─────────────────────────────────────────────┤
+│   + Nowa lista                              │
+└─────────────────────────────────────────────┘
+```
+
+- Jedna lista → ekran od razu przekierowuje na nią (`replace`); strzałka wstecz na liście
+  wraca wtedy do `/shopping`.
+- `/shopping/default` przekierowuje na listę domyślną (skrót z manifestu); bez list —
+  na `/shopping`.
+- *Archiwum*: arkusz z listami zarchiwizowanymi, *Przywróć* · *Usuń*.
+- Cztery stany: szkielet kart · pusto („Pierwsza lista powstanie sama" — w praktyce nie
+  występuje, bo pierwsze wejście zakłada „Spożywcze", 07 §14.6) · błąd · treść.
+
+**`/shopping/:listId`** — lista:
+
+```
+┌─────────────────────────────────────────────┐
+│ ‹  Spożywcze                          [⋯]  │ ⋯ = Zmień nazwę · Ustaw jako domyślną ·
+├─────────────────────────────────────────────┤     Duplikuj · Udostępnij jako tekst ·
+│ WARZYWA I OWOCE                             │     Nie wygaszaj ekranu · Archiwizuj · Usuń
+│ ○ Pomidory                         1 kg    │
+│ ○ Cebula                                    │
+│ NABIAŁ                                      │
+│ ○ Masło                                     │
+│ ○ Orzechy włoskie               1 opak.    │
+│   50 g · Brownie                            │ ← notatka, text-muted
+│ ▸ Kupione (4)            Wyczyść kupione    │
+│   ✓ Mleko  2 szt.                     AK    │ ← rozwinięte: przekreślone, inicjały
+├─────────────────────────────────────────────┤
+│ [ Dodaj produkt…                ] [📷] [+] │ ← przyklejone nad paskiem zakładek
+└─────────────────────────────────────────────┘
+```
+
+- **Wiersz** ≥ 44 px, dotknięcie całego wiersza odhacza (`role="checkbox"`,
+  `aria-checked`); kółko to wskaźnik, nie jedyny cel. Toast „Odhaczono Masło · Cofnij"
+  (5 s). Ilość cyframi tabelarycznymi, wyrównana do prawej, formatowana `formatQuantity`
+  (`1,5 kg`, `2 szt.`, `1 opak.`). FAB na tym ekranie ukryty — jego rolę pełni pole
+  dodawania.
+- **Przytrzymanie** wiersza albo przycisk `⋯` widoczny przy fokusie → arkusz pozycji:
+  nazwa, ilość (stepper + jednostka; „Bez ilości" czyści oba), notatka, dział (chipy),
+  „Zawsze w domu" (przełącznik produktu), *Przenieś na…*, *Usuń*. Gest nigdy nie jest
+  jedyną drogą — przycisk `⋯` jest w drzewie dostępności.
+- **Pole dodawania:** podpowiedzi ze słownika pod polem (do 5; nazwa + dział), Enter
+  zapisuje i zostawia fokus; pusty z fokusem → żetony „Często kupowane". Rozpoznawanie
+  ilości wg 07 §14.4 widoczne na żywo jako podpis „→ Mleko · 2 szt.". 📷 i + otwierają
+  arkusz „Dodaj z…" (Zdjęcie listy · Przepis).
+- **Kupione** zwinięte domyślnie (stan zapamiętany na urządzeniu). *Wyczyść kupione*
+  bez potwierdzenia, z toastem „Wyczyszczono 12 · Cofnij"; po nim jednorazowo
+  „Zeskanuj paragon?" (do `/scan`) i — gdy `listEmpty` na liście innej niż domyślna —
+  „Lista jest pusta. Zarchiwizować?".
+- **Odświeżanie:** co 15 s, gdy karta widoczna, i przy powrocie (`ETag` → `304`).
+  Offline: baner u góry „Brak połączenia — zmiany wyślę, gdy wróci sieć"; 📷 wyszarzone.
+- **Desktop:** lista wyśrodkowana, max 640 px; pole dodawania na górze zamiast na dole.
+- Cztery stany: szkielet wierszy · pusto („Lista jest pusta. Dopisz pierwszy produkt albo
+  zrób zdjęcie listy z lodówki.") · błąd (z danymi z ostatniego wczytania, gdy są) · treść.
+
+**Arkusz „Dodaj z…"**
+
+- *Zdjęcie listy* → `<input type="file" accept="image/*" capture="environment">`,
+  skalowanie w przeglądarce, wysyłka, przejście do przeglądu ze stanem „Czytam listę…".
+- *Przepis* → trzy zakładki: **Zrzut ekranu** (do 3 obrazów, miniatury z usuwaniem) ·
+  **Link** (pole URL, wklejenie z schowka jednym przyciskiem) · **Tekst**; pod nimi
+  mnożnik: segmenty `×0,5 · ×0,75 · ×1 · ×1,5 · ×2 · inny` (inny → pole 0,25…4).
+  Domyślnie ×1. *Czytaj przepis*.
+
+**`/shopping/:listId/import/:importId`** — przegląd:
+
+```
+┌─────────────────────────────────────────────┐
+│ ‹  Brownie                     [Odrzuć ⋯]  │
+│ Przepis na 12 porcji · ×0,5 = 6 porcji      │
+│ [ ×0,5 ▾ ]          Do listy: Spożywcze ▾   │
+├─────────────────────────────────────────────┤
+│ DO KUPIENIA (3)                             │
+│ ☑ Czekolada gorzka          [−] 1 [+] szt.  │
+│   potrzeba 50 g · tabliczka 100 g           │
+│ ☑ Masło                     [−] 1 [+] szt.  │
+│   potrzeba 62,5 g · kostka 200 g · Już na liście (1 szt.) → razem 2
+│ JUŻ MAM (4)                                 │
+│ ☐ Mąka pszenna        zawsze w domu  [Nie zawsze mam] │
+│ ☐ Jajka                     1 opak.         │
+├─────────────────────────────────────────────┤
+│        [ Dodaj 3 pozycje do „Spożywcze" ]   │
+└─────────────────────────────────────────────┘
+```
+
+- Zaznaczenie pola przenosi wiersz między sekcjami („Już mam" ↔ „Do kupienia"); każda
+  zmiana od razu `PATCH` (bez przycisku „Zapisz"), więc odświeżenie i druga osoba widzą
+  ten sam stan.
+- Zdjęcie listy: jedna sekcja bez „Już mam"; plakietka „Sprawdź" przy `needsReview`
+  z tekstem źródłowym pod nazwą.
+- Zmiana mnożnika przelicza ilości na serwerze bez AI (07 §14.2), ilości poprawione ręcznie
+  zostają (podpis „poprawione").
+- *Zawsze mam / Nie zawsze mam* przy wierszu zmienia flagę produktu (dopisuje go do słownika,
+  gdy go nie ma).
+- Stany: „Czytam…" (szkielet, można wyjść — import zostaje na karcie listy) · błąd
+  z przyczyną i drogą dalej (`RECIPE_FETCH_*` → „Wklej treść albo zrób zrzut"; brak
+  pozycji → „Nie znalazłem pozycji" + *Spróbuj ponownie* / *Odrzuć*) · treść.
+  Po commicie przejście na listę i toast „Dodano 3 · scalono 1".
+
+**Ekran *Zawsze w domu*** (`/shopping/staples`, z `⋯` na `/shopping`): wyszukiwarka,
+lista produktów z flagą z przyciskiem zdjęcia flagi, *+ Dodaj* (nazwa, dział). Pusty
+stan: „Nic nie oznaczyłeś. Produkty stąd przy przepisie trafiają do „Już mam"."
+
 ## 4. Design system
 
 > **Źródłem prawdy jest [`15-design-system.md`](./15-design-system.md).** Ta sekcja
@@ -1338,7 +1466,7 @@ akcji, cztery stany każdego ekranu z danymi, wartości ujemne jako poprawny wyn
 | Wcięcia ekranu | `env(safe-area-inset-*)` na pasku dolnym i nagłówku |
 | Podwójne dotknięcie zoomuje | `touch-action: manipulation` + cele dotyku ≥ 44 px; powiększanie gestem **dozwolone** (WCAG 1.4.4, [ADR-064](./14-decisions-log.md#adr-064)) — wcześniej `maximum-scale=1` |
 | Aparat | `<input type="file" accept="image/*" capture="environment">` |
-| Offline | Powłoka PWA z cache; dane **zawsze z sieci**. Bez sieci przyklejony u góry baner „Brak połączenia. Kwoty pochodzą z ostatniego wczytania i mogą być nieaktualne; zapis zadziała po powrocie sieci." (`F8-3`) |
+| Offline | Powłoka PWA z cache; dane **zawsze z sieci**. Bez sieci przyklejony u góry baner „Brak połączenia. Kwoty pochodzą z ostatniego wczytania i mogą być nieaktualne; zapis zadziała po powrocie sieci." (`F8-3`). **Wyjątek: listy zakupów** — zapytania utrwalone na urządzeniu, zmiany pozycji w kolejce do powrotu sieci, baner „Brak połączenia — zmiany wyślę, gdy wróci sieć" (§3.15, [ADR-096](./14-decisions-log.md#adr-096)) |
 | Odświeżenie gestem | Pociągnięcie w dół na *Miesiącu* i *Historii* |
 | Nawigacja wstecz | Zamyka arkusz zamiast wychodzić z ekranu (przechwycone `popstate`) |
 
@@ -1368,3 +1496,4 @@ Wynika z [11-roadmap.md](./11-roadmap.md); tutaj dla porządku:
 11. `/scan`
 12. `/settings`
 13. `/budget` + podpowiedź na dashboardzie (Faza 9)
+14. `/shopping` — lista i pozycje, potem importy AI (Faza 10)
