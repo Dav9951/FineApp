@@ -14,7 +14,7 @@ const schemas: [string, EnumSchema][] = Object.entries(
 
 describe('enumy domenowe', () => {
   it('eksportuje komplet schematów z 05 §2', () => {
-    expect(schemas.length).toBe(25);
+    expect(schemas.length).toBe(31);
   });
 
   it.each(schemas)('%s ma niepuste, unikalne wartości', (_name, schema) => {

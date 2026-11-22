@@ -38,6 +38,11 @@ export const households = sqliteTable(
      * dopisanie modelu do katalogu nie powinno wymagać migracji.
      */
     aiModel: text('ai_model'),
+    /**
+     * Kiedy założono listę „Spożywcze" i zestaw „zawsze w domu" (07 §14.6, Faza 10).
+     * `NULL` — przy pierwszym wejściu w Zakupy; reset danych zeruje pole.
+     */
+    shoppingInitializedAt: integer('shopping_initialized_at', { mode: 'number' }),
     ...timestamps,
   },
   (table) => [check('households_month_start_day_check', between(table.monthStartDay, 1, 28))],

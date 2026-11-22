@@ -24,6 +24,7 @@ import { plannedExpensesRoutes } from '../modules/planned-expenses/planned-expen
 import { liabilitiesRoutes } from '../modules/liabilities/liabilities.routes.js';
 import { recurringRoutes } from '../modules/recurring/recurring.routes.js';
 import { settingsRoutes } from '../modules/settings/settings.routes.js';
+import { shoppingRoutes } from '../modules/shopping/shopping.routes.js';
 import { transactionsRoutes } from '../modules/transactions/transactions.routes.js';
 import { registerErrorHandler } from './error-handler.js';
 import { healthRoutes } from './health.routes.js';
@@ -226,6 +227,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     clock,
   });
   await app.register(budgetRoutes, { prefix: `${API_PREFIX}/budget-drafts`, db, config, clock });
+  await app.register(shoppingRoutes, { prefix: API_PREFIX, db, config, clock });
   await app.register(allocationRoutes, {
     prefix: `${API_PREFIX}/allocation`,
     db,

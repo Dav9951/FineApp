@@ -8,6 +8,7 @@ import { buildServer } from './http/server.js';
 import { warmUpDummyPinHash } from './modules/auth/auth.pin.js';
 import { failInterruptedDocuments } from './modules/documents/documents.service.js';
 import { pruneDeadSessions, pruneLoginAttempts } from './modules/auth/auth.service.js';
+import { purgeStaleImportFiles } from './modules/shopping/shopping.files.js';
 
 /**
  * Bootstrap aplikacji: konfiguracja → baza → serwer → nasłuch.
@@ -61,6 +62,16 @@ async function main(): Promise<void> {
   const interrupted = failInterruptedDocuments({ db, clock: systemClock, log: app.log });
   if (interrupted > 0) {
     app.log.warn({ interrupted }, 'Oznaczono przerwane analizy dokumentów');
+  }
+
+  // Zdjęcia list i przepisów nie są dowodem zakupu — po tygodniu znikają (I-31).
+  const purgedImports = await purgeStaleImportFiles({
+    db,
+    clock: systemClock,
+    uploadDir: config.uploads.dir,
+  });
+  if (purgedImports > 0) {
+    app.log.info({ purged: purgedImports }, 'Usunięto pliki starych importów list zakupów');
   }
 
   // Rotacja dokłada wiersz przy każdym odświeżeniu, więc `auth_sessions` rośnie

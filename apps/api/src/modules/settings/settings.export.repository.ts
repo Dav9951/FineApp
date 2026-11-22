@@ -12,6 +12,13 @@ import { incomeSources } from '../../db/schema/income-sources.js';
 import { liabilities } from '../../db/schema/liabilities.js';
 import { plannedExpenses } from '../../db/schema/planned-expenses.js';
 import { recurringOccurrences, recurringRules } from '../../db/schema/recurring.js';
+import {
+  shoppingImportItems,
+  shoppingImports,
+  shoppingItems,
+  shoppingLists,
+  shoppingProducts,
+} from '../../db/schema/shopping.js';
 import { transactions, type TransactionRow } from '../../db/schema/transactions.js';
 
 /**
@@ -144,6 +151,57 @@ export function readExportTables(
       .from(transactions)
       .where(and(eq(transactions.householdId, householdId), isNull(transactions.deletedAt)))
       .orderBy(asc(transactions.id))
+      .all(),
+    shoppingLists: db
+      .select()
+      .from(shoppingLists)
+      .where(eq(shoppingLists.householdId, householdId))
+      .orderBy(asc(shoppingLists.id))
+      .all(),
+    shoppingProducts: db
+      .select()
+      .from(shoppingProducts)
+      .where(eq(shoppingProducts.householdId, householdId))
+      .orderBy(asc(shoppingProducts.id))
+      .all(),
+    // Bez surowej odpowiedzi modelu, tekstu przepisu i ścieżek plików (03 §3.27,
+    // „Eksport i reset") — to diagnostyka i pliki, których eksport i tak nie zawiera.
+    shoppingImports: db
+      .select({
+        id: shoppingImports.id,
+        householdId: shoppingImports.householdId,
+        listId: shoppingImports.listId,
+        kind: shoppingImports.kind,
+        input: shoppingImports.input,
+        status: shoppingImports.status,
+        sourceUrl: shoppingImports.sourceUrl,
+        servingsFactorBps: shoppingImports.servingsFactorBps,
+        recipeTitle: shoppingImports.recipeTitle,
+        baseServings: shoppingImports.baseServings,
+        notes: shoppingImports.notes,
+        aiModel: shoppingImports.aiModel,
+        costMinor: shoppingImports.costMinor,
+        errorCode: shoppingImports.errorCode,
+        createdBy: shoppingImports.createdBy,
+        createdAt: shoppingImports.createdAt,
+        updatedAt: shoppingImports.updatedAt,
+      })
+      .from(shoppingImports)
+      .where(eq(shoppingImports.householdId, householdId))
+      .orderBy(asc(shoppingImports.id))
+      .all(),
+    // Z wyczyszczonymi — „Cofnij" działa do 24 h, a kopia ma oddawać stan bazy.
+    shoppingItems: db
+      .select()
+      .from(shoppingItems)
+      .where(eq(shoppingItems.householdId, householdId))
+      .orderBy(asc(shoppingItems.listId), asc(shoppingItems.id))
+      .all(),
+    shoppingImportItems: db
+      .select()
+      .from(shoppingImportItems)
+      .where(eq(shoppingImportItems.householdId, householdId))
+      .orderBy(asc(shoppingImportItems.importId), asc(shoppingImportItems.sortOrder))
       .all(),
   };
 }

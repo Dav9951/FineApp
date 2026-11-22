@@ -193,3 +193,57 @@ export type BudgetLineOrigin = z.infer<typeof BudgetLineOriginSchema>;
 export const BudgetSectionSchema = z.enum(['income', 'expense', 'pools']);
 /** Sekcja szkicu budżetu. Dozwolone wartości ustala schemat powyżej. */
 export type BudgetSection = z.infer<typeof BudgetSectionSchema>;
+
+/**
+ * Dział sklepu na liście zakupów (07 §14.6, Faza 10). Kolejność wartości **jest**
+ * kolejnością na ekranie (P-5: stała w v1) — `SHOPPING_SECTION_ORDER` ją powtarza.
+ */
+export const ShoppingSectionSchema = z.enum([
+  'produce',
+  'bakery',
+  'dairy',
+  'meat_fish',
+  'dry_goods',
+  'frozen',
+  'drinks',
+  'household_chemicals',
+  'hygiene',
+  'home',
+  'other',
+]);
+/** Dział sklepu. Dozwolone wartości ustala schemat powyżej. */
+export type ShoppingSection = z.infer<typeof ShoppingSectionSchema>;
+
+/**
+ * Jednostka ilości na liście zakupów (ADR-093). `pcs` = szt., `pack` = opak.;
+ * polskie skróty daje wyłącznie formatowanie w interfejsie.
+ */
+export const ShoppingUnitSchema = z.enum(['pcs', 'pack', 'kg', 'g', 'l', 'ml']);
+/** Jednostka ilości. Dozwolone wartości ustala schemat powyżej. */
+export type ShoppingUnit = z.infer<typeof ShoppingUnitSchema>;
+
+/** Skąd pozycja trafiła na listę. */
+export const ShoppingItemSourceSchema = z.enum(['manual', 'list_photo', 'recipe']);
+/** Pochodzenie pozycji listy zakupów. Dozwolone wartości ustala schemat powyżej. */
+export type ShoppingItemSource = z.infer<typeof ShoppingItemSourceSchema>;
+
+/** Rodzaj importu przez AI (ADR-094). */
+export const ShoppingImportKindSchema = z.enum(['list_photo', 'recipe']);
+/** Rodzaj importu. Dozwolone wartości ustala schemat powyżej. */
+export type ShoppingImportKind = z.infer<typeof ShoppingImportKindSchema>;
+
+/** Wejście importu: obrazy, link do przepisu albo wklejony tekst. */
+export const ShoppingImportInputSchema = z.enum(['image', 'url', 'text']);
+/** Wejście importu. Dozwolone wartości ustala schemat powyżej. */
+export type ShoppingImportInput = z.infer<typeof ShoppingImportInputSchema>;
+
+/** Stan importu (03 §3.26). */
+export const ShoppingImportStatusSchema = z.enum([
+  'processing',
+  'parsed',
+  'committed',
+  'discarded',
+  'failed',
+]);
+/** Stan importu. Dozwolone wartości ustala schemat powyżej. */
+export type ShoppingImportStatus = z.infer<typeof ShoppingImportStatusSchema>;

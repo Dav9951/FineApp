@@ -369,9 +369,9 @@ eksport i „Usuń wszystkie dane".
 | ID | Zadanie |
 |---|---|
 | F10-1 | ✅ Rozstrzygnięcie P-1…P-7; kontrakty w 01 / 02 / 03 / 04 / 05 / 06 / 07 / 08 / 09; zestaw startowy (03 §5a) — **zrobione 2026-11-22** |
-| F10-2 | Schemat i migracja `0008` (pięć tabel), eksport, „Usuń wszystkie dane", sprzątanie plików przy starcie |
-| F10-3 | DTO `dto/shopping.ts` i `shared/domain/shopping.ts`: normalizacja, opakowania, scalanie, szybkie dopisanie, **100% pokrycia** |
-| F10-4 | Moduł `shopping`: listy, pozycje, słownik, czyszczenie z cofnięciem, `ETag`; testy tras |
+| F10-2 | ✅ Schemat i migracja `0008` (pięć tabel), eksport, „Usuń wszystkie dane", sprzątanie plików przy starcie — **zrobione** |
+| F10-3 | ✅ DTO `dto/shopping.ts` i `shared/domain/shopping.ts`: normalizacja, opakowania, scalanie, szybkie dopisanie, **100% pokrycia** — **zrobione** |
+| F10-4 | ✅ Moduł `shopping`: listy, pozycje, słownik, czyszczenie z cofnięciem, `ETag`; testy tras — **zrobione** |
 | F10-5 | Ekrany `/shopping` i `/shopping/:listId`: dopisywanie z podpowiedziami, odhaczanie, działy, kupione, arkusz pozycji, cztery stany, 390 px |
 | F10-6 | Odświeżanie co 15 s, utrwalenie zapytań i kolejka mutacji offline, baner, Wake Lock |
 | F10-7 | Wejścia: *Więcej*, pasek boczny, FAB, skrót w manifeście, `share_target`, udostępnienie jako tekst |

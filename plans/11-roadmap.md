@@ -421,7 +421,8 @@ zdjęcia listy oraz z przepisu. Opis, zadania `F10-1`…`F10-10` i kryteria uko�
 Faza zależy tylko od `F7` (infrastruktura AI) i `F8-3` (PWA); nie zależy od Fazy 9.
 
 `F10-1` ✅ — kontrakty: 03 §3.23–3.27 i §5a, 04 §14b, 05 §13c, 06 §3.15, 07 §14, 08 §17,
-09 §7a, wyjątki w 01 i 02. Następne: `F10-2` (migracja `0008_shopping`).
+09 §7a, wyjątki w 01 i 02. `F10-2`…`F10-4` ✅ — migracja `0008_shopping`, `shared/domain/shopping.ts`
+(100% pokrycia), moduł `shopping` (listy, pozycje, słownik, czyszczenie, `ETag`). Następne: `F10-5` (ekrany).
 
 ---
 

@@ -138,6 +138,13 @@ export const EXPORT_TABLES = [
   'budgetDrafts',
   'budgetDraftGroups',
   'budgetDraftLines',
+  // Listy zakupów (Faza 10) — bez powiązań z resztą; między sobą w kolejności kluczy
+  // obcych (pozycja → import, propozycja → pozycja).
+  'shoppingLists',
+  'shoppingProducts',
+  'shoppingImports',
+  'shoppingItems',
+  'shoppingImportItems',
   'transactions',
 ] as const;
 /** Nazwa tabeli w eksporcie. */

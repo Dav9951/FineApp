@@ -57,6 +57,13 @@
       "when": 1794764963567,
       "tag": "0007_ocr_log_ai_model",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795381922001,
+      "tag": "0008_shopping",
+      "breakpoints": true
     }
   ]
 }
