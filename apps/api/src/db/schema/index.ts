@@ -24,6 +24,7 @@ export * from './planned-expenses.js';
 export * from './documents.js';
 export * from './document-logs.js';
 export * from './budget.js';
+export * from './shopping.js';
 export * from './transactions.js';
 export * from './app-meta.js';
 export * from './idempotency-keys.js';
