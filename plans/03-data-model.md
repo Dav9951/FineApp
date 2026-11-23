@@ -909,7 +909,7 @@ nie dane gospodarstwa; „Usuń wszystkie dane" (ADR-072) czyści go razem z dok
 
 ### 3.23 `shopping_lists`
 
-> **Faza 10 — plan** (migracja `0008_shopping`, schemat Drizzle `db/schema/shopping.ts`).
+> **Faza 10 — schemat zrobiony w `F10-2`** (migracja `0008_shopping`, schemat Drizzle `db/schema/shopping.ts`).
 > Opis funkcji: [17](./17-shopping-lists.md), decyzje:
 > [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096).
 
@@ -936,7 +936,10 @@ CREATE INDEX idx_shopping_lists_household ON shopping_lists(household_id, archiv
 ```
 
 Liczniki (`toBuyCount`, `checkedCount`) i „ostatnia zmiana" **nie są przechowywane** —
-liczy je odczyt z `shopping_items`.
+liczy je odczyt z `shopping_items` (najnowsze `updated_at` i jego `updated_by`, także
+pozycji wyczyszczonych). `shopping_lists.updated_at` to **wersja listy** do `ETag`
+(04 §14b): rośnie ściśle przy każdej zmianie listy, jej pozycji i flagi „zawsze w domu"
+produktów na niej (ADR-098).
 
 ### 3.24 `shopping_products`
 
@@ -986,6 +989,8 @@ CREATE TABLE shopping_items (
   -- „Wyczyść kupione" — miękko, żeby działało „Cofnij" (I-28).
   cleared_at       INTEGER,
   created_by       TEXT    REFERENCES users(id) ON DELETE SET NULL,
+  -- Kto ostatnio zmienił pozycję — „Ania · 12 min temu" na karcie listy (ADR-098).
+  updated_by       TEXT    REFERENCES users(id) ON DELETE SET NULL,
   created_at       INTEGER NOT NULL,
   updated_at       INTEGER NOT NULL
 );
@@ -1062,6 +1067,7 @@ CREATE TABLE shopping_import_items (
   selected              INTEGER NOT NULL DEFAULT 1 CHECK (selected IN (0,1)),
   -- Pozycja do kupienia na liście docelowej, z którą propozycja się scali (07 §14.3).
   merge_into_item_id    TEXT    REFERENCES shopping_items(id) ON DELETE SET NULL,
+  created_at            INTEGER NOT NULL,
   updated_at            INTEGER NOT NULL
 );
 
@@ -1108,7 +1114,7 @@ SQLite nie wyrazi ich deklaratywnie. Każdy musi mieć test jednostkowy.
 | I-26 | Gospodarstwo z co najmniej jedną niezarchiwizowaną listą zakupów ma dokładnie jedną domyślną (`is_default=1`) i jest ona niezarchiwizowana. Archiwizacja lub usunięcie domyślnej przenosi flagę na pierwszą pozostałą wg `sort_order`. *(Faza 10)* |
 | I-27 | `shopping_items`, `shopping_import_items`: `quantity_milli` i `unit` są oba `NULL` albo oba ustawione. *(Faza 10)* |
 | I-28 | `cleared_at IS NOT NULL` ⇒ `checked_at IS NOT NULL`. Pozycje wyczyszczone nie są zwracane ani liczone; fizycznie usuwa je następne czyszczenie tej listy, gdy są starsze niż 24 h. Odhaczenie pozycji wyczyszczonej → `409`. *(Faza 10)* |
-| I-29 | Na jednej liście najwyżej jedna pozycja *do kupienia* (`checked_at IS NULL`) o danej parze (`normalized_name`, `unit`), przy czym `unit IS NULL` traktujemy jak osobną wartość. Dopisanie istniejącej scala (07 §14.3). *(Faza 10)* |
+| I-29 | Na jednej liście najwyżej jedna pozycja *do kupienia* (`checked_at IS NULL`) o danej parze (`normalized_name`, `unit`). Dopisanie, odznaczenie, zmiana nazwy lub jednostki i przeniesienie scalają według 07 §14.3 (pozycja bez ilości łączy się z dowolną o tej nazwie). *(Faza 10)* |
 | I-30 | Propozycje importu trafiają na listę wyłącznie przez `commit`, w jednej transakcji bazy: pozycje, słownik, `status='committed'`. Commit tylko ze stanu `parsed`. *(Faza 10)* |
 | I-31 | Import w stanie `committed`, `discarded` albo `failed` starszy niż 7 dni ma `file_paths = '[]'` i nie ma plików na dysku; przy commit i discard pliki znikają od razu. `list_id` importu i `shopping_items.list_id` należą do tego samego gospodarstwa co wiersz. *(Faza 10)* |
 

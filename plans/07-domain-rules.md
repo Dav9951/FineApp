@@ -1747,7 +1747,7 @@ wykonanie — jak w sumach sekcji.
 
 ## 14. Listy zakupów
 
-> **Faza 10 — plan**. Opis funkcji i scenariusze: [17](./17-shopping-lists.md). Decyzje:
+> **Faza 10 — reguły zrobione w `F10-3`**. Opis funkcji i scenariusze: [17](./17-shopping-lists.md). Decyzje:
 > [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096).
 > Czyste funkcje: `shared/domain/shopping.ts`, **100% pokrycia** (jak `money` i `month`).
 
@@ -1801,7 +1801,9 @@ quantity:
 
 ### 14.3 Scalanie
 
-Klucz pozycji: (`normalizedName`, `unit`), gdzie `unit = null` jest osobną wartością.
+Scalanie szuka wśród pozycji *do kupienia* o tej samej `normalizedName` (`findMergeTarget`):
+najpierw tej samej jednostki; gdy jedna ze stron jest bez ilości — najstarszej z tą nazwą
+(„Mleko" i „Mleko 2 szt." to jedno mleko); różne jednostki zostają osobno.
 
 | Na liście *do kupienia* | Dopisywane | Wynik |
 |---|---|---|
@@ -1830,11 +1832,14 @@ albo na końcu** wpisu:
 | `1,5 kg ziemniaki`, `ziemniaki 1.5kg` | Ziemniaki · 1,5 kg (`quantityMilli = 1500`) |
 | `woda 6 l`, `śmietana 200ml`, `szynka 30 dag` | l / ml; `dag` → `g` ×10 (300 g) |
 | `jajka 2 opak`, `2 op. jajka` | Jajka · 2 pack |
-| `Mleko 3,2%`, `7 Days`, `Pepsi 0,5` | bez ilości — liczba bez jednostki tylko jako całkowita ≤ 99 **na początku** albo z `x`/`×` |
+| `Mleko 3,2%`, `Pepsi 0,5`, `Mleko 100` | bez ilości — liczba bez jednostki tylko jako całkowita ≤ 99 na początku albo na końcu, albo z `x`/`×` |
+| `7 Days` | 7 szt. „Days" — liczba na początku jest zawsze ilością; poprawka w arkuszu pozycji |
 | `3` | odrzucone — sama liczba nie jest nazwą (`400` z formularza) |
 
 Pierwsza litera nazwy jest podnoszona („mleko" → „Mleko"). Ułamki więcej niż trzech miejsc
-po przecinku są obcinane do tysięcznych.
+po przecinku są obcinane do tysięcznych. Ilość zerowa albo ponad 1000 jednostek nie jest
+ilością — zostaje w nazwie. Rozbiór robi klient (`parseQuickAdd`); API dostaje gotowe
+`name`, `quantityMilli`, `unit`.
 
 ### 14.5 Dział i słownik
 

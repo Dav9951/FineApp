@@ -529,6 +529,11 @@ describe('dane — usunięcie wszystkiego (ADR-072)', () => {
     budgetDrafts: 0,
     budgetDraftGroups: 0,
     budgetDraftLines: 0,
+    shoppingLists: 0,
+    shoppingProducts: 0,
+    shoppingImports: 0,
+    shoppingItems: 0,
+    shoppingImportItems: 0,
     transactions: 42,
   };
 

@@ -415,6 +415,11 @@ describe('GET /settings/export', () => {
       'budgetDrafts',
       'budgetDraftGroups',
       'budgetDraftLines',
+      'shoppingLists',
+      'shoppingProducts',
+      'shoppingImports',
+      'shoppingItems',
+      'shoppingImportItems',
       'transactions',
     ]);
   });
@@ -796,6 +801,11 @@ describe('POST /settings/reset (ADR-072)', () => {
       budgetDrafts: 1,
       budgetDraftGroups: 1,
       budgetDraftLines: 2,
+      shoppingLists: 0,
+      shoppingProducts: 0,
+      shoppingImports: 0,
+      shoppingItems: 0,
+      shoppingImportItems: 0,
     });
 
     const { db } = s.app.db;

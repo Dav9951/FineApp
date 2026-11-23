@@ -12,6 +12,12 @@ import {
   LiabilityKindSchema,
   OccurrenceStatusSchema,
   PlannedExpenseStatusSchema,
+  ShoppingImportInputSchema,
+  ShoppingImportKindSchema,
+  ShoppingImportStatusSchema,
+  ShoppingItemSourceSchema,
+  ShoppingSectionSchema,
+  ShoppingUnitSchema,
   TransactionSourceSchema,
   TransactionStatusSchema,
   TransactionTypeSchema,
@@ -68,7 +74,7 @@ function checkNamesOf(name: string): string[] {
 }
 
 describe('komplet tabel z 03 §3', () => {
-  it('schemat ma dokładnie 22 tabele opisanych w dokumencie', () => {
+  it('schemat ma dokładnie 27 tabel opisanych w dokumencie', () => {
     expect([...tables.keys()].sort()).toEqual(
       [
         'accounts',
@@ -91,6 +97,11 @@ describe('komplet tabel z 03 §3', () => {
         'planned_expenses',
         'recurring_occurrences',
         'recurring_rules',
+        'shopping_import_items',
+        'shopping_imports',
+        'shopping_items',
+        'shopping_lists',
+        'shopping_products',
         'transactions',
         'users',
       ].sort(),
@@ -146,6 +157,8 @@ describe('konwencje z 03 §1', () => {
       for (const column of getTableConfig(table).columns) {
         if (column.getSQLType() !== 'integer') continue;
         if (column.name.endsWith('_at') || notAUnit.has(column.name)) continue;
+        // `_milli` to ilość w tysięcznych jednostki (listy zakupów, ADR-093), nie kwota.
+        if (column.name.endsWith('_milli')) continue;
         if (moneyLike.test(column.name) && !column.name.includes('is_estimate')) {
           expect(column.name, `${name}.${column.name}`).toMatch(/_minor$/);
         }
@@ -187,6 +200,14 @@ describe('CHECK-i pochodzą z enumów w @fineapp/shared', () => {
     ['budget_draft_lines', 'budget_draft_lines_flow_check', BudgetLineFlowSchema],
     ['budget_draft_lines', 'budget_draft_lines_origin_check', BudgetLineOriginSchema],
     ['budget_draft_groups', 'budget_draft_groups_section_check', BudgetSectionSchema],
+    ['shopping_products', 'shopping_products_section_check', ShoppingSectionSchema],
+    ['shopping_items', 'shopping_items_section_check', ShoppingSectionSchema],
+    ['shopping_items', 'shopping_items_unit_check', ShoppingUnitSchema],
+    ['shopping_items', 'shopping_items_source_check', ShoppingItemSourceSchema],
+    ['shopping_imports', 'shopping_imports_kind_check', ShoppingImportKindSchema],
+    ['shopping_imports', 'shopping_imports_input_check', ShoppingImportInputSchema],
+    ['shopping_imports', 'shopping_imports_status_check', ShoppingImportStatusSchema],
+    ['shopping_import_items', 'shopping_import_items_unit_check', ShoppingUnitSchema],
   ])('%s ma warunek %s', (table, checkName, enumSchema) => {
     expect(checkNamesOf(table)).toContain(checkName);
     expect(enumSchema.options.length).toBeGreaterThan(0);

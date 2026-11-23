@@ -15,7 +15,15 @@ import { incomeSources } from '../../db/schema/income-sources.js';
 import { liabilities } from '../../db/schema/liabilities.js';
 import { plannedExpenses } from '../../db/schema/planned-expenses.js';
 import { recurringOccurrences, recurringRules } from '../../db/schema/recurring.js';
+import {
+  shoppingImportItems,
+  shoppingImports,
+  shoppingItems,
+  shoppingLists,
+  shoppingProducts,
+} from '../../db/schema/shopping.js';
 import { transactions } from '../../db/schema/transactions.js';
+import { parseImportFilePaths } from '../shopping/shopping.files.js';
 
 /**
  * Usunięcie wszystkich danych gospodarstwa — **trzeci świadomy wyjątek** od reguły 4
@@ -34,7 +42,10 @@ import { transactions } from '../../db/schema/transactions.js';
 /** Wynik usunięcia: liczby wierszy i ścieżki plików dokumentów do skasowania z dysku. */
 export interface ResetRows {
   deleted: Record<ExportTable, number>;
-  /** Ścieżki oryginałów (względem `UPLOAD_DIR`) — pliki usuwa serwis po zatwierdzeniu. */
+  /**
+   * Ścieżki oryginałów dokumentów i obrazów importów list zakupów (względem `UPLOAD_DIR`) —
+   * pliki usuwa serwis po zatwierdzeniu.
+   */
   storagePaths: string[];
 }
 
@@ -54,7 +65,7 @@ export interface ResetRows {
  * @param handle - Uchwyt bazy.
  * @param householdId - Gospodarstwo z tokenu.
  * @param now - Znacznik systemowy do `households.updated_at`.
- * @returns Liczby usuniętych wierszy i ścieżki plików dokumentów.
+ * @returns Liczby usuniętych wierszy i ścieżki plików dokumentów i importów list zakupów.
  */
 export function deleteHouseholdData(handle: DbHandle, householdId: string, now: number): ResetRows {
   const { db, sqlite } = handle;
@@ -67,8 +78,35 @@ export function deleteHouseholdData(handle: DbHandle, householdId: string, now: 
       .where(eq(documents.householdId, householdId))
       .all();
     const documentIds = documentRows.map((row) => row.id);
+    const importFiles = db
+      .select({ filePaths: shoppingImports.filePaths })
+      .from(shoppingImports)
+      .where(eq(shoppingImports.householdId, householdId))
+      .all()
+      .flatMap((row) => parseImportFilePaths(row.filePaths));
 
     const deleted: Record<ExportTable, number> = {
+      // Listy zakupów: od liści, żeby kaskady nie zjadły liczników.
+      shoppingImportItems: db
+        .delete(shoppingImportItems)
+        .where(eq(shoppingImportItems.householdId, householdId))
+        .run().changes,
+      shoppingItems: db
+        .delete(shoppingItems)
+        .where(eq(shoppingItems.householdId, householdId))
+        .run().changes,
+      shoppingImports: db
+        .delete(shoppingImports)
+        .where(eq(shoppingImports.householdId, householdId))
+        .run().changes,
+      shoppingLists: db
+        .delete(shoppingLists)
+        .where(eq(shoppingLists.householdId, householdId))
+        .run().changes,
+      shoppingProducts: db
+        .delete(shoppingProducts)
+        .where(eq(shoppingProducts.householdId, householdId))
+        .run().changes,
       // Linie liczone osobno, zanim kaskada ze szkicu usunie je bez licznika.
       budgetDraftLines: db
         .delete(budgetDraftLines)
@@ -127,10 +165,14 @@ export function deleteHouseholdData(handle: DbHandle, householdId: string, now: 
     // Dziennik odczytu niesie nazwy plików usuniętych dokumentów (ADR-086).
     db.delete(documentLogs).where(eq(documentLogs.householdId, householdId)).run();
     db.update(households)
-      .set({ defaultExpenseAccountId: null, updatedAt: now })
+      // Zestaw startowy list zakupów założy się znowu przy pierwszym wejściu (07 §14.6).
+      .set({ defaultExpenseAccountId: null, shoppingInitializedAt: null, updatedAt: now })
       .where(eq(households.id, householdId))
       .run();
 
-    return { deleted, storagePaths: documentRows.map((row) => row.storagePath) };
+    return {
+      deleted,
+      storagePaths: [...documentRows.map((row) => row.storagePath), ...importFiles],
+    };
   })();
 }
