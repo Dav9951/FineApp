@@ -7,6 +7,7 @@ import {
   suggestShoppingSection,
   tidyShoppingName,
   type CreateShoppingItemRequest,
+  type ReorderShoppingItemsRequest,
   type ShoppingItemDto,
   type ShoppingItemsDto,
   type UpdateShoppingItemRequest,
@@ -50,7 +51,13 @@ export type OutboxChange =
   | { readonly kind: 'delete'; readonly listId: string; readonly itemId: string }
   | { readonly kind: 'clear'; readonly listId: string }
   /** „Cofnij" po „Wyczyść kupione" — za czyszczeniem w tej samej kolejce. */
-  | { readonly kind: 'restore'; readonly listId: string; readonly itemIds: readonly string[] };
+  | { readonly kind: 'restore'; readonly listId: string; readonly itemIds: readonly string[] }
+  /** Kolejność po przeciągnięciu (ADR-104) — idempotentna, nieznane pozycje serwer pomija. */
+  | {
+      readonly kind: 'reorder';
+      readonly listId: string;
+      readonly body: ReorderShoppingItemsRequest;
+    };
 
 /** Zmiana w kolejce — z identyfikatorem, po którym schodzi z kolejki i jest zgłaszana. */
 export type OutboxOp = OutboxChange & { readonly opId: string };
@@ -196,9 +203,14 @@ export function writeSnapshot(data: ShoppingItemsDto): void {
  *
  * @param op - Dopisanie.
  * @param now - Znacznik czasu.
+ * @param sortOrder - Miejsce na końcu listy (ADR-104).
  * @returns Pozycja w kształcie kontraktu.
  */
-function localItem(op: Extract<OutboxChange, { kind: 'add' }>, now: number): ShoppingItemDto {
+function localItem(
+  op: Extract<OutboxChange, { kind: 'add' }>,
+  now: number,
+  sortOrder: number,
+): ShoppingItemDto {
   const name = tidyShoppingName(op.body.name);
   return {
     id: op.body.id,
@@ -209,6 +221,7 @@ function localItem(op: Extract<OutboxChange, { kind: 'add' }>, now: number): Sho
     unit: op.body.unit ?? null,
     note: op.body.note ?? null,
     section: op.body.section ?? suggestShoppingSection(normalizeShoppingName(name), null),
+    sortOrder,
     source: 'manual',
     checked: false,
     checkedAt: null,
@@ -217,6 +230,39 @@ function localItem(op: Extract<OutboxChange, { kind: 'add' }>, now: number): Sho
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Kolejność po przeciągnięciu — te same reguły co serwer (`reorderShoppingItems`, ADR-104):
+ * wymienione do kupienia dostają 0…n−1, reszta do kupienia idzie za nimi, kupione bez zmian.
+ *
+ * @param items - Pozycje.
+ * @param body - Kolejność i ewentualna zmiana działu.
+ * @param now - Znacznik czasu.
+ * @returns Pozycje po zmianie.
+ */
+function reorderLocally(
+  items: readonly ShoppingItemDto[],
+  body: ReorderShoppingItemsRequest,
+  now: number,
+): ShoppingItemDto[] {
+  const toBuy = sortShoppingItems(
+    items.filter((item) => !item.checked),
+    { bySection: false },
+  );
+  const known = new Set(toBuy.map((item) => item.id));
+  const listed = [...new Set(body.itemIds)].filter((id) => known.has(id));
+  const order = new Map(
+    [...listed, ...toBuy.map((item) => item.id).filter((id) => !listed.includes(id))].map(
+      (id, index) => [id, index],
+    ),
+  );
+  return items.map((item) => {
+    const index = order.get(item.id);
+    if (index === undefined) return item;
+    const section = body.move?.itemId === item.id ? body.move.section : item.section;
+    return { ...item, sortOrder: index, section, updatedAt: now };
+  });
 }
 
 /**
@@ -238,7 +284,11 @@ function applyOp(
   switch (op.kind) {
     case 'add': {
       if (items.some((item) => item.id === op.body.id)) return [...items];
-      const added = localItem(op, now);
+      const added = localItem(
+        op,
+        now,
+        items.reduce((max, item) => Math.max(max, item.sortOrder), -1) + 1,
+      );
       const target = findMergeTarget(
         items.map((item) => ({ ...item, normalizedName: normalizeShoppingName(item.name) })),
         normalizeShoppingName(added.name),
@@ -288,6 +338,8 @@ function applyOp(
     case 'restore':
       // Wyczyszczonych nie ma w danych — wrócą z serwera po wysłaniu.
       return [...items];
+    case 'reorder':
+      return reorderLocally(items, op.body, now);
   }
 }
 
@@ -356,6 +408,9 @@ async function send(token: string, op: OutboxOp): Promise<void> {
       return;
     case 'restore':
       await shoppingApi.restoreClearedItems(token, op.listId, op.itemIds);
+      return;
+    case 'reorder':
+      await shoppingApi.reorderShoppingItems(token, op.listId, op.body);
       return;
   }
 }

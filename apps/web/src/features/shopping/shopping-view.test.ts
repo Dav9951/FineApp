@@ -29,6 +29,7 @@ function item(over: Partial<ShoppingItemDto> & { id: string; name: string }): Sh
     unit: null,
     note: null,
     section: 'other',
+    sortOrder: 0,
     source: 'manual',
     checked: false,
     checkedAt: null,

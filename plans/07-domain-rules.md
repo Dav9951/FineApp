@@ -1871,10 +1871,14 @@ zdjęte raz zostaje zdjęte). `selected = !alreadyHave`.
 - **I-26:** archiwizacja albo usunięcie domyślnej przenosi flagę na pierwszą
   niezarchiwizowaną wg `sort_order`, potem `created_at`; przywrócenie z archiwum, gdy nie
   ma żadnej innej, ustawia przywróconą jako domyślną.
-- **Kolejność na ekranie:** do kupienia — wg `SECTION_ORDER` (stała, P-5: produce →
+- **Kolejność na ekranie:** do kupienia — wg `sort_order`, potem `created_at` (nowa
+  pozycja dostaje `sort_order` = największy na liście + 1, więc ląduje na końcu; scalenie
+  zostawia miejsce). **Widok domyślny jest płaski**; z włączonym „Podziałem na działy"
+  (ustawienie urządzenia, ADR-104) najpierw wg `SECTION_ORDER` (stała, P-5: produce →
   bakery → dairy → meat_fish → dry_goods → frozen → drinks → household_chemicals →
-  hygiene → home → other), w dziale wg `created_at`; kupione — na końcu, wg `checked_at`
-  malejąco.
+  hygiene → home → other), w dziale wg tej samej kolejności. Kupione — na końcu, wg
+  `checked_at` malejąco. Przeciągnięcie ustawia `sort_order` od nowa; w widoku z działami
+  upuszczenie w innym dziale zmienia też `section` i dział produktu w słowniku.
 
 ### 14.7 Odhaczanie i czyszczenie
 

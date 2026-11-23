@@ -388,6 +388,7 @@ zlewają się w kreskowanie i siedem sekcji czyta się jak jedna tabela.
 | Uchwyt | 36 × 4 px, `bg-muted-foreground/45`, wyśrodkowany |
 | Nagłówek | ✕ po lewej, tytuł na środku, akcja po prawej; przyklejony, nie przewija się |
 | Treść | `overflow-y-auto`; przy otwartej klawiaturze aktywne pole przewijane do widoku |
+| Akcje | **zawsze widoczne, bez przewijania** — pas `SHEET_ACTIONS` jako ostatnie dziecko treści: przyklejony do **krawędzi** przewijanego obszaru (nie do jego wcięcia — inaczej pod przyciskiem przewija się treść), `bg-card`, górna linia `--border`, dolny padding z bezpiecznym marginesem urządzenia. Dwie akcje obok siebie (*Usuń z listy* · *Zapisz*), nie jedna pod drugą ([ADR-105](./14-decisions-log.md#adr-105)) |
 | Zamknięcie | ✕, gest w dół, klawisz Esc, **oraz przycisk „wstecz" przeglądarki** (przechwycony `popstate`) |
 
 > **Dlaczego `--scrim` jest osobnym tokenem.** Nakładka z `--foreground` działa tylko

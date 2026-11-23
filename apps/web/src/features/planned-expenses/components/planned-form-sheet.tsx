@@ -19,6 +19,7 @@ import {
   Sheet,
   TextField,
   useToast,
+  SHEET_ACTIONS,
 } from '../../../components/ui/index.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import { pluralPl } from '../../../lib/format.js';
@@ -498,7 +499,7 @@ function PlannedForm({ item, preset, onDone }: PlannedFormProps): ReactNode {
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         {formError === undefined ? null : (
           <p className="mb-2 text-sm text-danger" role="alert">
             {formError}

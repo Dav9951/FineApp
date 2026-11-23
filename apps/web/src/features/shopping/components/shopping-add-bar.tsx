@@ -29,6 +29,12 @@ export interface ShoppingAddBarProps {
   readonly className?: string;
   /** Po dopisaniu — np. zamknięcie arkusza. */
   readonly onAdded?: (name: string) => void;
+  /**
+   * Gdzie podpowiedzi: `above` — warstwa nad polem (pasek przyklejony u dołu ekranu),
+   * `below` — pod polem w przepływie (arkusz, gdzie warstwa nad polem byłaby ucięta).
+   * W obu przypadkach samo pole się nie przesuwa (ADR-104).
+   */
+  readonly suggestions?: 'above' | 'below';
 }
 
 /**
@@ -40,6 +46,7 @@ export interface ShoppingAddBarProps {
  * @param props.autoFocus - Fokus od razu.
  * @param props.className - Dodatkowe klasy.
  * @param props.onAdded - Wywołanie po dopisaniu.
+ * @param props.suggestions - Gdzie podpowiedzi.
  * @returns Element pola.
  */
 export function ShoppingAddBar({
@@ -48,6 +55,7 @@ export function ShoppingAddBar({
   autoFocus = false,
   className,
   onAdded,
+  suggestions: placement = 'above',
 }: ShoppingAddBarProps): ReactNode {
   const inputId = useId();
   const [text, setText] = useState('');
@@ -85,10 +93,13 @@ export function ShoppingAddBar({
       ? `→ ${parsed.name} · ${formatShoppingQuantity(parsed)}`
       : null;
 
-  return (
-    <div className={cn('flex flex-col gap-2', className)}>
+  const extras = (
+    <>
       {focused && text === '' && (frequent.data ?? []).length > 0 ? (
-        <section aria-label="Często kupowane">
+        <section
+          aria-label="Często kupowane"
+          className="rounded-md border border-border bg-card p-2 shadow-sheet"
+        >
           <ul className="flex flex-wrap gap-2">
             {(frequent.data ?? []).map((product) => (
               <li key={product.id}>
@@ -106,7 +117,7 @@ export function ShoppingAddBar({
       {text !== '' && hints.length > 0 ? (
         <ul
           aria-label="Podpowiedzi"
-          className="flex flex-col rounded-md border border-border bg-card"
+          className="flex flex-col rounded-md border border-border bg-card shadow-sheet"
         >
           {hints.map((product) => (
             <li key={product.id}>
@@ -129,6 +140,23 @@ export function ShoppingAddBar({
             </li>
           ))}
         </ul>
+      ) : null}
+      {preview === null ? null : (
+        <p
+          aria-live="polite"
+          className="self-start rounded-md bg-card px-2 py-1 text-caption text-muted-foreground shadow-sheet"
+        >
+          {preview}
+        </p>
+      )}
+    </>
+  );
+
+  return (
+    // Podpowiedzi, żetony i podgląd to warstwa nad polem — pole nigdy nie skacze (ADR-104).
+    <div className={cn('relative', className)}>
+      {placement === 'above' ? (
+        <div className="absolute inset-x-0 bottom-full z-30 mb-2 flex flex-col gap-2">{extras}</div>
       ) : null}
       <form className="flex items-center gap-2" onSubmit={submit}>
         <label className="sr-only" htmlFor={inputId}>
@@ -158,11 +186,7 @@ export function ShoppingAddBar({
           <Plus aria-hidden="true" className="h-5 w-5" strokeWidth={1.5} />
         </IconButton>
       </form>
-      {preview === null ? null : (
-        <p aria-live="polite" className="text-caption text-muted-foreground">
-          {preview}
-        </p>
-      )}
+      {placement === 'below' ? <div className="mt-2 flex flex-col gap-2">{extras}</div> : null}
     </div>
   );
 }

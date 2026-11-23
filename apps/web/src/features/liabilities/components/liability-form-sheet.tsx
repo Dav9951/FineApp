@@ -9,6 +9,7 @@ import {
   Sheet,
   Switch,
   TextField,
+  SHEET_ACTIONS,
 } from '../../../components/ui/index.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import { useAccountList } from '../../accounts/hooks/use-accounts.js';
@@ -356,7 +357,7 @@ function LiabilityForm({ liability, onSaved }: LiabilityFormProps): ReactNode {
         value={state.notes}
       />
 
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         {formError === undefined ? null : (
           <p className="mb-2 text-sm text-danger" role="alert">
             {formError}

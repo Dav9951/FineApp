@@ -9,6 +9,11 @@ import { ApiRequestError, NetworkError } from '../../../lib/api-client.js';
 import { clearOfflineStore } from '../../../lib/offline-store.js';
 import * as shoppingApi from '../api.js';
 import { readOutbox, writeSnapshot } from '../offline.js';
+import {
+  resetShoppingSectionsForTests,
+  SECTIONS_STORAGE_KEY,
+  setShoppingSections,
+} from '../sections-preference.js';
 import ShoppingListScreen from './shopping-list-screen.js';
 import ShoppingListsScreen from './shopping-lists-screen.js';
 import ShoppingStaplesScreen from './shopping-staples-screen.js';
@@ -71,6 +76,7 @@ function item(over: Partial<ShoppingItemDto> & { id: string; name: string }): Sh
     unit: null,
     note: null,
     section: 'other',
+    sortOrder: 0,
     source: 'manual',
     checked: false,
     checkedAt: null,
@@ -124,6 +130,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   clearOfflineStore();
+  window.localStorage.removeItem(SECTIONS_STORAGE_KEY);
+  resetShoppingSectionsForTests();
 });
 
 describe('ShoppingListsScreen', () => {
@@ -176,8 +184,19 @@ describe('ShoppingListsScreen', () => {
 });
 
 describe('ShoppingListScreen', () => {
-  it('działy w kolejności sklepu, ilość i notatka; kupione zwinięte', async () => {
+  it('domyślnie płasko, bez nagłówków działów (ADR-104)', async () => {
+    mockList();
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    expect(
+      await screen.findByRole('checkbox', { name: /Mleko/u }, { timeout: 3_000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Pieczywo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Nabiał i jaja' })).not.toBeInTheDocument();
+  });
+
+  it('z działami (ustawienie): działy w kolejności sklepu, ilość i notatka; kupione zwinięte', async () => {
     const user = userEvent.setup();
+    setShoppingSections(true);
     mockList();
     renderScreen(`/shopping/${LIST_ID}`, ROUTES);
     const bakery = await screen.findByRole('heading', { name: 'Pieczywo' }, { timeout: 3_000 });
@@ -192,6 +211,39 @@ describe('ShoppingListScreen', () => {
       'aria-checked',
       'true',
     );
+  });
+
+  it('kosz usuwa od razu, „Cofnij" dopisuje pozycję na jej miejsce (ADR-104)', async () => {
+    const user = userEvent.setup();
+    mockList();
+    const remove = vi.spyOn(shoppingApi, 'deleteShoppingItem').mockResolvedValue(undefined);
+    const create = vi.spyOn(shoppingApi, 'createShoppingItem').mockResolvedValue({
+      item: item({ id: '01JC7K000000000000000000I9', name: 'Chleb' }),
+      merged: false,
+    });
+    const reorder = vi.spyOn(shoppingApi, 'reorderShoppingItems').mockResolvedValue(undefined);
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    await user.click(
+      await screen.findByRole('button', { name: 'Usuń: Chleb' }, { timeout: 3_000 }),
+    );
+    expect(remove).toHaveBeenCalledWith('token-testowy', '01JC7K000000000000000000I1');
+    expect(await screen.findByText('Usunięto Chleb')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cofnij' }));
+    await waitFor(() => {
+      expect(reorder).toHaveBeenCalled();
+    });
+    const [, , body] = create.mock.calls[0] ?? [];
+    expect(body).toMatchObject({ name: 'Chleb', section: 'bakery' });
+    const [, , order] = reorder.mock.calls[0] ?? [];
+    expect(order?.itemIds).toContain(body?.id);
+  });
+
+  it('każdy wiersz do kupienia ma przycisk „Przesuń" dla klawiatury (ADR-104)', async () => {
+    mockList();
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    expect(
+      await screen.findByRole('button', { name: 'Przesuń: Chleb' }, { timeout: 3_000 }),
+    ).toHaveAttribute('aria-roledescription');
   });
 
   it('dotknięcie wiersza odhacza — od razu na ekranie, z „Cofnij"', async () => {
@@ -245,7 +297,6 @@ describe('ShoppingListScreen', () => {
       'cebula{Enter}',
     );
     expect(await screen.findByRole('checkbox', { name: /Cebula/u })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Warzywa i owoce' })).toBeInTheDocument();
     const outbox = readOutbox();
     expect(outbox).toHaveLength(1);
     expect(outbox[0]).toMatchObject({ kind: 'add', listId: LIST_ID, body: { name: 'Cebula' } });

@@ -415,18 +415,26 @@ export function isAlreadyHave(
 export interface SortableShoppingItem {
   readonly id: string;
   readonly section: ShoppingSection;
+  readonly sortOrder: number;
   readonly checkedAt: number | null;
   readonly createdAt: number;
 }
 
 /**
- * Kolejność pozycji na ekranie (07 §14.6): do kupienia według działów w stałej kolejności
- * (P-5) i czasu dopisania, kupione na końcu — ostatnio odhaczone na górze.
+ * Kolejność pozycji na ekranie (07 §14.6, ADR-104): do kupienia wg `sortOrder`
+ * (przeciąganie), potem czasu dopisania — w widoku z działami najpierw dział w stałej
+ * kolejności (P-5); kupione na końcu, ostatnio odhaczone na górze.
  *
  * @param items - Pozycje.
+ * @param options - Widok.
+ * @param options.bySection - Widok z działami (domyślnie `true` — tak sortuje serwer).
  * @returns Nowa tablica w kolejności ekranu.
  */
-export function sortShoppingItems<T extends SortableShoppingItem>(items: readonly T[]): T[] {
+export function sortShoppingItems<T extends SortableShoppingItem>(
+  items: readonly T[],
+  options: { readonly bySection?: boolean } = {},
+): T[] {
+  const bySectionView = options.bySection ?? true;
   const order = ShoppingSectionSchema.options;
   return [...items].sort((a, b) => {
     if ((a.checkedAt === null) !== (b.checkedAt === null)) return a.checkedAt === null ? -1 : 1;
@@ -434,8 +442,9 @@ export function sortShoppingItems<T extends SortableShoppingItem>(items: readonl
       return b.checkedAt - a.checkedAt;
     }
     if (a.checkedAt === null) {
-      const bySection = order.indexOf(a.section) - order.indexOf(b.section);
+      const bySection = bySectionView ? order.indexOf(a.section) - order.indexOf(b.section) : 0;
       if (bySection !== 0) return bySection;
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     }
     return byCreation(a, b);
   });

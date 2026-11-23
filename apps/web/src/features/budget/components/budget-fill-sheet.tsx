@@ -9,6 +9,7 @@ import {
   Sheet,
   Skeleton,
   useToast,
+  SHEET_ACTIONS,
 } from '../../../components/ui/index.js';
 import { SwitchRow } from '../../recurring/components/recurring-form-sheet.js';
 import { toCreateDraftRequest, type FillFormState } from '../budget-form-state.js';
@@ -152,7 +153,7 @@ function FillForm({ month, copyFrom, onDone }: FillFormProps): ReactNode {
         </Checkbox>
       )}
 
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         <Button loading={create.isPending} size="large" type="submit" variant="primary">
           Utwórz plan
         </Button>

@@ -9,7 +9,9 @@ import {
   SkeletonList,
   TextField,
   minorToDraft,
+  SHEET_ACTIONS,
 } from '../../../components/ui/index.js';
+import { cn } from '../../../lib/cn.js';
 import { useAccountList } from '../../accounts/hooks/use-accounts.js';
 import { useCategoryTree } from '../../categories/hooks/use-categories.js';
 import { useIncomeSources } from '../../income-sources/hooks/use-income-sources.js';
@@ -378,7 +380,7 @@ function FilterPanel({
         </Checkbox>
       </Section>
 
-      <div className="sticky bottom-0 -mx-4 mt-4 flex gap-3 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={cn(SHEET_ACTIONS, 'flex gap-3')}>
         <Button
           className="flex-1"
           onClick={() => {

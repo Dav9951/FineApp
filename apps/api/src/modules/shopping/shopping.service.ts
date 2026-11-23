@@ -15,6 +15,7 @@ import {
   type ClearCheckedResult,
   type CreateShoppingItemRequest,
   type CreateShoppingListRequest,
+  type ReorderShoppingItemsRequest,
   type ShoppingItemDto,
   type ShoppingItemsDto,
   type ShoppingListDto,
@@ -51,6 +52,7 @@ import {
   findItem,
   findList,
   findLists,
+  findMaxItemOrder,
   findMaxListOrder,
   findPendingImports,
   findProduct,
@@ -462,7 +464,7 @@ export function duplicateShoppingList(
     });
     const copies: ShoppingItemRow[] = [];
     const source = [...findVisibleItems(handle, householdId, listId)].sort(
-      (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1),
+      (a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1),
     );
     for (const item of source) {
       const target = findMergeTarget(
@@ -485,6 +487,7 @@ export function duplicateShoppingList(
         ...item,
         id: newId(),
         listId: id,
+        sortOrder: copies.length,
         source: 'manual',
         importId: null,
         checkedAt: null,
@@ -760,6 +763,7 @@ export function addItemToList(
       unit: quantity.unit,
       note: input.note,
       section,
+      sortOrder: findMaxItemOrder(handle, householdId, listId) + 1,
       source: input.source,
       importId: input.importId,
       createdBy: userId,
@@ -877,6 +881,10 @@ export function updateShoppingItem(
       next.checkedBy = null;
     }
     next.listId = targetListId;
+    // Przeniesiona na inną listę ląduje na jej końcu (ADR-104).
+    if (targetListId !== item.listId) {
+      next.sortOrder = findMaxItemOrder(handle, householdId, targetListId) + 1;
+    }
 
     const changed = (Object.keys(next) as (keyof ShoppingItemRow)[]).some(
       (key) => next[key] !== item[key],
@@ -913,6 +921,7 @@ export function updateShoppingItem(
       unit: next.unit,
       note: next.note,
       section: next.section,
+      sortOrder: next.sortOrder,
       checkedAt: next.checkedAt,
       checkedBy: next.checkedBy,
       updatedBy: userId,
@@ -946,6 +955,66 @@ export function deleteShoppingItem(
     requireEditableList(handle, householdId, item.listId);
     removeItems(handle, householdId, [itemId]);
     touchList(handle, householdId, item.listId, clock.now().getTime());
+  })();
+}
+
+/**
+ * Kolejność pozycji *do kupienia* po przeciągnięciu (07 §14.6, ADR-104). Wymienione
+ * dostają `sortOrder` 0…n−1, pozostałe do kupienia idą za nimi w dotychczasowej
+ * kolejności. `move` zmienia dział upuszczonej pozycji i produktu w słowniku — jak jawna
+ * zmiana działu. Nieznane, kupione i wyczyszczone identyfikatory są pomijane: powtórka
+ * z kolejki offline po cudzej zmianie nie może skończyć się błędem.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param clock - Źródło czasu.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param userId - Kto przestawia.
+ * @param listId - Lista.
+ * @param request - Kolejność i ewentualna zmiana działu.
+ * @throws {NotFoundError} Gdy listy nie ma.
+ * @throws {ConflictError} Gdy lista jest w archiwum.
+ */
+export function reorderShoppingItems(
+  handle: DbHandle,
+  clock: Clock,
+  householdId: string,
+  userId: string,
+  listId: string,
+  request: ReorderShoppingItemsRequest,
+): void {
+  handle.sqlite.transaction(() => {
+    requireEditableList(handle, householdId, listId);
+    const now = clock.now().getTime();
+    const toBuy = sortShoppingItems(
+      findVisibleItems(handle, householdId, listId).filter((item) => item.checkedAt === null),
+      { bySection: false },
+    );
+    const byId = new Map(toBuy.map((item) => [item.id, item]));
+    const listed = [...new Set(request.itemIds)].filter((id) => byId.has(id));
+    const rest = toBuy.filter((item) => !listed.includes(item.id)).map((item) => item.id);
+    let changed = false;
+    [...listed, ...rest].forEach((id, index) => {
+      const item = byId.get(id) as ShoppingItemRow;
+      const section =
+        request.move?.itemId === id && request.move.section !== item.section
+          ? request.move.section
+          : item.section;
+      if (item.sortOrder === index && section === item.section) return;
+      changed = true;
+      patchItem(handle, householdId, id, {
+        sortOrder: index,
+        section,
+        updatedBy: userId,
+        updatedAt: now,
+      });
+      if (section !== item.section) {
+        const product = findProductByName(handle, householdId, item.normalizedName);
+        if (product) {
+          patchProduct(handle, householdId, product.id, { section, updatedAt: now });
+        }
+      }
+    });
+    if (changed) touchList(handle, householdId, listId, now);
   })();
 }
 

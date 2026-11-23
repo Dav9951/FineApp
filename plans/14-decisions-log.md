@@ -4924,3 +4924,74 @@ i kodu (7 ważnych, 3 drobne; jedno wspólne — IPv4 w IPv6).
 **Konsekwencje.** Testy regresji w `safe-fetch.test.ts`, `shopping.recipe-source.test.ts`,
 `shopping-prompts.test.ts`, `ai/schemas/shopping.test.ts`, `shopping.imports.test.ts`,
 `shopping-import.test.tsx`. ADR-101 obowiązuje z poprawkami z punktów 5 i 6.
+
+---
+
+<a id="adr-104"></a>
+
+## ADR-104 — Lista zakupów: widok płaski, kosz przy wierszu, kolejność przeciąganiem, nieruchome pole
+
+**Data:** 2026-11-23 · **Zadanie:** uwagi właściciela po pierwszym użyciu · **Status:** przyjęta
+
+**Kontekst.** Po pierwszym użyciu na telefonie: (1) pole „Dodaj produkt…" skacze w dół,
+gdy pojawiają się podpowiedzi — były w przepływie dokumentu nad polem; (2) usunięcie
+pozycji wymaga otwarcia arkusza; (3) brak zmiany kolejności — w planerze budżetu jest;
+(4) lista ma być bardziej kompaktowa — bez nagłówków działów, z wyborem w ustawieniach.
+
+**Decyzja.**
+
+1. **Podpowiedzi, żetony „Często kupowane" i podgląd ilości** to warstwa (`absolute`)
+   zakotwiczona nad polem; pole i pasek nie zmieniają wysokości.
+2. **Kosz przy każdym wierszu**, bez potwierdzenia, z „Cofnij" w toaście — usunięcie
+   pozycji z listy jest tanie do odwrócenia (cofnięcie dopisuje ją od nowa przez kolejkę
+   offline). „Usuń" w arkuszu zostaje.
+3. **Widok domyślnie płaski** — bez nagłówków działów (zmiana P-5: kolejność działów
+   obowiązuje tylko w widoku z działami). Przełącznik „Lista zakupów: podział na działy"
+   w *Ustawienia → Wygląd* jest **ustawieniem urządzenia** w `localStorage`, jak motyw
+   (ADR-067) — każdy domownik ma swój telefon, a lista jest wspólna. Dział pozycji
+   nadal się liczy (słownik, udostępnianie jako tekst, widok z działami).
+4. **Kolejność na całej liście** — kolumna `shopping_items.sort_order`; migracja nadaje
+   ją wg `created_at` w obrębie listy, nowa pozycja dostaje największy na liście + 1.
+   Ta sama kolumna służy obu widokom: w widoku z działami pozycje działu stoją w tej samej
+   względnej kolejności co w płaskim. Kolejność działów zostaje stała.
+5. **Jedno żądanie na upuszczenie:** `PUT /shopping-lists/:id/items/order` z całą
+   kolejnością *do kupienia* z ekranu i opcjonalnym `move: { itemId, section }` —
+   idempotentne, więc nadaje się do kolejki offline (nowy rodzaj zmiany `reorder`).
+   Upuszczenie w innym dziale (widok z działami) zmienia dział pozycji i produktu
+   w słowniku — jak przeniesienie wiersza między grupami w planerze (ADR-081). Nieznane
+   i kupione identyfikatory są pomijane, żeby powtórka z kolejki po cudzej zmianie nie
+   kończyła się błędem.
+6. **Gest:** przytrzymanie ~0,3 s na dotyku (krótkie dotknięcie dalej odhacza, przewijanie
+   działa), przesunięcie o kilka pikseli myszą; klawiatura — przycisk „Przesuń" widoczny
+   przy fokusie. Przytrzymanie nie otwiera już arkusza pozycji (06 §3.15 zapowiadało to
+   obok `⋯`, ale tego nie wdrożono) — arkusz otwiera `⋯`.
+
+**Konsekwencje.** Migracja `0009`; 03 §3.25, 04 §14b, 05 §13c, 06 §3.15, 07 §14.6
+zaktualizowane. `sortShoppingItems(items, { bySection })` — płasko po `sortOrder`, potem
+`createdAt`; z działami najpierw dział.
+
+---
+
+<a id="adr-105"></a>
+
+## ADR-105 — Akcje arkuszy zawsze widoczne, pas przyklejony do krawędzi
+
+**Data:** 2026-11-23 · **Zadanie:** uwagi właściciela po pierwszym użyciu · **Status:** przyjęta
+
+**Kontekst.** Na telefonie: w arkuszu pozycji listy zakupów „Zapisz" i „Usuń z listy"
+były dopiero po przewinięciu; w „Nowym wydatku" przycisk był przyklejony, ale pod nim
+przewijała się treść („Więcej (sprzedawca, notatka)"). Przyczyna drugiego: pas
+`sticky bottom-0` klei się do wcięcia przewijanego obszaru, a ten ma dolny padding
+`1rem + safe-area` — zostawała szpara, przez którą widać treść.
+
+**Decyzja.** Jeden wspólny styl `SHEET_ACTIONS` (`components/ui/sheet.tsx`) dla pasa akcji
+w każdym arkuszu z formularzem: `sticky` z ujemnym `bottom` równym dolnemu paddingowi
+(pas dotyka krawędzi), ujemny dolny margines (na końcu treści nie zostaje pusty pasek),
+własny dolny padding z `safe-area-inset-bottom`. Wszystkie dotychczasowe pasy
+(`transaction-form`, cele, planowane, zobowiązania, kategorie, reguły cykliczne, planer,
+filtr historii) przechodzą na ten styl; arkusz pozycji listy zakupów i formularz konta
+dostają pas. Dwie akcje stoją obok siebie. Przegląd całego wyglądu arkuszy — osobno,
+po tej poprawce (decyzja właściciela).
+
+**Konsekwencje.** 15 §4.6 zaktualizowane. Pas musi być ostatnim dzieckiem treści
+arkusza; arkusze krótkie (nazwa listy, potwierdzenia) zostają bez pasa — mieszczą się.

@@ -2,7 +2,14 @@ import { todayInTimezone, type AccountDto, type AllocationClass } from '@fineapp
 import { ChevronDown } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
-import { Button, OptionGrid, Sheet, Switch, TextField } from '../../../components/ui/index.js';
+import {
+  Button,
+  OptionGrid,
+  Sheet,
+  Switch,
+  TextField,
+  SHEET_ACTIONS,
+} from '../../../components/ui/index.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import { cn } from '../../../lib/cn.js';
 import { useAuth } from '../../auth/auth-context.js';
@@ -276,9 +283,11 @@ function AccountForm({ account, onSaved }: AccountFormProps): ReactNode {
         </p>
       )}
 
-      <Button loading={pending} size="large" type="submit" variant="primary">
-        {account === undefined ? 'Dodaj konto' : 'Zapisz zmiany'}
-      </Button>
+      <div className={SHEET_ACTIONS}>
+        <Button loading={pending} size="large" type="submit" variant="primary">
+          {account === undefined ? 'Dodaj konto' : 'Zapisz zmiany'}
+        </Button>
+      </div>
     </form>
   );
 }

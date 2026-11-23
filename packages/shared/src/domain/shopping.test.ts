@@ -300,15 +300,15 @@ describe('isAlreadyHave (07 §14.5)', () => {
 describe('sortShoppingItems (07 §14.6)', () => {
   it('do kupienia według działów i czasu, kupione na końcu od ostatnio odhaczonych', () => {
     const items = [
-      { id: 'k1', section: 'produce' as const, checkedAt: 10, createdAt: 1 },
-      { id: 'd2', section: 'dairy' as const, checkedAt: null, createdAt: 3 },
-      { id: 'p1', section: 'produce' as const, checkedAt: null, createdAt: 5 },
-      { id: 'k2', section: 'dairy' as const, checkedAt: 20, createdAt: 1 },
-      { id: 'd1', section: 'dairy' as const, checkedAt: null, createdAt: 2 },
-      { id: 'k3', section: 'other' as const, checkedAt: 20, createdAt: 0 },
-      { id: 'b', section: 'other' as const, checkedAt: null, createdAt: 9 },
-      { id: 'a', section: 'other' as const, checkedAt: null, createdAt: 9 },
-      { id: 'a', section: 'other' as const, checkedAt: null, createdAt: 9 },
+      { id: 'k1', section: 'produce' as const, checkedAt: 10, createdAt: 1, sortOrder: 0 },
+      { id: 'd2', section: 'dairy' as const, checkedAt: null, createdAt: 3, sortOrder: 0 },
+      { id: 'p1', section: 'produce' as const, checkedAt: null, createdAt: 5, sortOrder: 0 },
+      { id: 'k2', section: 'dairy' as const, checkedAt: 20, createdAt: 1, sortOrder: 0 },
+      { id: 'd1', section: 'dairy' as const, checkedAt: null, createdAt: 2, sortOrder: 0 },
+      { id: 'k3', section: 'other' as const, checkedAt: 20, createdAt: 0, sortOrder: 0 },
+      { id: 'b', section: 'other' as const, checkedAt: null, createdAt: 9, sortOrder: 0 },
+      { id: 'a', section: 'other' as const, checkedAt: null, createdAt: 9, sortOrder: 0 },
+      { id: 'a', section: 'other' as const, checkedAt: null, createdAt: 9, sortOrder: 0 },
     ];
     expect(sortShoppingItems(items).map((item) => item.id)).toEqual([
       'p1',
@@ -321,6 +321,33 @@ describe('sortShoppingItems (07 §14.6)', () => {
       'k2',
       'k1',
     ]);
+  });
+
+  it('kolejność z przeciągania przed czasem dopisania; widok płaski bez działów (ADR-104)', () => {
+    const items = [
+      { id: 'mleko', section: 'dairy' as const, checkedAt: null, createdAt: 1, sortOrder: 2 },
+      { id: 'chleb', section: 'bakery' as const, checkedAt: null, createdAt: 2, sortOrder: 0 },
+      { id: 'jajka', section: 'dairy' as const, checkedAt: null, createdAt: 3, sortOrder: 1 },
+      { id: 'kupione', section: 'produce' as const, checkedAt: 5, createdAt: 0, sortOrder: 0 },
+    ];
+    expect(sortShoppingItems(items, { bySection: false }).map((item) => item.id)).toEqual([
+      'chleb',
+      'jajka',
+      'mleko',
+      'kupione',
+    ]);
+    expect(sortShoppingItems(items).map((item) => item.id)).toEqual([
+      'chleb',
+      'jajka',
+      'mleko',
+      'kupione',
+    ]);
+    expect(
+      sortShoppingItems([
+        ...items,
+        { id: 'ser', section: 'dairy' as const, checkedAt: null, createdAt: 9, sortOrder: 0 },
+      ]).map((item) => item.id),
+    ).toEqual(['chleb', 'ser', 'jajka', 'mleko', 'kupione']);
   });
 });
 

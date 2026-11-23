@@ -42,7 +42,7 @@ export { Money } from './money.js';
 export type { MoneyProps, MoneySize, MoneyVariant } from './money.js';
 export { ProgressBar, ProgressRing } from './progress.js';
 export type { ProgressBarProps, ProgressPool, ProgressRingProps } from './progress.js';
-export { Sheet } from './sheet.js';
+export { Sheet, SHEET_ACTIONS } from './sheet.js';
 export type { SheetProps } from './sheet.js';
 export { Skeleton, SkeletonList, SkeletonRow } from './skeleton.js';
 export type { SkeletonListProps, SkeletonProps, SkeletonRowProps } from './skeleton.js';

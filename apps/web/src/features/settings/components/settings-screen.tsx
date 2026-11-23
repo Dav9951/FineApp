@@ -45,12 +45,14 @@ import {
   Section,
   Sheet,
   SkeletonList,
+  Switch,
   useToast,
 } from '../../../components/ui/index.js';
 import { errorDetails } from '../../../lib/api-client.js';
 import { useInstallOption } from '../../../lib/pwa.js';
 import { formatMonth } from '../../../lib/format.js';
 import { useTheme, type ThemePreference } from '../../../lib/theme.js';
+import { useShoppingSections } from '../../shopping/sections-preference.js';
 import { percentLabel } from '../../months/month-view.js';
 import { useAuth } from '../../auth/auth-context.js';
 import { requireToken, useAccessToken } from '../../auth/use-token.js';
@@ -108,6 +110,7 @@ const THEME_OPTIONS = [
  */
 function AppearanceSection(): ReactNode {
   const { preference, setPreference } = useTheme();
+  const { bySection, setBySection } = useShoppingSections();
   return (
     <Section title="Wygląd">
       <OptionGrid
@@ -119,6 +122,19 @@ function AppearanceSection(): ReactNode {
       <p className="mt-2 text-caption text-muted-foreground">
         Zapamiętywany na tym urządzeniu. „Systemowy" podąża za ustawieniem telefonu lub komputera.
       </p>
+      <div className="mt-4 flex min-h-touch items-center justify-between gap-3">
+        <span className="text-sm">
+          Lista zakupów: podział na działy
+          <span className="block text-caption text-muted-foreground">
+            Nagłówki „Nabiał", „Pieczywo"… Wyłączone — lista bardziej zwarta. Na tym urządzeniu.
+          </span>
+        </span>
+        <Switch
+          checked={bySection}
+          label="Lista zakupów: podział na działy"
+          onCheckedChange={setBySection}
+        />
+      </div>
     </Section>
   );
 }

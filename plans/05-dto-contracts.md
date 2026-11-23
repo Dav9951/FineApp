@@ -2075,6 +2075,8 @@ export const ShoppingItemDtoSchema = z.object({
   ...QuantityFields,
   note: z.string().nullable(),
   section: ShoppingSectionSchema,
+  /** Kolejność w dziale (ADR-104). */
+  sortOrder: z.number().int(),
   source: ShoppingItemSourceSchema,
   checked: z.boolean(),
   checkedAt: TimestampSchema.nullable(),
@@ -2122,6 +2124,10 @@ export const UpdateShoppingItemRequestSchema = z
 export const CreateShoppingItemResultSchema = z.object({ item: ShoppingItemDtoSchema, merged: z.boolean() });
 export const ClearCheckedResultSchema = z.object({ clearedIds: z.array(IdSchema), listEmpty: z.boolean() });
 export const RestoreClearedRequestSchema = z.object({ itemIds: z.array(IdSchema).min(1).max(500) });
+export const ReorderShoppingItemsRequestSchema = z.object({
+  itemIds: z.array(IdSchema).min(1).max(500),
+  move: z.object({ itemId: IdSchema, section: ShoppingSectionSchema }).optional(),
+});
 export const RestoreClearedResultSchema = z.object({ restoredIds: z.array(IdSchema) });
 
 export const ShoppingProductDtoSchema = z.object({

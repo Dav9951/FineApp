@@ -89,12 +89,8 @@
           "name": "households_default_expense_account_id_accounts_id_fk",
           "tableFrom": "households",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "default_expense_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["default_expense_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -150,18 +146,12 @@
       "indexes": {
         "idx_auth_attempts_email": {
           "name": "idx_auth_attempts_email",
-          "columns": [
-            "email_hash",
-            "created_at"
-          ],
+          "columns": ["email_hash", "created_at"],
           "isUnique": false
         },
         "idx_auth_attempts_ip": {
           "name": "idx_auth_attempts_ip",
-          "columns": [
-            "ip_hash",
-            "created_at"
-          ],
+          "columns": ["ip_hash", "created_at"],
           "isUnique": false
         }
       },
@@ -254,24 +244,17 @@
       "indexes": {
         "idx_auth_sessions_user": {
           "name": "idx_auth_sessions_user",
-          "columns": [
-            "user_id",
-            "expires_at"
-          ],
+          "columns": ["user_id", "expires_at"],
           "isUnique": false
         },
         "idx_auth_sessions_family": {
           "name": "idx_auth_sessions_family",
-          "columns": [
-            "family_id"
-          ],
+          "columns": ["family_id"],
           "isUnique": false
         },
         "uq_auth_sessions_token": {
           "name": "uq_auth_sessions_token",
-          "columns": [
-            "refresh_token_hash"
-          ],
+          "columns": ["refresh_token_hash"],
           "isUnique": true
         }
       },
@@ -280,12 +263,8 @@
           "name": "auth_sessions_user_id_users_id_fk",
           "tableFrom": "auth_sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -379,9 +358,7 @@
       "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -390,12 +367,8 @@
           "name": "users_household_id_households_id_fk",
           "tableFrom": "users",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -528,11 +501,7 @@
       "indexes": {
         "idx_accounts_household": {
           "name": "idx_accounts_household",
-          "columns": [
-            "household_id",
-            "is_archived",
-            "sort_order"
-          ],
+          "columns": ["household_id", "is_archived", "sort_order"],
           "isUnique": false
         }
       },
@@ -541,12 +510,8 @@
           "name": "accounts_household_id_households_id_fk",
           "tableFrom": "accounts",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -672,20 +637,12 @@
       "indexes": {
         "uq_categories_slug": {
           "name": "uq_categories_slug",
-          "columns": [
-            "household_id",
-            "kind",
-            "slug"
-          ],
+          "columns": ["household_id", "kind", "slug"],
           "isUnique": true
         },
         "idx_categories_parent": {
           "name": "idx_categories_parent",
-          "columns": [
-            "household_id",
-            "parent_id",
-            "sort_order"
-          ],
+          "columns": ["household_id", "parent_id", "sort_order"],
           "isUnique": false
         }
       },
@@ -694,12 +651,8 @@
           "name": "categories_household_id_households_id_fk",
           "tableFrom": "categories",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -707,12 +660,8 @@
           "name": "categories_parent_id_categories_id_fk",
           "tableFrom": "categories",
           "tableTo": "categories",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -806,10 +755,7 @@
       "indexes": {
         "idx_income_sources_household": {
           "name": "idx_income_sources_household",
-          "columns": [
-            "household_id",
-            "is_archived"
-          ],
+          "columns": ["household_id", "is_archived"],
           "isUnique": false
         }
       },
@@ -818,12 +764,8 @@
           "name": "income_sources_household_id_households_id_fk",
           "tableFrom": "income_sources",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -831,12 +773,8 @@
           "name": "income_sources_owner_user_id_users_id_fk",
           "tableFrom": "income_sources",
           "tableTo": "users",
-          "columnsFrom": [
-            "owner_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1002,11 +940,7 @@
       "indexes": {
         "idx_goals_household": {
           "name": "idx_goals_household",
-          "columns": [
-            "household_id",
-            "status",
-            "priority"
-          ],
+          "columns": ["household_id", "status", "priority"],
           "isUnique": false
         }
       },
@@ -1015,12 +949,8 @@
           "name": "goals_household_id_households_id_fk",
           "tableFrom": "goals",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1028,12 +958,8 @@
           "name": "goals_linked_account_id_accounts_id_fk",
           "tableFrom": "goals",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "linked_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["linked_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1226,10 +1152,7 @@
       "indexes": {
         "idx_liabilities_household": {
           "name": "idx_liabilities_household",
-          "columns": [
-            "household_id",
-            "is_active"
-          ],
+          "columns": ["household_id", "is_active"],
           "isUnique": false
         }
       },
@@ -1238,12 +1161,8 @@
           "name": "liabilities_household_id_households_id_fk",
           "tableFrom": "liabilities",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1251,12 +1170,8 @@
           "name": "liabilities_payment_account_id_accounts_id_fk",
           "tableFrom": "liabilities",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "payment_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["payment_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1264,12 +1179,8 @@
           "name": "liabilities_category_id_categories_id_fk",
           "tableFrom": "liabilities",
           "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1277,12 +1188,8 @@
           "name": "liabilities_recurring_rule_id_recurring_rules_id_fk",
           "tableFrom": "liabilities",
           "tableTo": "recurring_rules",
-          "columnsFrom": [
-            "recurring_rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recurring_rule_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1373,10 +1280,7 @@
       "indexes": {
         "uq_allocation_month": {
           "name": "uq_allocation_month",
-          "columns": [
-            "household_id",
-            "effective_from_month"
-          ],
+          "columns": ["household_id", "effective_from_month"],
           "isUnique": true
         }
       },
@@ -1385,12 +1289,8 @@
           "name": "allocation_targets_household_id_households_id_fk",
           "tableFrom": "allocation_targets",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1498,19 +1398,12 @@
       "indexes": {
         "uq_occurrence_rule_due": {
           "name": "uq_occurrence_rule_due",
-          "columns": [
-            "rule_id",
-            "due_on"
-          ],
+          "columns": ["rule_id", "due_on"],
           "isUnique": true
         },
         "idx_occurrence_month": {
           "name": "idx_occurrence_month",
-          "columns": [
-            "household_id",
-            "month_key",
-            "status"
-          ],
+          "columns": ["household_id", "month_key", "status"],
           "isUnique": false
         }
       },
@@ -1519,12 +1412,8 @@
           "name": "recurring_occurrences_household_id_households_id_fk",
           "tableFrom": "recurring_occurrences",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1532,12 +1421,8 @@
           "name": "recurring_occurrences_rule_id_recurring_rules_id_fk",
           "tableFrom": "recurring_occurrences",
           "tableTo": "recurring_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rule_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1545,12 +1430,8 @@
           "name": "recurring_occurrences_transaction_id_transactions_id_fk",
           "tableFrom": "recurring_occurrences",
           "tableTo": "transactions",
-          "columnsFrom": [
-            "transaction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transaction_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1773,11 +1654,7 @@
       "indexes": {
         "idx_recurring_rules_household": {
           "name": "idx_recurring_rules_household",
-          "columns": [
-            "household_id",
-            "is_active",
-            "flow"
-          ],
+          "columns": ["household_id", "is_active", "flow"],
           "isUnique": false
         }
       },
@@ -1786,12 +1663,8 @@
           "name": "recurring_rules_household_id_households_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1799,12 +1672,8 @@
           "name": "recurring_rules_account_id_accounts_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1812,12 +1681,8 @@
           "name": "recurring_rules_counter_account_id_accounts_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "counter_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["counter_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1825,12 +1690,8 @@
           "name": "recurring_rules_category_id_categories_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1838,12 +1699,8 @@
           "name": "recurring_rules_income_source_id_income_sources_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "income_sources",
-          "columnsFrom": [
-            "income_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["income_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1851,12 +1708,8 @@
           "name": "recurring_rules_goal_id_goals_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "goals",
-          "columnsFrom": [
-            "goal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["goal_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1864,12 +1717,8 @@
           "name": "recurring_rules_liability_id_liabilities_id_fk",
           "tableFrom": "recurring_rules",
           "tableTo": "liabilities",
-          "columnsFrom": [
-            "liability_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["liability_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2099,19 +1948,12 @@
       "indexes": {
         "idx_planned_due": {
           "name": "idx_planned_due",
-          "columns": [
-            "household_id",
-            "status",
-            "due_month"
-          ],
+          "columns": ["household_id", "status", "due_month"],
           "isUnique": false
         },
         "idx_planned_active": {
           "name": "idx_planned_active",
-          "columns": [
-            "household_id",
-            "due_month"
-          ],
+          "columns": ["household_id", "due_month"],
           "isUnique": false,
           "where": "\"planned_expenses\".\"status\" IN ('planned', 'funding', 'ready')"
         }
@@ -2121,12 +1963,8 @@
           "name": "planned_expenses_household_id_households_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2134,12 +1972,8 @@
           "name": "planned_expenses_category_id_categories_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2147,12 +1981,8 @@
           "name": "planned_expenses_account_id_accounts_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2160,12 +1990,8 @@
           "name": "planned_expenses_liability_id_liabilities_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "liabilities",
-          "columnsFrom": [
-            "liability_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["liability_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2173,12 +1999,8 @@
           "name": "planned_expenses_set_aside_account_id_accounts_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "set_aside_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["set_aside_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2186,12 +2008,8 @@
           "name": "planned_expenses_set_aside_goal_id_goals_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "goals",
-          "columnsFrom": [
-            "set_aside_goal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["set_aside_goal_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2199,12 +2017,8 @@
           "name": "planned_expenses_previous_instance_id_planned_expenses_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "planned_expenses",
-          "columnsFrom": [
-            "previous_instance_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["previous_instance_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2212,12 +2026,8 @@
           "name": "planned_expenses_transaction_id_transactions_id_fk",
           "tableFrom": "planned_expenses",
           "tableTo": "transactions",
-          "columnsFrom": [
-            "transaction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transaction_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2370,10 +2180,7 @@
       "indexes": {
         "idx_document_items": {
           "name": "idx_document_items",
-          "columns": [
-            "document_id",
-            "line_no"
-          ],
+          "columns": ["document_id", "line_no"],
           "isUnique": false
         }
       },
@@ -2382,12 +2189,8 @@
           "name": "document_items_document_id_documents_id_fk",
           "tableFrom": "document_items",
           "tableTo": "documents",
-          "columnsFrom": [
-            "document_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2395,12 +2198,8 @@
           "name": "document_items_suggested_category_id_categories_id_fk",
           "tableFrom": "document_items",
           "tableTo": "categories",
-          "columnsFrom": [
-            "suggested_category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["suggested_category_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2408,12 +2207,8 @@
           "name": "document_items_transaction_id_transactions_id_fk",
           "tableFrom": "document_items",
           "tableTo": "transactions",
-          "columnsFrom": [
-            "transaction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transaction_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2421,12 +2216,8 @@
           "name": "document_items_duplicate_of_transaction_id_transactions_id_fk",
           "tableFrom": "document_items",
           "tableTo": "transactions",
-          "columnsFrom": [
-            "duplicate_of_transaction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["duplicate_of_transaction_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2634,19 +2425,12 @@
       "indexes": {
         "uq_documents_sha": {
           "name": "uq_documents_sha",
-          "columns": [
-            "household_id",
-            "sha256"
-          ],
+          "columns": ["household_id", "sha256"],
           "isUnique": true
         },
         "idx_documents_status": {
           "name": "idx_documents_status",
-          "columns": [
-            "household_id",
-            "status",
-            "created_at"
-          ],
+          "columns": ["household_id", "status", "created_at"],
           "isUnique": false
         }
       },
@@ -2655,12 +2439,8 @@
           "name": "documents_household_id_households_id_fk",
           "tableFrom": "documents",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2668,12 +2448,8 @@
           "name": "documents_account_id_accounts_id_fk",
           "tableFrom": "documents",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2681,12 +2457,8 @@
           "name": "documents_uploaded_by_users_id_fk",
           "tableFrom": "documents",
           "tableTo": "users",
-          "columnsFrom": [
-            "uploaded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["uploaded_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2917,35 +2689,22 @@
       "indexes": {
         "idx_tx_month": {
           "name": "idx_tx_month",
-          "columns": [
-            "household_id",
-            "month_key",
-            "booked_on"
-          ],
+          "columns": ["household_id", "month_key", "booked_on"],
           "isUnique": false
         },
         "idx_tx_account": {
           "name": "idx_tx_account",
-          "columns": [
-            "account_id",
-            "booked_on"
-          ],
+          "columns": ["account_id", "booked_on"],
           "isUnique": false
         },
         "idx_tx_counter": {
           "name": "idx_tx_counter",
-          "columns": [
-            "counter_account_id",
-            "booked_on"
-          ],
+          "columns": ["counter_account_id", "booked_on"],
           "isUnique": false
         },
         "idx_tx_category": {
           "name": "idx_tx_category",
-          "columns": [
-            "category_id",
-            "month_key"
-          ],
+          "columns": ["category_id", "month_key"],
           "isUnique": false
         },
         "idx_tx_allocation": {
@@ -2961,26 +2720,17 @@
         },
         "idx_tx_goal": {
           "name": "idx_tx_goal",
-          "columns": [
-            "goal_id",
-            "month_key"
-          ],
+          "columns": ["goal_id", "month_key"],
           "isUnique": false
         },
         "idx_tx_liability": {
           "name": "idx_tx_liability",
-          "columns": [
-            "liability_id",
-            "booked_on"
-          ],
+          "columns": ["liability_id", "booked_on"],
           "isUnique": false
         },
         "uq_tx_external": {
           "name": "uq_tx_external",
-          "columns": [
-            "household_id",
-            "external_ref"
-          ],
+          "columns": ["household_id", "external_ref"],
           "isUnique": true,
           "where": "\"transactions\".\"external_ref\" IS NOT NULL"
         }
@@ -2990,12 +2740,8 @@
           "name": "transactions_household_id_households_id_fk",
           "tableFrom": "transactions",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3003,12 +2749,8 @@
           "name": "transactions_account_id_accounts_id_fk",
           "tableFrom": "transactions",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3016,12 +2758,8 @@
           "name": "transactions_counter_account_id_accounts_id_fk",
           "tableFrom": "transactions",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "counter_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["counter_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3029,12 +2767,8 @@
           "name": "transactions_category_id_categories_id_fk",
           "tableFrom": "transactions",
           "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3042,12 +2776,8 @@
           "name": "transactions_income_source_id_income_sources_id_fk",
           "tableFrom": "transactions",
           "tableTo": "income_sources",
-          "columnsFrom": [
-            "income_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["income_source_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3055,12 +2785,8 @@
           "name": "transactions_liability_id_liabilities_id_fk",
           "tableFrom": "transactions",
           "tableTo": "liabilities",
-          "columnsFrom": [
-            "liability_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["liability_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3068,12 +2794,8 @@
           "name": "transactions_goal_id_goals_id_fk",
           "tableFrom": "transactions",
           "tableTo": "goals",
-          "columnsFrom": [
-            "goal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["goal_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3081,12 +2803,8 @@
           "name": "transactions_source_document_id_documents_id_fk",
           "tableFrom": "transactions",
           "tableTo": "documents",
-          "columnsFrom": [
-            "source_document_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_document_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3094,12 +2812,8 @@
           "name": "transactions_recurring_occurrence_id_recurring_occurrences_id_fk",
           "tableFrom": "transactions",
           "tableTo": "recurring_occurrences",
-          "columnsFrom": [
-            "recurring_occurrence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recurring_occurrence_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3107,12 +2821,8 @@
           "name": "transactions_planned_expense_id_planned_expenses_id_fk",
           "tableFrom": "transactions",
           "tableTo": "planned_expenses",
-          "columnsFrom": [
-            "planned_expense_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["planned_expense_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3120,12 +2830,8 @@
           "name": "transactions_created_by_users_id_fk",
           "tableFrom": "transactions",
           "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3250,9 +2956,7 @@
       "indexes": {
         "idx_idempotency_created": {
           "name": "idx_idempotency_created",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         }
       },
@@ -3261,23 +2965,15 @@
           "name": "idempotency_keys_household_id_households_id_fk",
           "tableFrom": "idempotency_keys",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "idempotency_keys_household_id_scope_key_pk": {
-          "columns": [
-            "household_id",
-            "scope",
-            "key"
-          ],
+          "columns": ["household_id", "scope", "key"],
           "name": "idempotency_keys_household_id_scope_key_pk"
         }
       },

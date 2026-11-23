@@ -1368,13 +1368,26 @@ miesiącu używania; jeśli wejdzie, to zamiast „Cele".
   (5 s). Ilość cyframi tabelarycznymi, wyrównana do prawej, formatowana `formatQuantity`
   (`1,5 kg`, `2 szt.`, `1 opak.`). FAB na tym ekranie ukryty — jego rolę pełni pole
   dodawania.
-- **Przytrzymanie** wiersza albo przycisk `⋯` widoczny przy fokusie → arkusz pozycji:
-  nazwa, ilość (stepper + jednostka; „Bez ilości" czyści oba), notatka, dział (chipy),
-  „Zawsze w domu" (przełącznik produktu), *Przenieś na…*, *Usuń*. Gest nigdy nie jest
-  jedyną drogą — przycisk `⋯` jest w drzewie dostępności.
-- **Pole dodawania:** podpowiedzi ze słownika pod polem (do 5; nazwa + dział), Enter
+- **Kosz** przy każdym wierszu (`Usuń: Masło`) usuwa od razu, bez potwierdzenia, z toastem
+  „Usunięto Masło · Cofnij" (cofnięcie dopisuje pozycję od nowa: nazwa, ilość, notatka,
+  dział). Przycisk `⋯` → arkusz pozycji: nazwa, ilość (stepper + jednostka; „Bez ilości"
+  czyści oba), notatka, dział (chipy), „Zawsze w domu" (przełącznik produktu),
+  *Przenieś na…*, *Usuń*.
+- **Widok:** domyślnie **płaska lista bez nagłówków działów** (kompaktowo, ADR-104);
+  *Ustawienia → Wygląd → „Lista zakupów: podział na działy"* (ustawienie urządzenia, jak
+  motyw) włącza nagłówki działów jak na szkicu wyżej.
+- **Przytrzymanie i przeciągnięcie** wiersza *do kupienia* zmienia kolejność — jak
+  w planerze budżetu (ADR-104): przytrzymanie ok. 0,3 s (dotyk) albo przesunięcie myszą
+  podnosi wiersz; w widoku z działami upuszczenie w innym dziale przenosi go do tego
+  działu (i uczy słownik).
+  Kupione się nie przeciąga. Gest nigdy nie jest jedyną drogą: przycisk „Przesuń: Masło"
+  widoczny przy fokusie klawiatury przesuwa wiersz strzałkami (spacja podnosi i upuszcza).
+  Zapis przez kolejkę offline jak każda zmiana pozycji.
+- **Pole dodawania:** podpowiedzi ze słownika nad polem (do 5; nazwa + dział), Enter
   zapisuje i zostawia fokus; pusty z fokusem → żetony „Często kupowane". Rozpoznawanie
-  ilości wg 07 §14.4 widoczne na żywo jako podpis „→ Mleko · 2 szt.". 📷 i + otwierają
+  ilości wg 07 §14.4 widoczne na żywo jako podpis „→ Mleko · 2 szt.". Podpowiedzi, żetony
+  i podpis to **warstwa nad treścią** zakotwiczona nad polem — pole nigdy nie skacze
+  przy pisaniu (ADR-104). 📷 i + otwierają
   arkusz „Dodaj z…" (Zdjęcie listy · Przepis).
 - **Kupione** zwinięte domyślnie (stan zapamiętany na urządzeniu). *Wyczyść kupione*
   bez potwierdzenia, z toastem „Wyczyszczono 12 · Cofnij"; po nim jednorazowo

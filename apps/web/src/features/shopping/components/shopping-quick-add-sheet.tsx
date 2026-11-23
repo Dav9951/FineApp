@@ -92,6 +92,7 @@ function QuickAdd({ onOpenChange }: { readonly onOpenChange: (open: boolean) => 
       </p>
       <ShoppingAddBar
         autoFocus
+        suggestions="below"
         listId={target.id}
         onAdded={(name) => {
           toast.show({ message: `Dopisano „${name}” do „${target.name}”.` });
