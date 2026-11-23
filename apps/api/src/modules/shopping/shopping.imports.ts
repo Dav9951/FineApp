@@ -905,5 +905,5 @@ export function retryImport(
  */
 export function failInterruptedImports(deps: { db: DbHandle; clock: Clock }): number {
   const now = deps.clock.now().getTime();
-  return failStaleImports(deps.db, Number.MAX_SAFE_INTEGER, now);
+  return failStaleImports(deps.db, now);
 }

@@ -124,9 +124,6 @@ const NOT_FOUND = 'Nie znaleziono dokumentu.';
 /** Co ile front ma pytać o wynik analizy (04 §13). */
 export const POLL_AFTER_MS = 1500;
 
-/** Dokument w stanie `processing` dłużej niż tyle przy starcie to przerwana analiza (08 §2). */
-export const STALE_PROCESSING_MS = 10 * 60 * 1000;
-
 /** Komunikat przy wyłączonym OCR (08 §14). */
 const AI_DISABLED_MESSAGE = 'Odczyt dokumentów jest wyłączony. Dodaj wydatek ręcznie.';
 
@@ -855,14 +852,15 @@ export function failInterruptedDocuments(
   deps: Pick<DocumentsDeps, 'db' | 'clock' | 'log'>,
 ): number {
   const now = deps.clock.now().getTime();
-  const failed = failStaleProcessing(deps.db, now - STALE_PROCESSING_MS, now);
+  // Każdy `processing` przy starcie jest martwy — zadania żyją w pamięci procesu (ADR-103).
+  const failed = failStaleProcessing(deps.db, now);
   for (const document of failed) {
     writeLog(deps, document.householdId, {
       document: { id: document.id, name: document.originalFilename },
       level: 'error',
       event: 'failed',
       message: 'Analiza przerwana restartem serwera.',
-      details: { errorCode: 'INTERRUPTED', staleAfterMs: STALE_PROCESSING_MS },
+      details: { errorCode: 'INTERRUPTED' },
     });
   }
   return failed.length;
