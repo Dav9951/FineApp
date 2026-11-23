@@ -218,7 +218,7 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
     handler: async (request, reply) => {
       const { householdId } = authContext(request);
       const etag = listEtag(shoppingListVersion(db, householdId, request.params.id));
-      void reply.header('etag', etag).header('cache-control', 'no-cache');
+      void reply.header('etag', etag).header('cache-control', 'private, no-cache');
       if (request.headers['if-none-match'] === etag) {
         await reply.status(304).send(null);
         return reply;

@@ -114,7 +114,7 @@ miejsce marki zajmuje profil.
 | `/planned` `/planned/:id` | Planowane wydatki | Wymaganie #13 |
 | `/scan` `/scan/:documentId` | Skanowanie i przegląd | |
 | `/budget` `/budget/:month` | Planer budżetu | Wymaganie #14, Faza 9 |
-| `/shopping` `/shopping/:listId` `/shopping/:listId/import/:importId` `/shopping/staples` | Listy zakupów | Wymaganie #15, Faza 10 (plan). `default`, `staples`, `share` to zarezerwowane segmenty — identyfikator listy (ULID) nigdy ich nie przyjmie |
+| `/shopping` `/shopping/:listId` `/shopping/:listId/import/:importId` `/shopping/staples` | Listy zakupów | Wymaganie #15, Faza 10 (plan). `default`, `staples` (od `F10-9` także `share`) to zarezerwowane segmenty — identyfikator listy (ULID) nigdy ich nie przyjmie |
 | `/settings` `/settings/*` | Ustawienia, kategorie, źródła przychodu | |
 
 **Miesiąc jest w URL.** Dzięki temu przycisk „wstecz" w przeglądarce cofa do poprzednio
@@ -1315,9 +1315,10 @@ makieta [`design/mockups/budget-layout.html`](../design/mockups/budget-layout.ht
 
 Wymaganie #15. **Wejścia** (P-1): *Więcej → Zakupy* i pasek boczny (grupa „Planowanie",
 nad „Budżet"), pozycja **Do listy zakupów** w menu szybkich akcji FAB, skrót „Lista
-zakupów" w manifeście PWA (`shortcuts` → `/shopping/default`) i cel udostępniania
-(`share_target` → `/shopping/share?url=&text=`, tylko Android). Bez zakładki w dolnym
-pasku — decyzja po miesiącu używania; jeśli wejdzie, to zamiast „Cele".
+zakupów" w manifeście PWA (`shortcuts` → `/shopping/default`). Cel udostępniania
+(`share_target`, Android) dochodzi z importem przepisu w `F10-9` — bez importu nie ma
+co zrobić z udostępnionym linkiem (ADR-099). Bez zakładki w dolnym pasku — decyzja po
+miesiącu używania; jeśli wejdzie, to zamiast „Cele".
 
 **`/shopping`** — listy:
 
@@ -1335,7 +1336,7 @@ pasku — decyzja po miesiącu używania; jeśli wejdzie, to zamiast „Cele".
 ```
 
 - Jedna lista → ekran od razu przekierowuje na nią (`replace`); strzałka wstecz na liście
-  wraca wtedy do `/shopping`.
+  prowadzi do `/shopping?all=1`, które nie przekierowuje.
 - `/shopping/default` przekierowuje na listę domyślną (skrót z manifestu); bez list —
   na `/shopping`.
 - *Archiwum*: arkusz z listami zarchiwizowanymi, *Przywróć* · *Usuń*.
@@ -1381,7 +1382,10 @@ pasku — decyzja po miesiącu używania; jeśli wejdzie, to zamiast „Cele".
   „Lista jest pusta. Zarchiwizować?".
 - **Odświeżanie:** co 15 s, gdy karta widoczna, i przy powrocie (`ETag` → `304`).
   Offline: baner u góry „Brak połączenia — zmiany wyślę, gdy wróci sieć"; 📷 wyszarzone.
-- **Desktop:** lista wyśrodkowana, max 640 px; pole dodawania na górze zamiast na dole.
+- **Desktop:** ten sam układ; pole dodawania przyklejone do dolnej krawędzi (na telefonie —
+  nad paskiem zakładek).
+- **Usunięcie listy** (menu i archiwum) — arkusz potwierdzenia „Usunąć …?"; to jedyna
+  nieodwracalna operacja list.
 - Cztery stany: szkielet wierszy · pusto („Lista jest pusta. Dopisz pierwszy produkt albo
   zrób zdjęcie listy z lodówki.") · błąd (z danymi z ostatniego wczytania, gdy są) · treść.
 

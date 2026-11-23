@@ -107,6 +107,19 @@ export const qk = {
   /** Średnie kategorii w oknie 3/6/12 miesięcy. */
   budgetAverages: (months: number) => ['budget', 'averages', months] as const,
 
+  /** Korzeń list zakupów — listy, pozycje i słownik naraz (Faza 10). */
+  shopping: () => ['shopping'] as const,
+  /** Listy zakupów: bieżące albo archiwum. */
+  shoppingLists: (archived: boolean) => ['shopping', 'lists', { archived }] as const,
+  /** Pozycje jednej listy (z listą i licznikami) — odpytywane co 15 s (06 §3.15). */
+  shoppingItems: (listId: string) => ['shopping', 'items', listId] as const,
+  /** Podpowiedzi ze słownika dla wpisanego prefiksu. */
+  shoppingSuggestions: (prefix: string) => ['shopping', 'products', 'q', prefix] as const,
+  /** „Często kupowane" dla listy. */
+  shoppingFrequent: (listId: string) => ['shopping', 'products', 'frequent', listId] as const,
+  /** Produkty „zawsze w domu". */
+  shoppingStaples: () => ['shopping', 'products', 'staples'] as const,
+
   /** Dokumenty wrzucone do OCR. */
   documents: () => ['documents'] as const,
   /** Pojedynczy dokument wraz z pozycjami. */

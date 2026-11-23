@@ -4765,3 +4765,76 @@ usunięciu listy, zły dział po scaleniu) i 4 rozbieżności z planem.
 
 **Konsekwencje.** Zmienione: 03 §3.23 i §3.25, 04 §14b, 05 §13c. Testy regresji dla
 każdego punktu w `shopping.routes.test.ts`, `shopping.files.test.ts` i testach `shared`.
+
+---
+
+<a id="adr-099"></a>
+
+## ADR-099 — Listy zakupów na froncie: własna kolejka offline, `ETag` przez pamięć HTTP
+
+**Data:** 2026-11-23 · **Zadanie:** `F10-5`…`F10-7` · **Status:** przyjęta
+
+**Kontekst.** ADR-096 zakładał utrwalenie zapytań TanStack Query w IndexedDB
+(`@tanstack/react-query-persist-client` + `idb-keyval`) i wstrzymane mutacje wznawiane po
+powrocie sieci. Przy implementacji wyszły dwa problemy: utrwalona mutacja po
+przeładowaniu musi odtworzyć funkcję wywołania z tokenem, którego jeszcze nie ma
+(sesja odnawia się asynchronicznie), a mutacje TanStack nie dają jednej, jawnej
+kolejności zmian między „z siecią" i „bez sieci".
+
+**Decyzja.**
+
+1. **Bez nowych zależności.** Migawka listy i kolejka zmian w `localStorage`
+   (`lib/offline-store.ts` z prefiksem `fineapp.offline.`; czyszczone przy wylogowaniu).
+2. **Każda zmiana pozycji idzie przez kolejkę** (`features/shopping/offline.ts`), także
+   z siecią: najpierw na ekran (te same reguły scalania co serwer — `shared/domain`),
+   potem do serwera po kolei. Błąd sieci zatrzymuje wysyłanie; odmowa `4xx` usuwa
+   zmianę (np. pozycja usunięta na drugim telefonie). Kolejka wysyła się przy wejściu na
+   listę, po zdarzeniu `online` i po każdej nowej zmianie.
+3. **Odczyt nakłada kolejkę na dane z serwera** — odpytywanie co 15 s nie cofa
+   niewysłanych zmian na oczach użytkownika.
+4. **`ETag` bez kodu po stronie klienta:** serwer odpowiada `Cache-Control: private,
+   no-cache` z `ETag`, przeglądarka sama wysyła `If-None-Match` i zamienia `304` na
+   zapamiętaną odpowiedź.
+5. **„Cofnij" po „Wyczyść kupione"** i zmiany list (nazwa, archiwum, kopia, usunięcie)
+   działają tylko z siecią.
+6. **`share_target`** przechodzi do `F10-9` — bez importu przepisu udostępniony link nie
+   ma dokąd trafić.
+
+**Konsekwencje.** Zmienione: 01, 02 §10, 04 §14b (nagłówek `private, no-cache`), 06 §3.15,
+17 §11. Ograniczenie zapisane jako Z-54: przeładowanie strony bez sieci kończy się
+ekranem logowania (odnowienie sesji), więc praca offline działa, dopóki karta aplikacji
+jest wczytana.
+
+---
+
+<a id="adr-100"></a>
+
+## ADR-100 — Listy zakupów na froncie: poprawki po przeglądzie kodu `F10-5`…`F10-7`
+
+**Data:** 2026-11-23 · **Zadanie:** przegląd `/code-review` przed PR · **Status:** przyjęta
+
+**Kontekst.** Przegląd w osobnej sesji znalazł 10 problemów, w tym trzy w kolejce offline
+(ADR-099), które mogły po cichu gubić zmiany.
+
+**Decyzja.**
+
+1. **Ostateczna odmowa to tylko `400`, `404`, `409`, `422`.** `401` (wygasły token), `403`,
+   `429` i `5xx` zatrzymują wysyłanie i zostawiają zmianę w kolejce.
+2. **Zmiany w kolejce mają identyfikator** (`opId`); schodzą z kolejki po nim, a ekran
+   zgłasza błąd tylko przy własnej, odrzuconej zmianie.
+3. **„Cofnij" po „Wyczyść kupione" idzie przez kolejkę**: czyszczenie jeszcze niewysłane
+   po prostu z niej znika, wysłane — dostaje za sobą przywrócenie (`restore`); wysyłana
+   w tej chwili zmiana nie może zostać wyjęta.
+4. **`404` listy wygrywa z migawką** — ekran „Tej listy już nie ma", migawka i zmiany tej
+   listy znikają z urządzenia.
+5. **Magazyn offline należy do osoby** (`claimOfflineStore` przy każdej sesji): logowanie
+   innej osoby na tym urządzeniu czyści dane poprzedniej. „Wyloguj" i „Wyloguj wszystkie
+   urządzenia" czyszczą magazyn; nieudane odnowienie sesji (np. bez sieci) — nie, bo
+   kolejka zmian ma przetrwać (Z-54).
+6. Drobne: wyścig blokady ekranu przy szybkim włącz/wyłącz, przełącznik „Zawsze w domu"
+   z własnym stanem, stany błędu w szybkim dopisaniu i archiwum (archiwum pytane dopiero
+   po otwarciu), ekran listy montowany od nowa przy zmianie listy.
+
+**Konsekwencje.** Testy regresji w `offline.test.ts`, `offline-store.test.ts`,
+`wake-lock.test.tsx`, `shopping-screens.test.tsx`. ADR-099 obowiązuje z poprawkami
+z punktów 1–5.

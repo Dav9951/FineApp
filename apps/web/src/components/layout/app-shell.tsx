@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 
 import { currentMonthKey } from '@fineapp/shared';
@@ -12,6 +12,7 @@ import {
   useTransactionSheet,
 } from '../../features/transactions/components/transaction-sheet.js';
 import { useAiEnabled } from '../../features/scan/hooks/use-documents.js';
+import { ShoppingQuickAddSheet } from '../../features/shopping/components/shopping-quick-add-sheet.js';
 import { cn } from '../../lib/cn.js';
 import { BottomNav } from './bottom-nav.js';
 import { OfflineBanner } from './offline-banner.js';
@@ -72,6 +73,7 @@ function ShellLayout(): ReactNode {
   const navigate = useNavigate();
   const { openNew } = useTransactionSheet();
   const sidebar = useSidebarCollapsed();
+  const [quickShopping, setQuickShopping] = useState(false);
 
   const activeMonth = shellMonth(household?.timezone ?? 'Europe/Warsaw', month);
   const aiEnabled = useAiEnabled();
@@ -127,6 +129,12 @@ function ShellLayout(): ReactNode {
               openNew('transfer');
             },
           },
+          {
+            label: 'Do listy zakupów',
+            onSelect: () => {
+              setQuickShopping(true);
+            },
+          },
           ...(aiEnabled
             ? [
                 {
@@ -143,6 +151,7 @@ function ShellLayout(): ReactNode {
       >
         <Plus aria-hidden="true" className="h-[26px] w-[26px]" strokeWidth={1.5} />
       </Fab>
+      <ShoppingQuickAddSheet onOpenChange={setQuickShopping} open={quickShopping} />
     </div>
   );
 }

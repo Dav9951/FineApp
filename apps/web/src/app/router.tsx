@@ -106,6 +106,18 @@ const BudgetListScreen = lazy(() => import('../features/budget/components/budget
 const BudgetScreen = lazy(() => import('../features/budget/components/budget-screen.js'));
 
 /** Rozkład docelowy (`F5-7`). */
+const ShoppingListsScreen = lazy(
+  () => import('../features/shopping/components/shopping-lists-screen.js'),
+);
+const ShoppingListScreen = lazy(
+  () => import('../features/shopping/components/shopping-list-screen.js'),
+);
+const ShoppingStaplesScreen = lazy(
+  () => import('../features/shopping/components/shopping-staples-screen.js'),
+);
+const ShoppingDefaultRoute = lazy(
+  () => import('../features/shopping/components/shopping-default-route.js'),
+);
 const AllocationScreen = lazy(
   () => import('../features/allocation/components/allocation-screen.js'),
 );
@@ -183,6 +195,12 @@ export function routeDefinitions(timezone = 'Europe/Warsaw'): RouteObject[] {
                 { path: 'planned/:id', element: <PlannedRoute /> },
                 { path: 'budget', element: <BudgetListScreen /> },
                 { path: 'budget/:month', element: <BudgetScreen /> },
+                // Listy zakupów (Faza 10). `default` i `staples` to segmenty zarezerwowane —
+                // ULID listy nigdy ich nie przyjmie (06 §2, struktura tras).
+                { path: 'shopping', element: <ShoppingListsScreen /> },
+                { path: 'shopping/default', element: <ShoppingDefaultRoute /> },
+                { path: 'shopping/staples', element: <ShoppingStaplesScreen /> },
+                { path: 'shopping/:listId', element: <ShoppingListScreen /> },
                 { path: 'scan', element: <ScanScreen /> },
                 { path: 'scan/:documentId', element: <DocumentScreen /> },
                 { path: 'more', element: <MoreScreen /> },
