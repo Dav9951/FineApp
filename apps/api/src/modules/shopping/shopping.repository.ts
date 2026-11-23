@@ -1004,7 +1004,7 @@ export function findProductsByNames(
  * @param now - Znacznik systemowy.
  * @returns Liczba oznaczonych.
  */
-export function failStaleImports(handle: DbHandle, now: number): number {
+export function failAllProcessingImports(handle: DbHandle, now: number): number {
   return handle.db
     .update(shoppingImports)
     .set({ status: 'failed', errorCode: 'INTERRUPTED', updatedAt: now })

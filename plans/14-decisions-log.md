@@ -4944,8 +4944,8 @@ w `processing` dostaje `failed` / `INTERRUPTED` („Przerwano — spróbuj ponow
 żyją wyłącznie w pamięci procesu, a aplikacja to jeden kontener z jedną bazą SQLite —
 w chwili startu żadna analiza nie może trwać. Próg czasowy (`STALE_PROCESSING_MS`)
 i pole `staleAfterMs` we wpisie dziennika znikają; front dalej opisuje to pole w starych
-wpisach. Obie funkcje repozytorium (`failStaleProcessing`, `failStaleImports`) tracą
-parametr granicy.
+wpisach. Obie funkcje repozytorium (dawniej `failStaleProcessing`, `failStaleImports`) tracą
+parametr granicy i dostają nazwy `failAllProcessingDocuments`, `failAllProcessingImports` — wolno je wołać tylko przy starcie, zanim powstanie jakiekolwiek zadanie.
 
 **Konsekwencje.** Gdyby kiedyś działały dwa procesy na jednej bazie (np. wdrożenie
 „najpierw nowy, potem stary"), start nowego oznaczyłby trwające analizy starego —

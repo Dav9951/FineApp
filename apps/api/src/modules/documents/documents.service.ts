@@ -79,7 +79,7 @@ import {
 import {
   addAiSpend,
   deleteDocumentRow,
-  failStaleProcessing,
+  failAllProcessingDocuments,
   findDocumentById,
   findDocumentBySha,
   findDocumentItems,
@@ -853,7 +853,7 @@ export function failInterruptedDocuments(
 ): number {
   const now = deps.clock.now().getTime();
   // Każdy `processing` przy starcie jest martwy — zadania żyją w pamięci procesu (ADR-103).
-  const failed = failStaleProcessing(deps.db, now);
+  const failed = failAllProcessingDocuments(deps.db, now);
   for (const document of failed) {
     writeLog(deps, document.householdId, {
       document: { id: document.id, name: document.originalFilename },

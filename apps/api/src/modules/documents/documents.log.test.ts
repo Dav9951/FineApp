@@ -292,6 +292,7 @@ describe('GET /documents/log', () => {
       documentName: 'dlugi-paragon.jpg',
       details: { errorCode: 'INTERRUPTED' },
     });
+    expect(failed?.details).toEqual({ errorCode: 'INTERRUPTED' });
   });
 
   it('wpisy starsze niż 90 dni znikają przy kolejnym zapisie', async () => {

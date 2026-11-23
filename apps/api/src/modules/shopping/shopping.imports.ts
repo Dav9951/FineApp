@@ -52,7 +52,7 @@ import type { DocumentJobs } from '../documents/documents.jobs.js';
 import { parseImportFilePaths } from './shopping.files.js';
 import { recipeSourceFromHtml } from './shopping.recipe-source.js';
 import {
-  failStaleImports,
+  failAllProcessingImports,
   findImport,
   findImportItems,
   findList,
@@ -905,5 +905,5 @@ export function retryImport(
  */
 export function failInterruptedImports(deps: { db: DbHandle; clock: Clock }): number {
   const now = deps.clock.now().getTime();
-  return failStaleImports(deps.db, now);
+  return failAllProcessingImports(deps.db, now);
 }

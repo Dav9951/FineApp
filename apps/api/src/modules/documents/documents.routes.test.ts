@@ -541,14 +541,20 @@ describe('analiza — błędy i koszty', () => {
       .set({ status: 'processing', updatedAt: START.getTime() })
       .where(eq(documents.id, id))
       .run();
-    // Przerwana chwilę przed restartem — też martwa (ADR-103, Z-56).
-    s.clock.advance(30_000);
+    // Druga, odczytana analiza czeka na przegląd — restart jej nie rusza.
+    const other = (await upload(s, await receiptPhoto('#eeeeee'))).json<{
+      data: { id: string };
+    }>().data.id;
+    await s.jobs.idle();
+    const parsed = await getDoc(s, other);
+    // Przerwana tuż przed restartem — też martwa, bez progu czasu (ADR-103, Z-56).
     expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(1);
     expect(await getDoc(s, id)).toMatchObject({
       status: 'failed',
       errorCode: 'INTERRUPTED',
       errorMessage: 'Przerwano — spróbuj ponownie.',
     });
+    expect(await getDoc(s, other)).toEqual(parsed);
   });
 });
 
