@@ -31,7 +31,6 @@ import {
   LOG_RETENTION_MS,
   ratesFor,
   resolveAiModel,
-  STALE_PROCESSING_MS,
 } from './documents.service.js';
 
 /**
@@ -284,7 +283,6 @@ describe('GET /documents/log', () => {
       .set({ status: 'processing', updatedAt: START.getTime() })
       .where(eq(documents.id, id))
       .run();
-    s.clock.advance(STALE_PROCESSING_MS + 1);
     expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(1);
     const [failed] = await readLog(s, `?documentId=${id}`);
     expect(failed).toMatchObject({
@@ -294,6 +292,7 @@ describe('GET /documents/log', () => {
       documentName: 'dlugi-paragon.jpg',
       details: { errorCode: 'INTERRUPTED' },
     });
+    expect(failed?.details).toEqual({ errorCode: 'INTERRUPTED' });
   });
 
   it('wpisy starsze niż 90 dni znikają przy kolejnym zapisie', async () => {
