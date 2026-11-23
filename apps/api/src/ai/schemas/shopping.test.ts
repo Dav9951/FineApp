@@ -87,6 +87,33 @@ describe('parseListPhoto', () => {
 });
 
 describe('parseRecipe', () => {
+  it('ilość bez jednostki („3 jajka") to sztuki, nie „do smaku" (ADR-102)', () => {
+    const result = parseRecipe(
+      JSON.stringify({
+        title: null,
+        baseServings: null,
+        notes: null,
+        ingredients: [
+          {
+            name: 'Jajka',
+            sourceText: '3 jajka',
+            amount: 3,
+            unit: null,
+            packageAmount: null,
+            packageLabel: null,
+            pantryStaple: false,
+            section: 'dairy',
+            confidence: 0.9,
+          },
+        ],
+      }),
+    );
+    expect(result.ok && result.value.ingredients[0]).toMatchObject({
+      baseAmountMilli: 3000,
+      baseUnit: 'pcs',
+    });
+  });
+
   it('ilości bazowe w tysięcznych; „do smaku" bez ilości i opakowania', () => {
     const text = JSON.stringify({
       title: '  Brownie ',

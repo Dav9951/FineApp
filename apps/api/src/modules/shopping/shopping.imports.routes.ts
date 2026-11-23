@@ -272,6 +272,7 @@ export const shoppingImportsRoutes: FastifyPluginAsyncZod<{
       );
       // Pliki po zatwierdzeniu transakcji: plik bez wiersza to mniejsze zło niż odwrotnie.
       await removeImportFiles(config.uploads.dir, files, request.log);
+      if (result.replayed) void reply.header('idempotent-replayed', 'true');
       void reply.status(result.statusCode as 200);
       return result.body;
     },

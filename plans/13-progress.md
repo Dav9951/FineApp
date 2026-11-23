@@ -5,7 +5,7 @@
 
 **Ostatnia aktualizacja:** 2026-11-23 (Faza 10 — `F10-8`…`F10-10`: import ze zdjęcia listy i z przepisu, ocena jakości)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
-**Stan:** ✅ typecheck · lint · format · **2815 testów zielonych**
+**Stan:** ✅ typecheck · lint · format · **2844 testy zielone**
 
 ---
 
@@ -86,6 +86,7 @@
 | Z-53 | ~~Niestabilny `transaction-sheet.test.tsx` › „FAB → kwota → kategoria → zapis…” w CI~~ — **naprawione**: pierwsze otwarcie leniwego arkusza w pliku testów kosztuje jednorazowo ok. 450 ms na jednym rdzeniu (kolejne ok. 50 ms) — `import()` arkusza (ADR-037) i pierwszy montaż Radix `Dialog` z formularzem; na obciążonym runnerze przekraczało domyślne 1000 ms `findBy*`. `SHEET_OPEN_TIMEOUT` (5 s, `apps/web/test/timeouts.ts`) wyłącznie na kroku otwarcia arkusza w `transaction-sheet`, `month-screen`, `allocation-screen`; asercje po nim przy domyślnym limicie. Odrzucone: globalne `asyncUtilTimeout` i wczytanie modułu w `beforeAll` (zdejmuje ≤ 150 ms) | — |
 | Z-54 | Praca offline list zakupów (ADR-096) działa, dopóki karta aplikacji jest wczytana. **Przeładowanie bez sieci** kończy się ekranem logowania: odnowienie sesji (`/auth/refresh`) nie przechodzi, a `AuthProvider` traktuje błąd sieci jak wygasłą sesję. Kolejka zmian przetrwa i wyśle się po zalogowaniu, ale w piwnicy marketu listy nie da się otworzyć od nowa. Do rozważenia: przy `NetworkError` odnowienia zostawić ostatnią sesję w trybie „tylko listy zakupów” | średnia |
 | Z-55 | Zestaw 10 zdjęć tablicy z listą i 10 przepisów (linki, zrzuty, tekst) do oceny importów — **zbiera właściciel**; narzędzie gotowe: `pnpm --filter @fineapp/api shopping:evaluate`, pliki w `apps/api/test/fixtures/shopping/` (poza repozytorium), opis formatu w nagłówku `evaluate-shopping.ts`. Cele: ≥ 90% znalezionych pozycji, ≤ 10% nadmiarowych, ≥ 85% trafnych ilości (`F10-10`) | średnia |
+| Z-56 | Przerwane analizy dokumentów oznaczane przy starcie dopiero po 10 min w `processing` (`STALE_PROCESSING_MS`), choć zadania żyją w pamięci — dokument przerwany tuż przed restartem zostaje w „Analizuję…” do kolejnego restartu. Importy list zakupów oznaczają przy starcie każdy `processing` (ADR-102); do przeniesienia na dokumenty razem z 08 §3 | niska |
 | Z-46 | Eksport JSON nie ma jeszcze importu — format (`fineapp-export` v1, kolejność tabel pod klucze obce) jest pod niego przygotowany. Odtwarzanie całości idzie z kopii bazy (10 §5.4), nie z eksportu | niska |
 | Z-9 | ~~`core/money.ts` kontra `shared/utils/money.ts`~~ — rozstrzygnięte w `F0-3`: całość w `shared`, [ADR-017](./14-decisions-log.md#adr-017) | — |
 | Z-10 | ~~Brak konwersji `Date` → data biznesowa~~ — **zrobione w `F0-8`**, ale nie tam, gdzie zakładałem: pierwszym odbiorcą okazał się router frontu, więc funkcja mieszka w `shared/utils/date-tz.ts` i jest izomorficzna. `core/dates.ts` nie powstanie ([ADR-022](./14-decisions-log.md#adr-022)) | — |

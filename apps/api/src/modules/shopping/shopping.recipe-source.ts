@@ -69,6 +69,19 @@ function textOf(value: unknown): string | null {
 }
 
 /**
+ * Znak z encji liczbowej; spoza Unicode albo surogat → `U+FFFD` zamiast wyjątku, który
+ * wywracał cały import przez jedną błędną encję (ADR-102).
+ *
+ * @param code - Numer znaku.
+ * @returns Znak.
+ */
+function codePoint(code: number): string {
+  return code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)
+    ? '\ufffd'
+    : String.fromCodePoint(code);
+}
+
+/**
  * Dekoduje najczęstsze encje HTML.
  *
  * @param text - Tekst z encjami.
@@ -76,8 +89,8 @@ function textOf(value: unknown): string | null {
  */
 function decodeEntities(text: string): string {
   return text
-    .replace(/&#(\d+);/gu, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/giu, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d{1,8});/gu, (_, code: string) => codePoint(Number(code)))
+    .replace(/&#x([0-9a-f]{1,8});/giu, (_, code: string) => codePoint(parseInt(code, 16)))
     .replace(/&nbsp;/gu, ' ')
     .replace(/&quot;/gu, '"')
     .replace(/&#39;|&apos;/gu, "'")
@@ -264,9 +277,12 @@ export function structuredRecipeText(html: string): string | null {
  * @returns Tekst.
  */
 export function visibleText(html: string): string {
+  // Najpierw przycięcie (z zapasem na zwijane białe znaki), potem wyłącznie wyrażenia
+  // liniowe: `\s*\n\s*` na długim ciągu spacji Unicode bez `\n` było kwadratowe (ReDoS).
   return decodeEntities(stripTags(stripBlocks(stripComments(html), HIDDEN_BLOCKS)))
-    .replace(/[ \t\f\v\r]+/gu, ' ')
-    .replace(/\s*\n\s*/gu, '\n')
+    .slice(0, RECIPE_TEXT_MAX * 4)
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/ ?\n ?/gu, '\n')
     .replace(/\n{2,}/gu, '\n')
     .trim()
     .slice(0, RECIPE_TEXT_MAX);

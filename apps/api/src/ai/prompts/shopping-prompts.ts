@@ -86,7 +86,8 @@ export function recipeUserText(staples: readonly string[], recipeText: string | 
     `PRODUKTY „ZAWSZE W DOMU": ${staples.length === 0 ? '(brak)' : staples.join(', ')}`,
   ].join('\n\n');
   if (recipeText === null) return `${context}\n\nWypisz składniki z przepisu na zdjęciach.`;
-  // Zamknięcie znacznika w treści nie może wyjść poza dane.
-  const safe = recipeText.replaceAll('</przepis>', '</ przepis>');
+  // Żaden znacznik w treści (`</PRZEPIS>`, `</przepis >`…) nie może wyjść poza dane:
+  // każde `<` z treści zamienione na `‹`, więc w wiadomości jest tylko nasz znacznik.
+  const safe = recipeText.replaceAll('<', '‹');
   return `${context}\n\nWypisz składniki z przepisu.\n\n<przepis>\n${safe}\n</przepis>`;
 }

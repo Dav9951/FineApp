@@ -270,7 +270,8 @@ export function parseRecipe(text: string): ParsedShopping<{
       {
         ...names,
         baseAmountMilli,
-        baseUnit: baseAmountMilli === null ? null : item.unit,
+        // „3 jajka” — ilość bez jednostki to sztuki, nie „do smaku” (ADR-102).
+        baseUnit: baseAmountMilli === null ? null : (item.unit ?? 'pcs'),
         packageAmountMilli: baseAmountMilli === null ? null : toMilli(item.packageAmount),
         packageLabel: item.packageLabel?.trim().slice(0, 60) || null,
         pantryStaple: item.pantryStaple,

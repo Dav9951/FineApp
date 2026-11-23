@@ -102,10 +102,10 @@ export interface ImportImage {
 /** Najwięcej obrazów w jednym imporcie (przepis na kilku ekranach, 06 §3.15). */
 export const MAX_IMPORT_IMAGES = 3;
 
-/** Po tylu minutach `processing` przy starcie to przerwana analiza (08 §17.1). */
-export const STALE_IMPORT_MS = 10 * 60 * 1000;
-
 const NOT_FOUND = 'Nie znaleziono odczytu.';
+
+/** Krócej nie ma czego czytać — nawet „2 jajka, mąka" ma kilkanaście znaków. */
+const MIN_RECIPE_TEXT = 10;
 const AI_DISABLED_MESSAGE = 'Odczyt przez AI jest wyłączony.';
 const BUDGET_MESSAGE =
   'Wyczerpano miesięczny limit odczytów AI. Dopisz produkty ręcznie albo zwiększ limit w ustawieniach.';
@@ -357,6 +357,9 @@ function proposalRows(
       householdId: row.householdId,
       importId: row.id,
       sortOrder: index,
+      // Dział ze słownika wygrywa ze zgadywaniem modelu (07 §14.5) — inaczej zatwierdzenie
+      // nadpisałoby dział, którego słownik się nauczył (ADR-102).
+      section: product?.section ?? proposal.section,
       alreadyHave,
       selected: !alreadyHave,
       mergeIntoItemId: target?.id ?? null,
@@ -439,6 +442,12 @@ export async function analyzeImport(
         return;
       }
       transitionImport(deps.db, householdId, id, ['processing'], { sourceText });
+    }
+    // Strona bez widocznego tekstu (np. renderowana przez JS) — bez płatnego wywołania
+    // modelu, które i tak skończyłoby się `RECIPE_NOT_FOUND` (ADR-101 pkt 4, ADR-102).
+    if (row.input !== 'image' && (sourceText ?? '').trim().length < MIN_RECIPE_TEXT) {
+      fail('RECIPE_NOT_FOUND');
+      return;
     }
 
     const now = (): number => deps.clock.now().getTime();
@@ -863,13 +872,16 @@ export function retryImport(
     parseImportFilePaths(row.filePaths).length > 0 ||
     row.sourceUrl !== null ||
     row.sourceText !== null;
-  if (row.status !== 'failed' || !hasSource) {
+  // Pusty odczyt zdjęcia (`parsed` bez propozycji) też da się ponowić (ADR-101 pkt 3, ADR-102).
+  const emptyParsed =
+    row.status === 'parsed' && findImportItems(deps.db, householdId, id).length === 0;
+  if ((row.status !== 'failed' && !emptyParsed) || !hasSource) {
     throw new ConflictError('Tego odczytu nie da się ponowić — zacznij od nowa.');
   }
   if (findList(deps.db, householdId, row.listId)?.archivedAt != null) {
     throw new ConflictError('Lista jest w archiwum. Przywróć ją, żeby coś zmienić.');
   }
-  transitionImport(deps.db, householdId, id, ['failed'], {
+  transitionImport(deps.db, householdId, id, [row.status], {
     status: 'processing',
     errorCode: null,
     // Link pobieramy od nowa — strona mogła się zmienić albo odblokować.
@@ -882,7 +894,9 @@ export function retryImport(
 }
 
 /**
- * Oznacza przerwane odczyty przy starcie procesu.
+ * Oznacza przerwane odczyty przy starcie procesu: **każdy** `processing` — zadania żyją
+ * w pamięci, więc po restarcie żaden nie dobiegnie końca (ADR-102; próg 10 min zostawiał
+ * świeżo przerwany import w „Czytam…" bez możliwości ponowienia).
  *
  * @param deps - Baza i zegar.
  * @param deps.db - Uchwyt bazy.
@@ -891,5 +905,5 @@ export function retryImport(
  */
 export function failInterruptedImports(deps: { db: DbHandle; clock: Clock }): number {
   const now = deps.clock.now().getTime();
-  return failStaleImports(deps.db, now - STALE_IMPORT_MS, now);
+  return failStaleImports(deps.db, Number.MAX_SAFE_INTEGER, now);
 }

@@ -155,7 +155,9 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
             ? pending.kind === 'recipe'
               ? 'Przepis odczytany — przejrzyj przed dodaniem'
               : 'Lista ze zdjęcia odczytana — przejrzyj przed dodaniem'
-            : 'Czytam…'}
+            : pending.kind === 'recipe'
+              ? 'Czytam przepis…'
+              : 'Czytam listę…'}
           <span aria-hidden="true">›</span>
         </Link>
       ))}

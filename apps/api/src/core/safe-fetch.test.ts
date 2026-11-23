@@ -4,6 +4,7 @@ import type { IncomingMessage } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  decodeHtml,
   isPublicAddress,
   safeFetchHtml,
   SafeFetchError,
@@ -84,6 +85,17 @@ describe('isPublicAddress', () => {
     ['::ffff:a00:1', false],
     ['::ffff:5db8:d822', true],
     ['::127.0.0.1', false],
+    // Przegląd bezpieczeństwa (ADR-102): IPv4 w IPv6 i tunele poza listą dozwolonych.
+    ['::7f00:1', false],
+    ['::ffff:0:7f00:1', false],
+    ['64:ff9b::a00:1', false],
+    ['64:ff9b:1::a00:1', false],
+    ['2002:a00:1::1', false],
+    ['2001::1', false],
+    ['fec0::1', false],
+    ['fe80::1%eth0', false],
+    ['::ffff:8.8.8.8', true],
+    ['2a00:1450:4001:82a::200e', true],
     ['nie-ip', false],
   ])('%s → %s', (address, expected) => {
     expect(isPublicAddress(address)).toBe(expected);
@@ -217,5 +229,26 @@ describe('safeFetchHtml', () => {
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(SafeFetchError);
     expect(error).toMatchObject({ code: 'RECIPE_FETCH_FAILED', message: 'Przekroczony czas' });
+  });
+});
+
+describe('decodeHtml (ADR-102)', () => {
+  const maka = Buffer.from([0x6d, 0xb1, 0x6b, 0x61]); // „mąka" w ISO-8859-2
+
+  it('kodowanie z nagłówka', () => {
+    expect(decodeHtml(maka, 'text/html; charset=ISO-8859-2')).toBe('mąka');
+  });
+
+  it('kodowanie z <meta charset> w pierwszym kilobajcie', () => {
+    const html = Buffer.concat([
+      Buffer.from('<meta charset="windows-1250"><p>'),
+      Buffer.from([0x6d, 0xb9, 0x6b, 0x61]),
+    ]);
+    expect(decodeHtml(html, 'text/html')).toContain('mąka');
+  });
+
+  it('domyślnie i przy nieznanej nazwie — UTF-8', () => {
+    expect(decodeHtml(Buffer.from('mąka'), 'text/html')).toBe('mąka');
+    expect(decodeHtml(Buffer.from('mąka'), 'text/html; charset=klingon')).toBe('mąka');
   });
 });

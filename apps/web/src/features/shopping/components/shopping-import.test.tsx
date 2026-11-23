@@ -225,6 +225,30 @@ describe('przegląd odczytu', () => {
     expect(fetch.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('pusty odczyt zdjęcia: „Nie znalazłem pozycji" z ponowieniem (ADR-102)', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(shoppingApi, 'fetchImport').mockResolvedValue({
+      ...RECIPE,
+      kind: 'list_photo',
+      input: 'image',
+      servingsFactorBps: null,
+      recipeTitle: null,
+      baseServings: null,
+      items: [],
+      notes: 'Zdjęcie jest rozmyte.',
+    });
+    const retry = vi
+      .spyOn(shoppingApi, 'retryImport')
+      .mockResolvedValue({ ...RECIPE, status: 'processing', items: [] });
+    renderScreen(`/shopping/${LIST_ID}/import/${IMPORT_ID}`, ROUTES);
+    expect(
+      await screen.findByText('Nie znalazłem pozycji', {}, { timeout: 3_000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Zdjęcie jest rozmyte.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Spróbuj ponownie' }));
+    expect(retry).toHaveBeenCalledWith('token-testowy', IMPORT_ID);
+  });
+
   it('nieudany odczyt pokazuje przyczynę i drogę dalej', async () => {
     const user = userEvent.setup();
     vi.spyOn(shoppingApi, 'fetchImport').mockResolvedValue({
@@ -330,6 +354,26 @@ describe('arkusz „Dodaj z…" i udostępnianie', () => {
     const [, input] = create.mock.calls[0] ?? [];
     expect(input).toMatchObject({ listId: LIST_ID, kind: 'list_photo' });
     expect(input?.servingsFactorBps).toBeUndefined();
+  });
+
+  it('banery importów mówią, co jest czytane i co czeka na przegląd (ADR-102)', async () => {
+    vi.spyOn(shoppingApi, 'fetchShoppingItems').mockResolvedValue({
+      list: {
+        ...LIST,
+        pendingImports: [
+          { id: IMPORT_ID, status: 'processing', kind: 'recipe' },
+          { id: '01JC7K0000000000000000M002', status: 'processing', kind: 'list_photo' },
+          { id: '01JC7K0000000000000000M003', status: 'parsed', kind: 'recipe' },
+        ],
+      },
+      items: [],
+    });
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    expect(
+      await screen.findByRole('link', { name: /Czytam przepis…/u }, { timeout: 3_000 }),
+    ).toHaveAttribute('href', `/shopping/${LIST_ID}/import/${IMPORT_ID}`);
+    expect(screen.getByRole('link', { name: /Czytam listę…/u })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Przepis odczytany/u })).toBeInTheDocument();
   });
 
   it('link ze schowka jednym przyciskiem', async () => {

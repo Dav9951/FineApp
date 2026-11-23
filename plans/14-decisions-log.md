@@ -4884,3 +4884,43 @@ pobieranie stron spoza naszej kontroli i sposób oceny jakości.
 `safe-fetch.test.ts`, `shopping.recipe-source.test.ts`, `shopping.imports.test.ts`,
 `ai/schemas/shopping.test.ts`, `shopping-metrics.test.ts`, `shopping-import.test.tsx`,
 `shopping-view.test.ts`.
+
+---
+
+<a id="adr-102"></a>
+
+## ADR-102 — Importy list zakupów: poprawki po przeglądzie kodu i bezpieczeństwa `F10-8`…`F10-10`
+
+**Data:** 2026-11-23 · **Zadanie:** przeglądy `/code-review` i `/security-review` przed PR · **Status:** przyjęta
+
+**Kontekst.** Dwa przeglądy w osobnych sesjach: bezpieczeństwa (1 wysoka, 3 niskie)
+i kodu (7 ważnych, 3 drobne; jedno wspólne — IPv4 w IPv6).
+
+**Decyzja.**
+
+1. **ReDoS w `visibleText` (wysoka).** `\s*\n\s*` na długim ciągu spacji Unicode bez
+   `\n` był kwadratowy — 3 MB strony blokowały API na dziesiątki minut. Tekst jest
+   przycinany **przed** zwijaniem, a zwijanie to wyłącznie wyrażenia liniowe.
+2. **IPv6 z listy dozwolonych** (`2000::/3` bez Teredo, ORCHID, dokumentacji i 6to4);
+   adres rozwijany do ośmiu grup, IPv4 zmapowane sprawdzane jak IPv4. Zamyka
+   `::7f00:1`, `::ffff:0:7f00:1`, NAT64 `64:ff9b:1::/48`, `fec0::/10`.
+3. **Prompt injection:** każde `<` z treści przepisu zamieniane na `‹` — żaden wariant
+   `</PRZEPIS >` nie zamknie znacznika danych.
+4. **Dział ze słownika wygrywa z modelem** w propozycjach; zatwierdzenie nie nadpisuje
+   działu, którego słownik się nauczył (chyba że domownik zmienił go w przeglądzie).
+5. **Pusty odczyt zdjęcia da się ponowić** (`parsed` bez propozycji → `retry`), ekran
+   „Nie znalazłem pozycji" ma *Spróbuj ponownie*.
+6. **Przy starcie każdy `processing` → `failed` (`INTERRUPTED`)** — zadania żyją
+   w pamięci, próg 10 min zostawiał świeżo przerwany import bez wyjścia (08 §17).
+   Dokumenty mają ten sam próg — Z-56.
+7. **Ilość z przepisu bez jednostki to sztuki** („3 jajka" nie staje się „do smaku").
+8. **Encja spoza Unicode → `U+FFFD`** zamiast wyjątku wywracającego import.
+9. **Kodowanie strony** z `Content-Type` albo `<meta charset>`, domyślnie UTF-8
+   (ISO-8859-2, windows-1250).
+10. Drobne: `Idempotent-Replayed: true` przy powtórzonym zatwierdzeniu; strona bez
+    widocznego tekstu kończy się `RECIPE_NOT_FOUND` bez płatnego wywołania modelu;
+    baner „Czytam przepis…" / „Czytam listę…" (06 §3.15); 09 §7a zgodne z kodem.
+
+**Konsekwencje.** Testy regresji w `safe-fetch.test.ts`, `shopping.recipe-source.test.ts`,
+`shopping-prompts.test.ts`, `ai/schemas/shopping.test.ts`, `shopping.imports.test.ts`,
+`shopping-import.test.tsx`. ADR-101 obowiązuje z poprawkami z punktów 5 i 6.

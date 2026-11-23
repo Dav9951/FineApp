@@ -284,6 +284,17 @@ function Review({
 
       {data.items.length === 0 ? (
         <EmptyState
+          action={
+            <Button
+              loading={actions.retry.isPending}
+              onClick={() => {
+                actions.retry.mutate(undefined, { onError: fail });
+              }}
+              variant="ghost"
+            >
+              Spróbuj ponownie
+            </Button>
+          }
           className="mt-6"
           description={data.notes ?? 'Spróbuj wyraźniejszego zdjęcia albo dopisz produkty ręcznie.'}
           title="Nie znalazłem pozycji"

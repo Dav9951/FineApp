@@ -79,6 +79,20 @@ describe('visibleText', () => {
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 
+  it('długi ciąg spacji Unicode bez nowej linii nie jest kwadratowy (ReDoS, ADR-102)', () => {
+    const started = Date.now();
+    expect(visibleText(`a${'\u2003'.repeat(100_000)}b`)).toBe('a b');
+    // Cała strona (do 3 MB) jest przycinana przed zwijaniem — reszta po prostu odpada.
+    expect(visibleText(`a${'\u2003'.repeat(1_000_000)}b`)).toBe('a');
+    expect(visibleText(`a${'&#8195;'.repeat(100_000)}b`)).toBe('a b');
+    expect(visibleText(`a${'\u00a0 \u3000'.repeat(30_000)}\n\u2003\nb`)).toBe('a\nb');
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it('encja spoza Unicode nie wywraca odczytu (ADR-102)', () => {
+    expect(visibleText('a&#99999999;b&#x110000;c&#xD800;d&#261;')).toBe('a\ufffdb\ufffdc\ufffddą');
+  });
+
   it('ucina do limitu', () => {
     expect(visibleText('a'.repeat(RECIPE_TEXT_MAX + 10))).toHaveLength(RECIPE_TEXT_MAX);
   });

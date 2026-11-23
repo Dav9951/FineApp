@@ -23,8 +23,8 @@ import { mutableClock } from '../../core/clock.js';
 import { SafeFetchError } from '../../core/safe-fetch.js';
 import { newId } from '../../core/id.js';
 import { createDocumentJobs, type DocumentJobs } from '../documents/documents.jobs.js';
-import { shoppingImports } from '../../db/schema/shopping.js';
-import { failInterruptedImports, STALE_IMPORT_MS } from './shopping.imports.js';
+import { shoppingImports, shoppingProducts } from '../../db/schema/shopping.js';
+import { failInterruptedImports } from './shopping.imports.js';
 
 /**
  * Testy importów list zakupów (`F10-8`, `F10-9`, 08 §17, I-30, I-31) — z atrapą
@@ -402,7 +402,8 @@ describe('zdjęcie listy (F10-8)', () => {
   it('przerwany restartem odczyt jest oznaczany przy starcie', async () => {
     const s = await setup();
     const id = newId();
-    const old = NOW.getTime() - STALE_IMPORT_MS - 1;
+    // Przerwany chwilę przed restartem — też martwy (ADR-102).
+    const old = NOW.getTime() - 30_000;
     s.app.db.db
       .insert(shoppingImports)
       .values({
@@ -680,5 +681,73 @@ describe('przepis (F10-9)', () => {
         })
       ).status,
     ).toBe(409);
+  });
+});
+
+describe('poprawki po przeglądzie (ADR-102)', () => {
+  it('dział ze słownika wygrywa z modelem i nie jest nadpisywany przy zatwierdzeniu', async () => {
+    const s = await setup();
+    await call(s, 'POST', `/shopping-lists/${s.listId}/items`, { name: 'Chleb', section: 'other' });
+    s.extractor.extractList.mockResolvedValue(LIST_RESULT);
+    const parsed = await uploadPhoto(s);
+    expect(parsed.items.find((item) => item.name === 'Chleb')?.section).toBe('other');
+    await call(s, 'POST', `/shopping-imports/${parsed.id}/commit`, undefined, {
+      'idempotency-key': 'commit-adr102-a',
+    });
+    const product = s.app.db.db
+      .select()
+      .from(shoppingProducts)
+      .where(eq(shoppingProducts.normalizedName, 'chleb'))
+      .get();
+    expect(product?.section).toBe('other');
+  });
+
+  it('pusty odczyt zdjęcia da się ponowić', async () => {
+    const s = await setup();
+    s.extractor.extractList
+      .mockResolvedValueOnce({ ...LIST_RESULT, items: [], notes: 'Rozmyte' })
+      .mockResolvedValueOnce(LIST_RESULT);
+    const empty = await uploadPhoto(s);
+    expect(empty).toMatchObject({ status: 'parsed', items: [] });
+    expect((await call(s, 'POST', `/shopping-imports/${empty.id}/retry`)).status).toBe(202);
+    await s.jobs.idle();
+    const again = (await call<ShoppingImportDto>(s, 'GET', `/shopping-imports/${empty.id}`)).data;
+    expect(again.items).toHaveLength(2);
+    // Odczyt z propozycjami ponowić już nie można — byłoby to wyrzucenie przeglądu.
+    expect((await call(s, 'POST', `/shopping-imports/${empty.id}/retry`)).status).toBe(409);
+  });
+
+  it('powtórzone zatwierdzenie ma nagłówek Idempotent-Replayed', async () => {
+    const s = await setup();
+    s.extractor.extractList.mockResolvedValue(LIST_RESULT);
+    const parsed = await uploadPhoto(s);
+    const send = () =>
+      s.app.app.inject({
+        method: 'POST',
+        url: `/api/v1/shopping-imports/${parsed.id}/commit`,
+        headers: { ...s.home.headers, 'idempotency-key': 'commit-adr102-b' },
+      });
+    expect((await send()).headers['idempotent-replayed']).toBeUndefined();
+    expect((await send()).headers['idempotent-replayed']).toBe('true');
+  });
+
+  it('strona bez tekstu → RECIPE_NOT_FOUND bez wywołania modelu', async () => {
+    const s = await setup();
+    s.fetchHtml.mockResolvedValue({
+      url: 'https://spa.example/przepis',
+      html: '<div id="root"></div><script src="app.js"></script>',
+    });
+    const created = await call<ShoppingImportDto>(s, 'POST', '/shopping-imports', {
+      input: 'url',
+      listId: s.listId,
+      kind: 'recipe',
+      url: 'https://spa.example/przepis',
+      servingsFactorBps: 10_000,
+    });
+    await s.jobs.idle();
+    expect(
+      (await call<ShoppingImportDto>(s, 'GET', `/shopping-imports/${created.data.id}`)).data,
+    ).toMatchObject({ status: 'failed', errorCode: 'RECIPE_NOT_FOUND' });
+    expect(s.extractor.extractRecipe).not.toHaveBeenCalled();
   });
 });
