@@ -4927,6 +4927,34 @@ i kodu (7 ważnych, 3 drobne; jedno wspólne — IPv4 w IPv6).
 
 ---
 
+<a id="adr-103"></a>
+
+## ADR-103 — Przerwane analizy dokumentów: każdy `processing` przy starcie (Z-56)
+
+**Data:** 2026-11-23 · **Zadanie:** Z-56 · **Status:** przyjęta
+
+**Kontekst.** Analiza dokumentu biegnie w tle procesu (08 §2). Przy starcie aplikacja
+oznaczała jako przerwane tylko dokumenty w `processing` dłużej niż 10 minut — dokument
+przerwany tuż przed restartem (np. wdrożenie w trakcie analizy) wisiał w „Analizuję…"
+bez przycisku ponowienia aż do kolejnego restartu. Importy list zakupów miały ten sam
+błąd, poprawiony w ADR-102.
+
+**Decyzja.** Przy starcie, przed przyjęciem pierwszego żądania, **każdy** dokument
+w `processing` dostaje `failed` / `INTERRUPTED` („Przerwano — spróbuj ponownie"). Zadania
+żyją wyłącznie w pamięci procesu, a aplikacja to jeden kontener z jedną bazą SQLite —
+w chwili startu żadna analiza nie może trwać. Próg czasowy (`STALE_PROCESSING_MS`)
+i pole `staleAfterMs` we wpisie dziennika znikają; front dalej opisuje to pole w starych
+wpisach. Obie funkcje repozytorium (dawniej `failStaleProcessing`, `failStaleImports`) tracą
+parametr granicy i dostają nazwy `failAllProcessingDocuments`, `failAllProcessingImports` — wolno je wołać tylko przy starcie, zanim powstanie jakiekolwiek zadanie.
+
+**Konsekwencje.** Gdyby kiedyś działały dwa procesy na jednej bazie (np. wdrożenie
+„najpierw nowy, potem stary"), start nowego oznaczyłby trwające analizy starego —
+wtedy trzeba wrócić do progu albo do właściciela zadania w wierszu. Dziś compose
+zatrzymuje stary kontener przed startem nowego (`docker compose up -d` przy wdrożeniu). 08 §2 zaktualizowane; testy
+w `documents.routes.test.ts`, `documents.log.test.ts`.
+
+---
+
 <a id="adr-104"></a>
 
 ## ADR-104 — Lista zakupów: widok płaski, kosz przy wierszu, kolejność przeciąganiem, nieruchome pole

@@ -1014,18 +1014,18 @@ export function findProductsByNames(
 }
 
 /**
- * Oznacza importy w `processing` starsze niż `before` jako przerwane — przy starcie
- * procesu (08 §17.1). **Bez `householdId`**: zadanie konserwacyjne.
+ * Oznacza każdy import w `processing` jako przerwany — przy starcie procesu, gdy żadne
+ * zadanie w tle jeszcze nie istnieje (08 §17.1, ADR-102). **Bez `householdId`**: zadanie
+ * konserwacyjne.
  *
  * @param handle - Uchwyt bazy.
- * @param before - Granica `updated_at`.
  * @param now - Znacznik systemowy.
  * @returns Liczba oznaczonych.
  */
-export function failStaleImports(handle: DbHandle, before: number, now: number): number {
+export function failAllProcessingImports(handle: DbHandle, now: number): number {
   return handle.db
     .update(shoppingImports)
     .set({ status: 'failed', errorCode: 'INTERRUPTED', updatedAt: now })
-    .where(and(eq(shoppingImports.status, 'processing'), lt(shoppingImports.updatedAt, before)))
+    .where(eq(shoppingImports.status, 'processing'))
     .run().changes;
 }

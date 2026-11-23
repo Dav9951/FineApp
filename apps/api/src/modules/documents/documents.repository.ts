@@ -207,13 +207,11 @@ export function deleteDocumentRow(handle: DbHandle, householdId: string, id: str
  * żądanie istnieje.
  *
  * @param handle - Uchwyt bazy.
- * @param olderThan - Granica `updated_at` (epoch ms).
  * @param now - Chwila zapisu.
  * @returns Oznaczone dokumenty — gospodarstwo i nazwa pliku do wpisu w dzienniku (ADR-086).
  */
-export function failStaleProcessing(
+export function failAllProcessingDocuments(
   handle: DbHandle,
-  olderThan: number,
   now: number,
 ): { id: string; householdId: string; originalFilename: string }[] {
   return handle.db
@@ -224,7 +222,7 @@ export function failStaleProcessing(
       errorMessage: 'Przerwano — spróbuj ponownie.',
       updatedAt: now,
     })
-    .where(and(eq(documents.status, 'processing'), lt(documents.updatedAt, olderThan)))
+    .where(eq(documents.status, 'processing'))
     .returning({
       id: documents.id,
       householdId: documents.householdId,

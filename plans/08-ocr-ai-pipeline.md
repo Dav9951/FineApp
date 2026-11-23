@@ -49,7 +49,8 @@ Kroki 2–5 działają **w tle procesu Node**, bez kolejki zadań. Uzasadnienie:
 użytkowników, kilka dokumentów miesięcznie, jeden kontener. Dołożenie brokera kolejek
 byłoby kosztem bez pokrycia w skali. Konsekwencja do przyjęcia: restart kontenera
 w trakcie analizy zostawia dokument w stanie `processing` — przy starcie aplikacji
-dokumenty starsze niż 10 minut w tym stanie są oznaczane jako `failed`
+**każdy** dokument w tym stanie jest oznaczany jako `failed` (zadania żyją w pamięci, więc
+po restarcie żadne nie dobiegnie końca; [ADR-103](./14-decisions-log.md#adr-103))
 z komunikatem „Przerwano — spróbuj ponownie" i przyciskiem ponowienia.
 
 ## 3. Przygotowanie obrazu
@@ -509,7 +510,7 @@ odczytać w aplikacji, a nie zgadywać z „Spróbuj ponownie":
 | `started` | info | `model`, `kind`, `mimeType`, `byteSize`, `pageCount` |
 | `prepared` | info; **warn**, gdy krótszy bok obrazu po skalowaniu < 500 px (`NARROW_IMAGE_PX`) | `sourceWidth`, `sourceHeight`, `width`, `height`, `sentKb`, `categoryCount` |
 | `parsed` | info; **warn** przy zerze pozycji | `durationMs`, `stopReason`, `inputTokens`, `outputTokens`, `maxOutputTokens`, `itemCount`, `costMinor`, `requestId` |
-| `failed` | error | Analiza przerwana restartem (oznaczana przy starcie): `errorCode: INTERRUPTED`, `staleAfterMs`. Pozostałe: `errorCode`, `durationMs`, `httpStatus`, `errorType` (np. `APIConnectionTimeoutError`), `apiMessage` (≤ 300 znaków), `timeoutMs`, `maxRetries`, `stopReason`, `reason` (schemat), `costMinor` |
+| `failed` | error | Analiza przerwana restartem (oznaczana przy starcie): `errorCode: INTERRUPTED`. Pozostałe: `errorCode`, `durationMs`, `httpStatus`, `errorType` (np. `APIConnectionTimeoutError`), `apiMessage` (≤ 300 znaków), `timeoutMs`, `maxRetries`, `stopReason`, `reason` (schemat), `costMinor` |
 | `upload_rejected` | warn | `errorCode` (`FILE_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `DOMAIN_RULE_VIOLATION` — tylko PDF ponad limit stron, `AI_BUDGET_EXCEEDED` — przy wrzuceniu i przy ponownej analizie), `maxBytes`, `maxPages`, `budgetMinor` |
 
 Zasady:

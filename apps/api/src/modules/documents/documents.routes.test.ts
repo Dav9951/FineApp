@@ -30,7 +30,7 @@ import { categories } from '../../db/schema/categories.js';
 import { documents } from '../../db/schema/documents.js';
 import { transactions } from '../../db/schema/transactions.js';
 import { createDocumentJobs, type DocumentJobs } from './documents.jobs.js';
-import { failInterruptedDocuments, STALE_PROCESSING_MS } from './documents.service.js';
+import { failInterruptedDocuments } from './documents.service.js';
 
 /**
  * Trasy dokumentów (`F7-1`…`F7-7`, 04 §13, 08). Atrapa ekstraktora zamiast usługi AI,
@@ -541,15 +541,20 @@ describe('analiza — błędy i koszty', () => {
       .set({ status: 'processing', updatedAt: START.getTime() })
       .where(eq(documents.id, id))
       .run();
-    // Obraca się tylko to, co w `processing` dłużej niż 10 minut.
-    expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(0);
-    s.clock.advance(STALE_PROCESSING_MS + 1);
+    // Druga, odczytana analiza czeka na przegląd — restart jej nie rusza.
+    const other = (await upload(s, await receiptPhoto('#eeeeee'))).json<{
+      data: { id: string };
+    }>().data.id;
+    await s.jobs.idle();
+    const parsed = await getDoc(s, other);
+    // Przerwana tuż przed restartem — też martwa, bez progu czasu (ADR-103, Z-56).
     expect(failInterruptedDocuments({ db: s.app.db, clock: s.clock, log: s.app.app.log })).toBe(1);
     expect(await getDoc(s, id)).toMatchObject({
       status: 'failed',
       errorCode: 'INTERRUPTED',
       errorMessage: 'Przerwano — spróbuj ponownie.',
     });
+    expect(await getDoc(s, other)).toEqual(parsed);
   });
 });
 
