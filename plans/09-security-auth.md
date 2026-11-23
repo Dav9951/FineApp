@@ -14,6 +14,7 @@ Aplikacja prywatna, dwóch użytkowników, własny VPS, brak rejestracji. Dane s
 | Wyciek pliku bazy | niska, ale katastrofalna | plik poza katalogiem serwowanym, kopie szyfrowane |
 | Wyciek zdjęć paragonów | niska | katalog nieserwowany statycznie, dostęp tylko uwierzytelniony |
 | Wyciek danych do AI | średnia | wysyłamy wyłącznie obraz + nazwy kategorii, EXIF usuwany |
+| SSRF przez link do przepisu (Faza 10) | średnia — pierwszy wychodzący `fetch` pod adres od użytkownika | §7a: tylko publiczne adresy, sprawdzanie po DNS i przy każdym przekierowaniu, limity |
 | Złośliwy upload | niska | walidacja typu po zawartości, przetwarzanie przez sharp, brak wykonywania |
 | Podniesienie uprawnień | **brak znaczenia** | obaj użytkownicy mają identyczny dostęp |
 
@@ -310,11 +311,28 @@ Dodatkowo: `Strict-Transport-Security` (gdy HTTPS), `X-Content-Type-Options: nos
 | Dostęp | wyłącznie `GET /documents/:id/file` z weryfikacją gospodarstwa |
 | EXIF | usuwany przed analizą i przed zapisem (w tym GPS) |
 
+## 7a. Pobieranie adresów podanych przez użytkownika
+
+> **Faza 10** ([ADR-095](./14-decisions-log.md#adr-095)). Jedyny przypadek: link do przepisu
+> (08 §17.4). Kod: `core/safe-fetch.ts`, każdy punkt z testem.
+
+| Kontrola | Realizacja |
+|---|---|
+| Schemat i port | tylko `http:` / `https:`, port 80 / 443 (domyślny); dane logowania w URL (`user:pass@`) → odrzucone |
+| Adres docelowy | nazwa rozwiązywana przez `dns.lookup` (wszystkie adresy); **każdy** musi być publiczny — odrzucane: `0.0.0.0/8`, `10/8`, `100.64/10`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `198.18/15`, `224/4`, `240/4`, `::`, `::1`, `fc00::/7`, `fe80::/10`, IPv4 mapowane na IPv6 z tych zakresów; adres IP podany wprost — te same reguły |
+| DNS rebinding | połączenie idzie na **sprawdzony** adres (własny `lookup` w agencie `undici`), nie na ponownie rozwiązaną nazwę |
+| Przekierowania | ręcznie, max 3, każde sprawdzane od nowa jak wyżej |
+| Limity | 10 s na całość, 3 MB treści (przerwanie strumienia), tylko `text/html` / `application/xhtml+xml` |
+| Nagłówki | bez ciasteczek i `Authorization`; `User-Agent: FineApp/1.0 (recipe import)` — bez danych gospodarstwa |
+| Wynik | wyłącznie tekst do modelu; HTML nigdy nie trafia do przeglądarki ani do logów; w logu tylko host i status |
+| Limit żądań | wspólny z importami AI (04 §17) |
+
 ## 8. Prywatność danych
 
 - **Brak telemetrii.** Żadnych analytics, żadnego raportowania błędów na zewnątrz.
-- **Jedyne wywołanie zewnętrzne** to Anthropic API przy analizie dokumentu, wyłącznie
-  po jawnym wrzuceniu pliku. Zakres wysyłanych danych: [08 §13](./08-ocr-ai-pipeline.md#13-prywatność).
+- **Wywołania zewnętrzne** to Anthropic API przy analizie dokumentu albo importu listy
+  zakupów, wyłącznie po jawnym działaniu użytkownika, oraz pobranie strony przepisu spod
+  linku podanego przez użytkownika (§7a). Zakres wysyłanych danych: [08 §13](./08-ocr-ai-pipeline.md#13-prywatność).
 - **Logi nie zawierają danych finansowych.** Logujemy metodę, ścieżkę, status, czas,
   `requestId`, id użytkownika. Nie logujemy ciał żądań ani odpowiedzi.
 - **Adresy e-mail i IP w tabelach audytowych są haszowane** z solą `IP_HASH_SALT`.

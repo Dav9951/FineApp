@@ -410,6 +410,21 @@ używania) trwa równolegle — planer korzysta ze średnich, a te potrzebują h
 
 ---
 
+## Faza 10 — Listy zakupów
+
+**Cel:** wymaganie #15 — wspólne listy zakupów z odhaczaniem w sklepie i dopisywaniem ze
+zdjęcia listy oraz z przepisu. Opis, zadania `F10-1`…`F10-10` i kryteria ukończenia:
+[17-shopping-lists.md](./17-shopping-lists.md) §11; decyzje:
+[ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096)
+(przyjęte; pytania P-1…P-7 rozstrzygnięte 2026-11-22, 17 §9).
+
+Faza zależy tylko od `F7` (infrastruktura AI) i `F8-3` (PWA); nie zależy od Fazy 9.
+
+`F10-1` ✅ — kontrakty: 03 §3.23–3.27 i §5a, 04 §14b, 05 §13c, 06 §3.15, 07 §14, 08 §17,
+09 §7a, wyjątki w 01 i 02. Następne: `F10-2` (migracja `0008_shopping`).
+
+---
+
 ## Po v1 — rozważane
 
 Nie deklarujemy, że powstaną. Zapisane, żeby nie wracać do tych samych pomysłów.
@@ -438,6 +453,7 @@ F0 ──► F1 ──► F2 ──┬──► F3 ──┬──► F4 ──�
                    │         │                      ├──► F8
                    └─────────┴──► F7 ───────────────┘
                                       F4 + F5 + F6 ──► F9 (planer budżetu)
+                                      F7 + F8-3 ─────► F10 (listy zakupów)
 ```
 
 `F7` (OCR) zależy tylko od `F2` (transakcje i kategorie) — można ją przesunąć wcześniej,

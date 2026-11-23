@@ -19,7 +19,8 @@
 | Formularze | react-hook-form + `@hookform/resolvers/zod` | Ten sam Zod co na backendzie. |
 | Style | Tailwind CSS 3.4 + Radix UI primitives | Mobile-first, brak walki z CSS, dostępne komponenty bez ciężkiej biblioteki. |
 | Wykresy | Recharts | Proste wykresy (donut alokacji, słupki miesięczne). |
-| PWA | vite-plugin-pwa | Instalowalność na telefonie, offline shell. |
+| PWA | vite-plugin-pwa | Instalowalność na telefonie, offline shell. Od Fazy 10 także `shortcuts` i `share_target` w manifeście. |
+| Offline list zakupów | `@tanstack/react-query-persist-client` + `idb-keyval` (Faza 10, ADR-096) | Utrwalenie wyłącznie zapytań list zakupów i kolejki ich mutacji w IndexedDB; wersje ustalane instalacją w `F10-6`. |
 | Logi | pino (+ pino-pretty w dev) | Structured logging, tanie. |
 | Testy | Vitest + `fastify.inject()` | Bez uruchamiania serwera; szybkie testy integracyjne na SQLite in-memory. |
 | Konteneryzacja | Docker multi-stage, jeden obraz | Jeden proces = jeden kontener + wolumen `/data`. |

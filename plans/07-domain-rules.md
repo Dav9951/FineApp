@@ -1744,3 +1744,163 @@ wykonanie — jak w sumach sekcji.
 | Szybki start w sekcji, która ma grupę | `422` |
 | Szybki start bez planowanych wydatków | tylko *Stałe* i *Zmienne* |
 | „Jedzenie — dom" w grupie A, „Jedzenie — wyjście" w B | nagłówki A i B bez wykonania; wykonanie pod ostatnią z tych linii |
+
+## 14. Listy zakupów
+
+> **Faza 10 — plan**. Opis funkcji i scenariusze: [17](./17-shopping-lists.md). Decyzje:
+> [ADR-093](./14-decisions-log.md#adr-093) … [ADR-096](./14-decisions-log.md#adr-096).
+> Czyste funkcje: `shared/domain/shopping.ts`, **100% pokrycia** (jak `money` i `month`).
+
+Lista zakupów nie ma kwot i nie dotyka księgi. Wszystkie liczby w tej sekcji to ilości
+w tysięcznych częściach jednostki (`…Milli`) albo mnożnik w bps — liczby całkowite, bez
+`number` z ułamkiem w obliczeniach (zasada jak przy groszach, ADR-093).
+
+### 14.1 Normalizacja nazwy
+
+```
+normalize(name) =
+  name → NFKD → usuń znaki łączące (ą→a, ł→l osobno: ł/Ł nie rozkłada się w NFKD)
+       → małe litery → zamień ciągi białych znaków na jedną spację → przytnij
+       → usuń końcowe . , ; :
+```
+
+`„  Mąka   PSZENNA." → „maka pszenna"`, `„Łosoś" → „losos"`. Normalizacja służy do scalania
+(§14.3), unikalności słownika i podpowiedzi. **Bez** stemmingu i bez liczby mnogiej
+w v1: „jajko" i „jajka" to dwa produkty; model dostaje polecenie podawać formę, w jakiej
+produkt się kupuje („Jajka", „Pomidory"). Wyświetlana jest zawsze nazwa wpisana (`name`),
+nie znormalizowana.
+
+### 14.2 Opakowania z przepisu
+
+Wejście z modelu (08 §17.2): `baseAmountMilli`, `baseUnit ∈ {g, ml, pcs}`,
+`packageAmountMilli` w tej samej jednostce, opcjonalnie `null`. Mnożnik `factorBps`.
+
+```
+needed   = roundHalfUp(baseAmountMilli × factorBps / 10 000)        -- potrzeba po mnożniku
+tol      = packageAmountMilli / 10                                   -- tolerancja 10%
+packages = max(1, ceil((10 × needed − packageAmountMilli) / (10 × packageAmountMilli)))
+           -- = max(1, ceil((needed − tol) / packageAmountMilli)), w liczbach całkowitych
+
+quantity:
+  baseAmount = null                       → 1 pcs, dopisek „do smaku"
+  packageAmount = null, baseUnit = pcs    → ceil(needed / 1000) pcs     (2 jajka bez opakowania → 2 szt.)
+  packageAmount = null, baseUnit ∈ g, ml  → 1 pcs
+  baseUnit = pcs i packageAmount > 1000   → packages pack               (jajka, opak. 10 szt. → 1 opak.)
+  wpp.                                    → packages pcs                (czekolada 2 × 100 g → 2 szt.)
+```
+
+- Tolerancja jest po to, żeby 105 g przy tabliczce 100 g dało 1 tabliczkę: przepisy
+  zaokrąglają, sklepy nie sprzedają 5 g. Przy 111 g wynik to 2.
+- **Dopisek z ilością (P-2):** `neededAmountMilli` i `baseUnit` idą do przeglądu
+  („potrzeba 100 g · tabliczka 100 g") i przy commicie do notatki pozycji
+  („100 g · Brownie"; tytuł przepisu, gdy jest). Notatka ucięta do 120 znaków.
+- Zmiana mnożnika (`PATCH /shopping-imports/:id`) przelicza `quantity` wszystkich
+  propozycji z `quantityOverridden = false`. Poprawione ręcznie zostają.
+- `roundHalfUp` to ta sama funkcja co przy groszach (`shared/utils/money.ts`, dzielenie
+  całkowite z zaokrągleniem połowy w górę) — bez `Math.round` na ułamku.
+
+### 14.3 Scalanie
+
+Klucz pozycji: (`normalizedName`, `unit`), gdzie `unit = null` jest osobną wartością.
+
+| Na liście *do kupienia* | Dopisywane | Wynik |
+|---|---|---|
+| — | cokolwiek | nowa pozycja |
+| Mleko 2 pcs | Mleko 1 pcs | jedna: Mleko 3 pcs (`merged: true`) |
+| Mleko (bez ilości) | Mleko (bez ilości) | bez zmian (`merged: true`) |
+| Mleko (bez ilości) | Mleko 2 pcs | jedna: Mleko 2 pcs — pozycja bez ilości przyjmuje ilość |
+| Mleko 2 pcs | Mleko (bez ilości) | bez zmian (`merged: true`) |
+| Mąka 1 kg | Mąka 2 pcs | dwie pozycje (różne jednostki) |
+| Mleko 2 pcs *kupione* | Mleko 1 pcs | dwie pozycje — kupione nie są celem scalania |
+
+Notatki przy scaleniu łączy „ · " (bez powtórzeń), dział zostaje z pozycji istniejącej.
+To samo dotyczy przeniesienia pozycji na inną listę (`PATCH listId`) i commitu importu:
+`mergeIntoItemId` propozycji wyznacza się przy odczycie i przy zmianie listy docelowej,
+a przy commicie **sprawdza ponownie** (lista mogła się zmienić w trakcie przeglądu).
+
+### 14.4 Szybkie dopisanie
+
+`parseQuickAdd(text) → { name, quantityMilli, unit }`, rozpoznaje ilość **tylko na początku
+albo na końcu** wpisu:
+
+| Wpis | Wynik |
+|---|---|
+| `2 mleko`, `mleko 2`, `2x mleko`, `mleko x2`, `mleko ×2` | Mleko · 2 pcs |
+| `mąka 1kg`, `mąka 1 kg`, `1kg mąka` | Mąka · 1 kg |
+| `1,5 kg ziemniaki`, `ziemniaki 1.5kg` | Ziemniaki · 1,5 kg (`quantityMilli = 1500`) |
+| `woda 6 l`, `śmietana 200ml`, `szynka 30 dag` | l / ml; `dag` → `g` ×10 (300 g) |
+| `jajka 2 opak`, `2 op. jajka` | Jajka · 2 pack |
+| `Mleko 3,2%`, `7 Days`, `Pepsi 0,5` | bez ilości — liczba bez jednostki tylko jako całkowita ≤ 99 **na początku** albo z `x`/`×` |
+| `3` | odrzucone — sama liczba nie jest nazwą (`400` z formularza) |
+
+Pierwsza litera nazwy jest podnoszona („mleko" → „Mleko"). Ułamki więcej niż trzech miejsc
+po przecinku są obcinane do tysięcznych.
+
+### 14.5 Dział i słownik
+
+Dział nowej pozycji, w kolejności: `section` z żądania → dział produktu ze słownika
+(ta sama `normalizedName`) → słownik słów kluczowych `SECTION_KEYWORDS` (dopasowanie
+pierwszego słowa znormalizowanej nazwy, np. `mleko → dairy`, `chleb → bakery`,
+`papier → hygiene`) → `other`.
+
+Przy każdym dopisaniu (ręcznym i z commitu) serwis robi **upsert produktu**: brak → nowy
+wiersz z działem pozycji; jest → `use_count + 1`, `last_used_at = now`. Zmiana działu
+pozycji w arkuszu zmienia też dział produktu — następnym razem trafi tam sam.
+Zmiana nazwy pozycji nie zmienia produktu (tworzy/podpina inny przy następnym zapisie).
+
+**Często kupowane** (`GET /shopping-products/frequent`): produkty z `last_used_at` w ostatnich
+90 dniach, bez tych, które są *do kupienia* na danej liście, kolejność `use_count` malejąco,
+potem `last_used_at`; maks. 12.
+
+**„Już mam" w imporcie przepisu:** `alreadyHave = true` ⇔ produkt o tej samej
+`normalizedName` ma `is_staple = 1` **albo** model zwrócił `pantryStaple = true` i produktu
+w słowniku nie ma. Produkt ze słownika bez flagi wygrywa z oceną modelu („Nie zawsze mam"
+zdjęte raz zostaje zdjęte). `selected = !alreadyHave`.
+
+### 14.6 Zestaw startowy, lista domyślna, kolejność
+
+- **Pierwsze wejście:** `GET /shopping-lists` przy `households.shopping_initialized_at IS NULL`
+  zakłada w jednej transakcji listę „Spożywcze" (domyślną) i produkty `STARTER_STAPLES`
+  (03 §5a, upsert — istniejące dostają flagę), potem ustawia znacznik. Usunięcie wszystkich
+  list później **nie** zakłada ich ponownie.
+- **I-26:** archiwizacja albo usunięcie domyślnej przenosi flagę na pierwszą
+  niezarchiwizowaną wg `sort_order`, potem `created_at`; przywrócenie z archiwum, gdy nie
+  ma żadnej innej, ustawia przywróconą jako domyślną.
+- **Kolejność na ekranie:** do kupienia — wg `SECTION_ORDER` (stała, P-5: produce →
+  bakery → dairy → meat_fish → dry_goods → frozen → drinks → household_chemicals →
+  hygiene → home → other), w dziale wg `created_at`; kupione — na końcu, wg `checked_at`
+  malejąco.
+
+### 14.7 Odhaczanie i czyszczenie
+
+- `checked: true` na pozycji kupionej i `checked: false` na niekupionej nic nie zmieniają
+  (bez zmiany `updated_at`) — ponowienia z kolejki offline są bezpieczne (ADR-096).
+- Odznaczenie pozycji, gdy na liście jest już inna *do kupienia* o tym samym kluczu
+  (§14.3), scala je (inaczej złamałoby I-29).
+- `clear-checked` ustawia `cleared_at = now` wszystkim kupionym i niewyczyszczonym, a przed
+  tym **fizycznie usuwa** pozycje tej listy z `cleared_at` starszym niż 24 h (I-28).
+  `listEmpty = true`, gdy nie zostało nic do kupienia — front proponuje archiwizację.
+- `restore-cleared` zeruje `cleared_at` (pozycje wracają jako kupione); przywrócenie,
+  które złamałoby I-29, nie dotyczy kupionych, więc konfliktu nie ma.
+- Konflikty między domownikami: ostatni zapis wygrywa (kolejność przyjęcia żądań).
+
+### 14.8 Przypadki brzegowe (każdy z testem)
+
+| Przypadek | Oczekiwany wynik |
+|---|---|
+| 100 g przy ×1, tabliczka 100 g | 1 pcs |
+| 105 g / 110 g / 111 g, tabliczka 100 g | 1 / 1 / 2 pcs |
+| 125 g masła ×0,5, kostka 200 g | 1 pcs, dopisek „62,5 g" (`needed = 62 500`) |
+| 3 jajka ×1,5 (4,5 szt.), opak. 10 szt. | 1 pack |
+| 12 jajek ×1, opak. 10 szt. | 2 pack |
+| 2 jajka, bez opakowania | 2 pcs |
+| ×0,25 i ×4 (granice) | przeliczone; ×0,24 i ×4,01 → `400` |
+| `amount = null` („sól do smaku") | 1 pcs, „do smaku", zwykle w „Już mam" |
+| zmiana mnożnika po ręcznej poprawce ilości | poprawiona ilość zostaje |
+| „Mleko" na liście jako kupione, import dodaje „mleko" | nowa pozycja, bez scalania |
+| dopisanie offline powtórzone z tym samym `id` | jedna pozycja, druga odpowiedź `200` |
+| odhaczenie pozycji usuniętej przez drugą osobę | `404`; front usuwa ją z widoku bez komunikatu błędu |
+| archiwizacja jedynej listy | lista w archiwum, brak domyślnej; szybkie dopisanie proponuje utworzenie listy |
+| reset danych, ponowne wejście | znów „Spożywcze" i zestaw startowy |
+| `Mleko 3,2%` w szybkim dopisaniu | nazwa „Mleko 3,2%", bez ilości |
+| 1000 jednostek (`1 000 000` milli) / 1001 | przyjęte / `400` |

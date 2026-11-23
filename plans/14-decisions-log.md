@@ -4590,3 +4590,143 @@ to, co i tak dało się zrobić ręcznie.
 **Konsekwencje.** `resetPin` w `auth.service.ts`, `deleteAttemptsForEmail`
 w `auth.repository.ts`, testy w `reset-pin.test.ts`. Zmienione: 09 §10.1, 10 §3
 i lista kroków wdrożenia, README.
+---
+
+<a id="adr-093"></a>
+
+## ADR-093 — Listy zakupów: osobny moduł bez kwot, ilość w tysięcznych
+
+**Data:** 2026-11-22 · **Zadanie:** prośba właściciela, Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
+
+**Kontekst.** Właściciel chce wspólnej listy zakupów: jednej żywej („Spożywcze”), kilku
+okazjonalnych, z odhaczaniem w sklepie i czyszczeniem kupionych. Lista nie planuje kwot.
+
+**Decyzja.** Nowy moduł `shopping` (`routes → service → repository`), tabele
+`shopping_lists`, `shopping_items`, `shopping_products` (17 §6). Lista nie zna cen i niczego
+nie księguje; jedynym mostem do finansów jest podpowiedź „Zeskanuj paragon” po czyszczeniu.
+Ilość jest opcjonalna, zapisana jako `quantity_milli INTEGER` z jednostką
+(`szt | opak | kg | g | l | ml`), bez liczb zmiennoprzecinkowych w bazie. „Wyczyść kupione”
+ustawia `cleared_at` (cofnięcie do 24 h), fizyczne usunięcie robi następne czyszczenie.
+Słownik produktów gospodarstwa pamięta dział, licznik użyć i flagę „zawsze w domu”.
+
+**Uzasadnienie.** Planer budżetu (16) to kartka na miesiąc z kwotami; lista zakupów jest
+ciągła i bezkwotowa, więc wspólny model tylko by przeszkadzał. Tysięczne części jednostki
+dają 1,5 kg i 0,5 l bez floatów, jak grosze. Słownik zamiast osobnej tabeli „produktów
+podstawowych” daje podpowiedzi, działy i „zawsze w domu” z jednego miejsca.
+
+**Rozstrzygnięcia właściciela (17 §9).** Wszystkie listy wspólne; pozycje z przepisu
+w opakowaniach z dopiskiem dokładnej ilości; stała kolejność działów; zestaw startowy
+„zawsze w domu” z mlekiem, jajkami i masłem, rozszerzalny przez użytkownika; bez
+zapamiętanych przepisów i bez powiązania z budżetem; „Zakupy” na start poza dolnym paskiem.
+
+**Konsekwencje.** Zmienią się: 00 §4 (#15), 03, 04, 05, 06, 07 §14 — w `F10-1`.
+
+---
+
+<a id="adr-094"></a>
+
+## ADR-094 — Import listy i przepisu przez AI obok pipeline'u dokumentów
+
+**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
+
+**Kontekst.** Pozycje mają powstawać ze zdjęcia tablicy na lodówce i z przepisu (zrzut,
+link, tekst) z mnożnikiem porcji. Pipeline dokumentów (08) jest zbudowany pod dokumenty
+finansowe: SHA-256, przechowywanie bezterminowe, commit do transakcji.
+
+**Decyzja.**
+
+1. Osobne tabele `shopping_imports` i `shopping_import_items`; wspólne z 08:
+   `prepareForVision`, model z `households.ai_model`, structured outputs, **wspólny
+   miesięczny limit kosztów** i limit odczytów na godzinę, praca w tle, oznaczanie
+   przerwanych przy starcie.
+2. Plik importu jest usuwany po zatwierdzeniu albo odrzuceniu, najpóźniej po 7 dniach.
+3. **Model nie liczy opakowań.** Zwraca ilość bazową przepisu i typowe opakowanie;
+   opakowania wylicza `shared/domain/shopping.ts` (ceil z tolerancją 10%), więc zmiana
+   mnożnika w przeglądzie przelicza się bez ponownego wywołania AI.
+4. „Już mam” = produkt ze słownika z flagą „zawsze w domu” albo ocena modelu
+   `pantryStaple` dla rzeczy oczywistych.
+5. Stan przeglądu (zaznaczenia, poprawki) zapisuje się na serwerze — inaczej niż Z-40.
+
+**Uzasadnienie.** Zasada z 08 §1 (AI proponuje, człowiek zatwierdza) zostaje; arytmetyka
+jest deterministyczna i testowalna, a koszt odczytu nie rośnie przy zabawie mnożnikiem.
+
+**Konsekwencje.** Nowa sekcja 08 §17 (prompt, schematy, ocena jakości) w `F10-1`.
+
+---
+
+<a id="adr-095"></a>
+
+## ADR-095 — Pobieranie przepisu z linku po stronie serwera z ochroną SSRF
+
+**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
+
+**Kontekst.** Pierwsze wywołanie zewnętrznego adresu podanego przez użytkownika. Serwer
+na VPS z dostępem do sieci wewnętrznej kontenerów to klasyczny cel SSRF.
+
+**Decyzja.** `fetchRecipeSource`: tylko `http`/`https` na 80/443; adres po DNS nie może
+być prywatny, pętlą zwrotną, link-local ani ULA; przekierowania (max 3) sprawdzane od nowa;
+10 s, 3 MB, tylko `text/html`, bez ciasteczek, ogólny `User-Agent`. Najpierw JSON-LD
+`schema.org/Recipe`, potem oczyszczony tekst strony (~30 tys. znaków). Porażka kieruje
+do wklejenia tekstu albo zrzutu ekranu.
+
+**Odrzucone.** Narzędzie `web_fetch` po stronie Anthropic: zdejmuje SSRF z naszego serwera,
+ale wysyła do modelu całą stronę, nie każdy model z katalogu je obsługuje, a JSON-LD
+i tak trzeba wyłuskać. Wraca, jeśli własne pobieranie okaże się zawodne.
+
+**Konsekwencje.** Dopisek w 09 (model zagrożeń) i 08 §13 (prywatność: link i tekst
+przepisu trafiają do modelu) w `F10-1`.
+
+---
+
+<a id="adr-096"></a>
+
+## ADR-096 — Lista zakupów działa bez sieci (wyjątek od „dane zawsze z sieci”)
+
+**Data:** 2026-11-22 · **Zadanie:** Faza 10 (plan) · **Status:** przyjęta (potwierdzona przez właściciela 2026-11-22)
+
+**Kontekst.** 06 §5: powłoka PWA z cache, dane zawsze z sieci. W sklepie (piwnica marketu)
+zasięgu często nie ma, a odhaczanie to właśnie ta chwila.
+
+**Decyzja.** Wyłącznie zapytania list zakupów są utrwalane w IndexedDB, a mutacje pozycji
+czekają w kolejce i wysyłają się po powrocie sieci (TanStack Query `offlineFirst`,
+utrwalone wstrzymane mutacje). Nowa pozycja dopisana offline ma ULID nadany przez klienta
+(serwer przyjmuje go, jeśli jest poprawny i wolny) — ponowienie nie dubluje. Ostatni zapis
+wygrywa; odhaczenie jest idempotentne. Między domownikami: odpytywanie co 15 s z `ETag`.
+Kwoty i pozostałe ekrany bez zmian.
+
+**Uzasadnienie.** Pomyłka na liście zakupów kosztuje najwyżej jedno mleko za dużo; pomyłka
+w kwotach fałszuje budżet, dlatego wyjątek nie rozszerza się na resztę aplikacji.
+
+**Konsekwencje.** Zmienią się 06 §5, 02 (identyfikator od klienta jako udokumentowany
+wyjątek), 01 (utrwalanie zapytań) w `F10-1`.
+
+---
+
+<a id="adr-097"></a>
+
+## ADR-097 — Listy zakupów: ustalenia przy przenoszeniu kontraktu (`F10-1`)
+
+**Data:** 2026-11-22 · **Zadanie:** `F10-1` · **Status:** przyjęta
+
+**Kontekst.** Szkic w 17 §6–§7 miał kilka rzeczy niezgodnych z konwencjami 03 albo
+niedookreślonych.
+
+**Decyzja.**
+
+1. **Znaczniki czasu** `INTEGER` (epoch ms), jak w całym 03 — szkic miał `TEXT`.
+2. **Enumy po angielsku** w bazie i kontrakcie: jednostki `pcs | pack | kg | g | l | ml`
+   (szkic: `szt`, `opak`), działy `produce`, `dairy`… (05 §2); polskie nazwy tylko
+   w interfejsie, jak w pozostałych enumach.
+3. **Zestaw startowy** nie jest seedem bazy: zakłada go pierwsze `GET /shopping-lists`,
+   pilnowane kolumną `households.shopping_initialized_at` (03 §5a, 07 §14.6) — tak działa
+   też dla gospodarstwa, które już istnieje na produkcji, a reset danych zeruje znacznik.
+4. **Pobieranie strony** w `core/safe-fetch.ts` z połączeniem na sprawdzony adres
+   (ochrona przed DNS rebinding), 09 §7a.
+5. **Kody błędów importu** `RECIPE_FETCH_BLOCKED`, `RECIPE_FETCH_FAILED`,
+   `RECIPE_NOT_FOUND` jako `errorCode` importu w stanie `failed`, nie jako kody HTTP.
+6. **Ilość od modelu** przychodzi jako liczba dziesiętna i jest przeliczana na tysięczne
+   w jednym miejscu na wejściu (08 §17.2); dalej wyłącznie liczby całkowite.
+7. **Bez `document_logs`** dla importów w v1 — `error_code` i `ai_raw_response` importu.
+
+**Konsekwencje.** Zmienione: 01, 02, 03, 04, 05, 06, 07, 08, 09, 17 §4 i §6 (szkic zastąpiony
+mapą odwołań).
