@@ -750,4 +750,31 @@ describe('poprawki po przeglądzie (ADR-102)', () => {
     ).toMatchObject({ status: 'failed', errorCode: 'RECIPE_NOT_FOUND' });
     expect(s.extractor.extractRecipe).not.toHaveBeenCalled();
   });
+
+  it('stan odczytu zmienia wersję listy — baner „Odczyt gotowy" dochodzi mimo ETag', async () => {
+    const s = await setup();
+    s.extractor.extractList.mockResolvedValue(LIST_RESULT);
+    const etagOf = async (): Promise<string | undefined> =>
+      (
+        await s.app.app.inject({
+          method: 'GET',
+          url: `/api/v1/shopping-lists/${s.listId}/items`,
+          headers: s.home.headers,
+        })
+      ).headers.etag;
+    const before = await etagOf();
+    const parsed = await uploadPhoto(s);
+    const after = await etagOf();
+    expect(after).not.toBe(before);
+    const items = await call<{ list: { pendingImports: { id: string; status: string }[] } }>(
+      s,
+      'GET',
+      `/shopping-lists/${s.listId}/items`,
+    );
+    expect(items.data.list.pendingImports).toEqual([
+      { id: parsed.id, status: 'parsed', kind: 'list_photo' },
+    ]);
+    await call(s, 'POST', `/shopping-imports/${parsed.id}/discard`);
+    expect(await etagOf()).not.toBe(after);
+  });
 });

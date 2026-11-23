@@ -5032,3 +5032,31 @@ po tej poprawce (decyzja właściciela).
 
 **Konsekwencje.** 15 §4.6 zaktualizowane. Pas musi być ostatnim dzieckiem treści
 arkusza; arkusze krótkie (nazwa listy, potwierdzenia) zostają bez pasa — mieszczą się.
+
+---
+
+<a id="adr-106"></a>
+
+## ADR-106 — Wejście do przeglądu odczytu: nawigacja po zamknięciu arkusza, wersja listy przy zmianie importu
+
+**Data:** 2026-11-23 · **Zadanie:** błąd zgłoszony przez właściciela · **Status:** przyjęta
+
+**Kontekst.** Po „Odczytaj listę" telefon zostawał na liście, a baner „Lista ze zdjęcia
+odczytana — przejrzyj" się nie pojawiał; na karcie listy widać było tylko „Odczyt gotowy
+do przejrzenia" bez drogi do przeglądu. Dwie przyczyny:
+
+1. Arkusz „Dodaj z…" przechodził do przeglądu i w tej samej chwili się zamykał. Zamknięcie
+   arkusza robi `history.back()` (15 §4.6), które cofało świeże przejście. Testy tego nie
+   widziały — router w pamięci nie słucha historii okna. Ten sam błąd miało „Duplikuj"
+   (przejście na kopię listy).
+2. Ekran listy odpytuje z `ETag` z wersji listy, a zmiana stanu importu jej nie
+   podbijała — odpowiedź `304` zostawiała stare `pendingImports`, więc baner nie powstawał.
+
+**Decyzja.** Przejście z arkusza dopiero po `popstate` zamknięcia (jak filtry historii,
+ADR-037); `ImportForm` bez arkusza (`/shopping/share`) przechodzi od razu z `replace`.
+Każda zmiana stanu albo listy importu (`insertImport`, `transitionImport`, oznaczanie
+przerwanych) podbija wersję listy — w repozytorium, w jednym miejscu.
+
+**Konsekwencje.** `renderScreen` dostał opcję `history: 'browser'` (prawdziwa historia
+okna) — testy regresji obu przejść na niej, sprawdzone, że bez poprawki nie przechodzą.
+04 §14b i 15 §4.6 zaktualizowane.

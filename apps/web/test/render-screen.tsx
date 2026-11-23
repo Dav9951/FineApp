@@ -1,7 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  createMemoryRouter,
+  RouterProvider,
+  type RouteObject,
+} from 'react-router-dom';
 import { vi } from 'vitest';
 
 import * as authApi from '../src/features/auth/api.js';
@@ -53,18 +58,28 @@ export interface RenderedScreen {
  * @param path - Adres startowy.
  * @param routes - Trasy do zamontowania.
  * @param session - Sesja odtwarzana na starcie (np. z innymi ustawieniami gospodarstwa).
+ * @param options - Opcje.
+ * @param options.history - `browser` — prawdziwa historia okna zamiast pamięci: tylko tak
+ *   widać współpracę z arkuszami, które zamknięciem robią `history.back()` (15 §4.6).
  * @returns Router i klient zapytań.
  */
 export function renderScreen(
   path: string,
   routes: RouteObject[],
   session: typeof TEST_SESSION = TEST_SESSION,
+  options: { readonly history?: 'memory' | 'browser' } = {},
 ): RenderedScreen {
   vi.spyOn(authApi, 'refresh').mockResolvedValue(session);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
+  let router: ReturnType<typeof createMemoryRouter>;
+  if (options.history === 'browser') {
+    window.history.replaceState(null, '', path);
+    router = createBrowserRouter(routes);
+  } else {
+    router = createMemoryRouter(routes, { initialEntries: [path] });
+  }
   const Tree = (): ReactNode => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

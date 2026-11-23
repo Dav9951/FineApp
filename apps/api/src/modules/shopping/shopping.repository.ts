@@ -838,6 +838,8 @@ export function clearImportFiles(handle: DbHandle, householdId: string, importId
  */
 export function insertImport(handle: DbHandle, row: ShoppingImportInsert): void {
   handle.db.insert(shoppingImports).values(row).run();
+  // Baner „Czytam…" na liście jest częścią jej odpowiedzi — `ETag` musi się zmienić.
+  touchList(handle, row.householdId, row.listId, row.createdAt);
 }
 
 /**
@@ -878,7 +880,9 @@ export function transitionImport(
   from: readonly ShoppingImportRow['status'][],
   patch: Partial<Omit<ShoppingImportRow, 'id' | 'householdId' | 'createdAt' | 'createdBy'>>,
 ): ShoppingImportRow | undefined {
-  return handle.db
+  const previousListId =
+    patch.listId === undefined ? undefined : findImport(handle, householdId, importId)?.listId;
+  const row = handle.db
     .update(shoppingImports)
     .set(patch)
     .where(
@@ -890,6 +894,15 @@ export function transitionImport(
     )
     .returning()
     .get();
+  // Stan i lista importu są w odpowiedzi listy (`pendingImports`, baner „Odczyt gotowy") —
+  // bez podbicia wersji odpytywanie z `ETag` dostawało 304 i baner nie powstawał.
+  if (row !== undefined && (patch.status !== undefined || patch.listId !== undefined)) {
+    touchList(handle, householdId, row.listId, row.updatedAt);
+    if (previousListId !== undefined && previousListId !== row.listId) {
+      touchList(handle, householdId, previousListId, row.updatedAt);
+    }
+  }
+  return row;
 }
 
 /**
@@ -1023,9 +1036,12 @@ export function findProductsByNames(
  * @returns Liczba oznaczonych.
  */
 export function failAllProcessingImports(handle: DbHandle, now: number): number {
-  return handle.db
+  const failed = handle.db
     .update(shoppingImports)
     .set({ status: 'failed', errorCode: 'INTERRUPTED', updatedAt: now })
     .where(eq(shoppingImports.status, 'processing'))
-    .run().changes;
+    .returning({ householdId: shoppingImports.householdId, listId: shoppingImports.listId })
+    .all();
+  for (const { householdId, listId } of failed) touchList(handle, householdId, listId, now);
+  return failed.length;
 }

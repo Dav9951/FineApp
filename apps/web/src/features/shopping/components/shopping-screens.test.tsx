@@ -213,6 +213,24 @@ describe('ShoppingListScreen', () => {
     );
   });
 
+  it('„Duplikuj" przenosi na kopię — zamknięcie arkusza nazwy nie cofa przejścia', async () => {
+    const user = userEvent.setup();
+    mockList();
+    const copyId = '01JC7K0000000000000000COPY';
+    vi.spyOn(shoppingApi, 'duplicateShoppingList').mockResolvedValue(
+      list({ id: copyId, name: 'Spożywcze (kopia)', isDefault: false }),
+    );
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES, undefined, { history: 'browser' });
+    await user.click(await screen.findByRole('button', { name: 'Menu listy' }, { timeout: 3_000 }));
+    await user.click(await screen.findByRole('button', { name: 'Duplikuj' }));
+    await user.click(await screen.findByRole('button', { name: 'Utwórz kopię' }));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe(`/shopping/${copyId}`);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(window.location.pathname).toBe(`/shopping/${copyId}`);
+  });
+
   it('kosz usuwa od razu, „Cofnij" dopisuje pozycję na jej miejsce (ADR-104)', async () => {
     const user = userEvent.setup();
     mockList();

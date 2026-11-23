@@ -389,7 +389,7 @@ zlewają się w kreskowanie i siedem sekcji czyta się jak jedna tabela.
 | Nagłówek | ✕ po lewej, tytuł na środku, akcja po prawej; przyklejony, nie przewija się |
 | Treść | `overflow-y-auto`; przy otwartej klawiaturze aktywne pole przewijane do widoku |
 | Akcje | **zawsze widoczne, bez przewijania** — pas `SHEET_ACTIONS` jako ostatnie dziecko treści: przyklejony do **krawędzi** przewijanego obszaru (nie do jego wcięcia — inaczej pod przyciskiem przewija się treść), `bg-card`, górna linia `--border`, dolny padding z bezpiecznym marginesem urządzenia. Dwie akcje obok siebie (*Usuń z listy* · *Zapisz*), nie jedna pod drugą ([ADR-105](./14-decisions-log.md#adr-105)) |
-| Zamknięcie | ✕, gest w dół, klawisz Esc, **oraz przycisk „wstecz" przeglądarki** (przechwycony `popstate`) |
+| Zamknięcie | ✕, gest w dół, klawisz Esc, **oraz przycisk „wstecz" przeglądarki** (przechwycony `popstate`). Zamknięcie robi `history.back()` — przejście na inny ekran z arkusza idzie **dopiero po `popstate`** tego cofnięcia, inaczej zostaje odwołane ([ADR-106](./14-decisions-log.md#adr-106)) |
 
 > **Dlaczego `--scrim` jest osobnym tokenem.** Nakładka z `--foreground` działa tylko
 > w motywie jasnym. W ciemnym tekst podstawowy jest prawie biały, więc przyciemnienie
