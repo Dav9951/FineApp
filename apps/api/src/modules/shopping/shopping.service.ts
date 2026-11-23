@@ -245,7 +245,7 @@ function requireList(handle: DbHandle, householdId: string, listId: string): Sho
  * @throws {NotFoundError} Gdy listy nie ma.
  * @throws {ConflictError} Gdy lista jest w archiwum.
  */
-function requireEditableList(
+export function requireEditableList(
   handle: DbHandle,
   householdId: string,
   listId: string,
@@ -661,68 +661,114 @@ export function createShoppingItem(
     }
     requireEditableList(handle, householdId, listId);
     const now = clock.now().getTime();
-    const name = tidyShoppingName(request.name);
-    const normalizedName = normalizeShoppingName(name);
-    const product = findProductByName(handle, householdId, normalizedName);
-    const section =
-      request.section ?? suggestShoppingSection(normalizedName, product?.section ?? null);
-    const quantity = { quantityMilli: request.quantityMilli ?? null, unit: request.unit ?? null };
-    const note = request.note ?? null;
-    const productId = recordProductUse(
-      handle,
-      householdId,
-      name,
-      normalizedName,
-      section,
-      request.section !== undefined,
+    const added = addItemToList(handle, householdId, userId, listId, {
+      id: request.id,
+      name: request.name,
+      quantityMilli: request.quantityMilli ?? null,
+      unit: request.unit ?? null,
+      note: request.note ?? null,
+      section: request.section,
+      source: 'manual',
+      importId: null,
       now,
-    );
-
-    const target = findMergeTarget(
-      findVisibleItems(handle, householdId, listId).map((row) => ({
-        ...row,
-        checked: row.checkedAt !== null,
-      })),
-      normalizedName,
-      quantity.unit,
-    );
-    if (target) {
-      const merged = mergeQuantities(target, quantity);
-      patchItem(handle, householdId, target.id, {
-        quantityMilli: merged.quantityMilli,
-        unit: merged.unit,
-        note: mergeNotes(target.note, note),
-        productId,
-        updatedBy: userId,
-        updatedAt: now,
-      });
-      outcome = { id: target.id, kind: 'merged' };
-    } else {
-      const id = request.id ?? newId();
-      insertItems(handle, [
-        {
-          id,
-          householdId,
-          listId,
-          productId,
-          name,
-          normalizedName,
-          quantityMilli: quantity.quantityMilli,
-          unit: quantity.unit,
-          note,
-          section,
-          source: 'manual',
-          createdBy: userId,
-          updatedBy: userId,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]);
-      outcome = { id, kind: 'created' };
-    }
+    });
+    outcome = { id: added.id, kind: added.merged ? 'merged' : 'created' };
     touchList(handle, householdId, listId, now);
   })();
   return { item: itemDto(handle, householdId, outcome.id), kind: outcome.kind };
+}
+
+/** Pozycja do dopisania — ręcznie albo z zatwierdzonego importu. */
+export interface NewItemInput {
+  /** Identyfikator od klienta (dopisanie offline); `undefined` — nowy z serwera. */
+  readonly id: string | undefined;
+  readonly name: string;
+  readonly quantityMilli: number | null;
+  readonly unit: ShoppingItemDto['unit'];
+  readonly note: string | null;
+  /** Dział podany wprost — trafia też do słownika; `undefined` — podpowiedź (07 §14.5). */
+  readonly section: ShoppingSection | undefined;
+  readonly source: ShoppingItemDto['source'];
+  readonly importId: string | null;
+  readonly now: number;
+}
+
+/**
+ * Dopisuje pozycję do listy albo scala ją z istniejącą do kupienia (07 §14.3, I-29) —
+ * wspólne dla dopisania ręcznego i zatwierdzenia importu (I-30). Bez transakcji
+ * i bez podbijania wersji listy: to robi wołający.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo z tokenu.
+ * @param userId - Kto dopisuje.
+ * @param listId - Lista (sprawdzona przez wołającego).
+ * @param input - Pozycja.
+ * @returns Identyfikator pozycji i czy się scaliła.
+ */
+export function addItemToList(
+  handle: DbHandle,
+  householdId: string,
+  userId: string,
+  listId: string,
+  input: NewItemInput,
+): { id: string; merged: boolean } {
+  const { now } = input;
+  const name = tidyShoppingName(input.name);
+  const normalizedName = normalizeShoppingName(name);
+  const product = findProductByName(handle, householdId, normalizedName);
+  const section = input.section ?? suggestShoppingSection(normalizedName, product?.section ?? null);
+  const quantity = { quantityMilli: input.quantityMilli, unit: input.unit };
+  const productId = recordProductUse(
+    handle,
+    householdId,
+    name,
+    normalizedName,
+    section,
+    input.section !== undefined,
+    now,
+  );
+  const target = findMergeTarget(
+    findVisibleItems(handle, householdId, listId).map((row) => ({
+      ...row,
+      checked: row.checkedAt !== null,
+    })),
+    normalizedName,
+    quantity.unit,
+  );
+  if (target) {
+    const merged = mergeQuantities(target, quantity);
+    patchItem(handle, householdId, target.id, {
+      quantityMilli: merged.quantityMilli,
+      unit: merged.unit,
+      note: mergeNotes(target.note, input.note),
+      productId,
+      updatedBy: userId,
+      updatedAt: now,
+    });
+    return { id: target.id, merged: true };
+  }
+  const id = input.id ?? newId();
+  insertItems(handle, [
+    {
+      id,
+      householdId,
+      listId,
+      productId,
+      name,
+      normalizedName,
+      quantityMilli: quantity.quantityMilli,
+      unit: quantity.unit,
+      note: input.note,
+      section,
+      source: input.source,
+      importId: input.importId,
+      createdBy: userId,
+      updatedBy: userId,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]);
+  return { id, merged: false };
 }
 
 /**

@@ -9,6 +9,7 @@ import { warmUpDummyPinHash } from './modules/auth/auth.pin.js';
 import { failInterruptedDocuments } from './modules/documents/documents.service.js';
 import { pruneDeadSessions, pruneLoginAttempts } from './modules/auth/auth.service.js';
 import { purgeStaleImportFiles } from './modules/shopping/shopping.files.js';
+import { failInterruptedImports } from './modules/shopping/shopping.imports.js';
 
 /**
  * Bootstrap aplikacji: konfiguracja → baza → serwer → nasłuch.
@@ -62,6 +63,12 @@ async function main(): Promise<void> {
   const interrupted = failInterruptedDocuments({ db, clock: systemClock, log: app.log });
   if (interrupted > 0) {
     app.log.warn({ interrupted }, 'Oznaczono przerwane analizy dokumentów');
+  }
+
+  // Odczyt listy zakupów też biegnie w tle — restart zostawia go w `processing` (08 §17.1).
+  const interruptedImports = failInterruptedImports({ db, clock: systemClock });
+  if (interruptedImports > 0) {
+    app.log.warn({ interrupted: interruptedImports }, 'Oznaczono przerwane odczyty list zakupów');
   }
 
   // Zdjęcia list i przepisów nie są dowodem zakupu — po tygodniu znikają (I-31).

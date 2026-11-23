@@ -1460,7 +1460,7 @@ z zapytania, domyślnie 3, inne wartości → `400`.
   > 1 000 000 (1000 jednostek) → `400`.
 - Import: pliki jak w §13 (10 MB, magic bytes, HEIC tylko po konwersji w przeglądarce);
   `kind='list_photo'` z `input` innym niż obraz → `400`; `servingsFactorBps` poza
-  2500…40 000 → `400`. `AI_ENABLED=false` → `503` „Odczyt przez AI jest wyłączony.";
+  2500…40 000 → `400`. `AI_ENABLED=false` → `502 EXTERNAL_SERVICE_ERROR` „Odczyt przez AI jest wyłączony." (jak §13);
   limit kosztów → `AI_BUDGET_EXCEEDED` jak w §13.
 - Pobranie przepisu (`input='url'`) odbywa się w tle; porażka kończy import jako `failed`
   z `errorCode` `RECIPE_FETCH_BLOCKED` (adres prywatny / zły port / zły schemat),

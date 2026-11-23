@@ -91,7 +91,10 @@ export interface TestApp {
 export async function buildTestApp(
   overrides: Partial<Config> = {},
   clock?: Clock,
-  extra: Pick<ServerDeps, 'extractor' | 'documentJobs'> = {},
+  extra: Pick<
+    ServerDeps,
+    'extractor' | 'documentJobs' | 'shoppingExtractor' | 'fetchRecipeHtml'
+  > = {},
 ): Promise<TestApp> {
   const config = testConfig(overrides);
   const db = openDatabase(':memory:');
