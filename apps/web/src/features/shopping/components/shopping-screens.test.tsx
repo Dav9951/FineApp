@@ -238,6 +238,32 @@ describe('ShoppingListScreen', () => {
     expect(order?.itemIds).toContain(body?.id);
   });
 
+  it('„Cofnij" po usunięciu z Kupionych przywraca pozycję jako kupioną', async () => {
+    const user = userEvent.setup();
+    mockList();
+    vi.spyOn(shoppingApi, 'deleteShoppingItem').mockResolvedValue(undefined);
+    const create = vi.spyOn(shoppingApi, 'createShoppingItem').mockResolvedValue({
+      item: item({ id: '01JC7K000000000000000000I9', name: 'Masło' }),
+      merged: false,
+    });
+    const update = vi
+      .spyOn(shoppingApi, 'updateShoppingItem')
+      .mockResolvedValue(item({ id: '01JC7K000000000000000000I9', name: 'Masło', checked: true }));
+    const reorder = vi.spyOn(shoppingApi, 'reorderShoppingItems').mockResolvedValue(undefined);
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    await user.click(
+      await screen.findByRole('button', { name: 'Kupione (1)' }, { timeout: 3_000 }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Usuń: Masło' }));
+    await user.click(await screen.findByRole('button', { name: 'Cofnij' }));
+    await waitFor(() => {
+      expect(update).toHaveBeenCalled();
+    });
+    const [, , body] = create.mock.calls[0] ?? [];
+    expect(update).toHaveBeenCalledWith('token-testowy', body?.id, { checked: true });
+    expect(reorder).not.toHaveBeenCalled();
+  });
+
   it('każdy wiersz do kupienia ma przycisk „Przesuń" dla klawiatury (ADR-104)', async () => {
     mockList();
     renderScreen(`/shopping/${LIST_ID}`, ROUTES);

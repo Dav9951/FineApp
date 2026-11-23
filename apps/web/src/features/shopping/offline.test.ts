@@ -193,6 +193,29 @@ describe('kolejność offline (ADR-104)', () => {
     );
     expect(after.items.find((i) => i.id === ID(2))?.sortOrder).toBe(8);
   });
+
+  it('odznaczona wraca na koniec do kupienia, jak na serwerze', () => {
+    const after = applyOps(
+      data([
+        item({ id: ID(1), name: 'Mleko', sortOrder: 0 }),
+        item({ id: ID(2), name: 'Chleb', sortOrder: 1, checked: true, checkedAt: 5 }),
+        item({ id: ID(3), name: 'Jajka', sortOrder: 4 }),
+      ]),
+      [{ kind: 'update', listId: LIST, itemId: ID(2), body: { checked: false } }],
+      'AK',
+    );
+    expect(after.items.map((i) => i.name)).toEqual(['Mleko', 'Jajka', 'Chleb']);
+  });
+
+  it('migawka sprzed ADR-104 (bez sortOrder) dostaje 0 zamiast NaN', () => {
+    const old = data([item({ id: ID(1), name: 'Mleko' })]);
+    const { sortOrder: _dropped, ...legacy } = old.items[0] as ShoppingItemDto;
+    window.localStorage.setItem(
+      `fineapp.offline.shopping.items.${LIST}`,
+      JSON.stringify({ ...old, items: [legacy] }),
+    );
+    expect(readSnapshot(LIST)?.items[0]?.sortOrder).toBe(0);
+  });
 });
 
 describe('kolejka i migawka', () => {

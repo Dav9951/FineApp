@@ -20,14 +20,17 @@ import {
   formatShoppingQuantity,
   SHOPPING_SECTION_LABELS,
   type ShoppingItemDto,
+  type ShoppingItemsDto,
   type ShoppingSection,
 } from '@fineapp/shared';
 import { Check, Circle, GripVertical, MoreHorizontal, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CSSProperties, ReactNode } from 'react';
 
 import { IconButton, useToast } from '../../../components/ui/index.js';
 import { newClientId } from '../../../lib/client-id.js';
 import { cn } from '../../../lib/cn.js';
+import { qk } from '../../../lib/query-keys.js';
 import { useItemChange } from '../hooks/use-shopping.js';
 import {
   arrangeEntries,
@@ -36,6 +39,7 @@ import {
   isSectionEntry,
   itemEntry,
   reorderRequest,
+  toBuyItems,
 } from '../shopping-arrange.js';
 
 /**
@@ -43,8 +47,20 @@ import {
  * `⋯` do arkusza i — dla pozycji do kupienia — przytrzymanie i przeciągnięcie.
  */
 
-/** Po upuszczeniu przeglądarka i tak wysyła „click" — ten jeden ma nie odhaczać. */
-let lastDragEndAt = 0;
+/**
+ * Po upuszczeniu przeglądarka i tak wysyła „click" w przeciągnięty wiersz — ten jeden ma
+ * nie odhaczać. Tylko ten wiersz: dotknięcie innego zaraz po przeciągnięciu działa.
+ */
+let lastDrag: { readonly itemId: string; readonly at: number } | null = null;
+
+/**
+ * Zapamiętuje koniec przeciągania wiersza.
+ *
+ * @param itemId - Przeciągnięta pozycja.
+ */
+function markDragEnd(itemId: string): void {
+  lastDrag = { itemId, at: Date.now() };
+}
 
 /** Dodatki wiersza przeciąganego. */
 interface DragProps {
@@ -59,7 +75,7 @@ interface DragProps {
  * @param props.item - Pozycja.
  * @param props.archived - Lista w archiwum — wiersz tylko do odczytu.
  * @param props.onEdit - Otwarcie arkusza pozycji.
- * @param props.order - Kolejność do kupienia w chwili usunięcia — „Cofnij" przywraca miejsce.
+ * @param props.position - Miejsce wśród do kupienia — „Cofnij" przywraca pozycję w to miejsce.
  * @param props.drag - Stan przeciągania (tylko do kupienia).
  * @returns Element wiersza.
  */
@@ -67,22 +83,23 @@ export function ItemRow({
   item,
   archived,
   onEdit,
-  order,
+  position,
   drag,
 }: {
   readonly item: ShoppingItemDto;
   readonly archived: boolean;
   readonly onEdit: (item: ShoppingItemDto) => void;
-  readonly order?: readonly string[];
+  readonly position?: number;
   readonly drag?: DragProps;
 }): ReactNode {
   const change = useItemChange(item.listId);
+  const client = useQueryClient();
   const toast = useToast();
   const quantity = formatShoppingQuantity(item);
   const sortable = drag?.sortable;
 
   const toggle = (): void => {
-    if (Date.now() - lastDragEndAt < 400) return;
+    if (lastDrag?.itemId === item.id && Date.now() - lastDrag.at < 400) return;
     const checked = !item.checked;
     void change({ kind: 'update', itemId: item.id, body: { checked } }).then((outcome) => {
       if (outcome.rejected) {
@@ -122,11 +139,18 @@ export function ItemRow({
               section: item.section,
             },
           });
-          if (!item.checked && order !== undefined && order.length > 1) {
-            void change({
-              kind: 'reorder',
-              body: { itemIds: order.map((other) => (other === item.id ? id : other)) },
-            });
+          if (item.checked) {
+            // Z „Kupionych" wraca do „Kupionych", nie na listę do kupienia.
+            void change({ kind: 'update', itemId: id, body: { checked: true } });
+          } else if (position !== undefined) {
+            // Kolejność z chwili cofnięcia (nie usunięcia) — przeciągnięcia zrobione
+            // w międzyczasie, także na innym telefonie, zostają (ADR-104).
+            const current = client.getQueryData<ShoppingItemsDto>(qk.shoppingItems(item.listId));
+            const order = toBuyItems(current?.items ?? [], false)
+              .map((other) => other.id)
+              .filter((other) => other !== id);
+            order.splice(Math.min(position, order.length), 0, id);
+            if (order.length > 1) void change({ kind: 'reorder', body: { itemIds: order } });
           }
         },
       },
@@ -269,23 +293,29 @@ function dragStyle(sortable: ReturnType<typeof useSortable>): CSSProperties {
  * @param props.item - Pozycja.
  * @param props.archived - Lista w archiwum.
  * @param props.onEdit - Otwarcie arkusza.
- * @param props.order - Kolejność do kupienia.
+ * @param props.position - Miejsce wśród do kupienia.
  * @returns Element wiersza.
  */
 function SortableItemRow({
   item,
   archived,
   onEdit,
-  order,
+  position,
 }: {
   readonly item: ShoppingItemDto;
   readonly archived: boolean;
   readonly onEdit: (item: ShoppingItemDto) => void;
-  readonly order: readonly string[];
+  readonly position: number;
 }): ReactNode {
   const sortable = useSortable({ id: itemEntry(item.id), disabled: archived });
   return (
-    <ItemRow archived={archived} drag={{ sortable }} item={item} onEdit={onEdit} order={order} />
+    <ItemRow
+      archived={archived}
+      drag={{ sortable }}
+      item={item}
+      onEdit={onEdit}
+      position={position}
+    />
   );
 }
 
@@ -355,7 +385,7 @@ export function ToBuyList({
   const announce = announcements(toBuy);
   const entries = arrangeEntries(toBuy, bySection);
   const byId = new Map(toBuy.map((item) => [item.id, item]));
-  const order = toBuy.map((item) => item.id);
+  const flatOrder = toBuyItems(toBuy, false).map((item) => item.id);
   const sensors = useSensors(
     // Mysz: przesunięcie o kilka pikseli; dotyk: przytrzymanie — krótkie dotknięcie
     // dalej odhacza, a przewijanie palcem działa.
@@ -365,7 +395,7 @@ export function ToBuyList({
   );
 
   const onDragEnd = ({ active, over }: DragEndEvent): void => {
-    lastDragEndAt = Date.now();
+    markDragEnd(entryValue(String(active.id)));
     if (over === null) return;
     const moved = byId.get(entryValue(String(active.id)));
     if (moved === undefined) return;
@@ -384,6 +414,9 @@ export function ToBuyList({
         screenReaderInstructions: SCREEN_READER_INSTRUCTIONS,
       }}
       collisionDetection={closestCenter}
+      onDragCancel={({ active }) => {
+        markDragEnd(entryValue(String(active.id)));
+      }}
       onDragEnd={onDragEnd}
       sensors={sensors}
     >
@@ -406,7 +439,12 @@ export function ToBuyList({
             if (item === undefined) return null;
             return (
               <li key={entry}>
-                <SortableItemRow archived={archived} item={item} onEdit={onEdit} order={order} />
+                <SortableItemRow
+                  archived={archived}
+                  item={item}
+                  onEdit={onEdit}
+                  position={flatOrder.indexOf(item.id)}
+                />
               </li>
             );
           })}

@@ -981,7 +981,8 @@ CREATE TABLE shopping_items (
   unit             TEXT    CHECK (unit IN ('pcs','pack','kg','g','l','ml')),
   note             TEXT    CHECK (note IS NULL OR length(note) <= 120),
   section          TEXT    NOT NULL,  -- te same wartości co shopping_products.section
-  -- Kolejność w dziale, ustawiana przeciąganiem (ADR-104); nowa pozycja = max na liście + 1.
+  -- Kolejność na liście, ustawiana przeciąganiem (ADR-104); nowa pozycja = max na liście + 1,
+  -- odznaczona wraca na koniec.
   sort_order       INTEGER NOT NULL DEFAULT 0,
   source           TEXT    NOT NULL DEFAULT 'manual'
                      CHECK (source IN ('manual','list_photo','recipe')),

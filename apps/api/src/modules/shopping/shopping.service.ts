@@ -879,6 +879,9 @@ export function updateShoppingItem(
     if (request.checked === false && item.checkedAt !== null) {
       next.checkedAt = null;
       next.checkedBy = null;
+      // Odznaczona wraca na koniec do kupienia — jej stara kolejność mogła się już
+      // pokryć z cudzą po przeciąganiu (07 §14.6, ADR-104).
+      next.sortOrder = findMaxItemOrder(handle, householdId, item.listId) + 1;
     }
     next.listId = targetListId;
     // Przeniesiona na inną listę ląduje na jej końcu (ADR-104).
@@ -1001,18 +1004,33 @@ export function reorderShoppingItems(
           : item.section;
       if (item.sortOrder === index && section === item.section) return;
       changed = true;
+      let productId = item.productId;
+      if (section !== item.section) {
+        // Jak jawna zmiana działu w `updateShoppingItem`: produkt dostaje dział, a gdy go
+        // w słowniku nie ma — powstaje (07 §14.5).
+        const product = findProductByName(handle, householdId, item.normalizedName);
+        if (product) {
+          productId = product.id;
+          patchProduct(handle, householdId, product.id, { section, updatedAt: now });
+        } else {
+          productId = recordProductUse(
+            handle,
+            householdId,
+            item.name,
+            item.normalizedName,
+            section,
+            true,
+            now,
+          );
+        }
+      }
       patchItem(handle, householdId, id, {
         sortOrder: index,
         section,
+        productId,
         updatedBy: userId,
         updatedAt: now,
       });
-      if (section !== item.section) {
-        const product = findProductByName(handle, householdId, item.normalizedName);
-        if (product) {
-          patchProduct(handle, householdId, product.id, { section, updatedAt: now });
-        }
-      }
     });
     if (changed) touchList(handle, householdId, listId, now);
   })();

@@ -1123,4 +1123,33 @@ describe('kolejność przeciąganiem (07 §14.6, ADR-104)', () => {
       ['B-produkt', 0],
     ]);
   });
+
+  it('poprawki po przeglądzie: move zakłada produkt w słowniku; odznaczona wraca na koniec', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const nowy = (await add(s, listId, { name: 'kwas chlebowy' })).item;
+    const a = (await add(s, listId, { name: 'a-produkt' })).item;
+    const b = (await add(s, listId, { name: 'b-produkt' })).item;
+    // Nazwy nie ma jeszcze w słowniku (dopisanie ją zakłada — usuwamy, żeby sprawdzić drogę „zapisz").
+    s.app.db.db
+      .delete(shoppingProducts)
+      .where(eq(shoppingProducts.normalizedName, 'kwas chlebowy'))
+      .run();
+    expect(
+      (
+        await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, {
+          itemIds: [nowy.id, a.id, b.id],
+          move: { itemId: nowy.id, section: 'drinks' },
+        })
+      ).status,
+    ).toBe(204);
+    await call(s, 'DELETE', `/shopping-items/${nowy.id}`);
+    expect((await add(s, listId, { name: 'kwas chlebowy' })).item.section).toBe('drinks');
+
+    await patchItem(s, a.id, { checked: true });
+    await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, { itemIds: [b.id] });
+    const back = await patchItem(s, a.id, { checked: false });
+    const max = Math.max(...(await items(s, listId)).items.map((item) => item.sortOrder));
+    expect(back.sortOrder).toBe(max);
+  });
 });

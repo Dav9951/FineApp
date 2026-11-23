@@ -4970,6 +4970,15 @@ pozycji wymaga otwarcia arkusza; (3) brak zmiany kolejności — w planerze bud�
 zaktualizowane. `sortShoppingItems(items, { bySection })` — płasko po `sortOrder`, potem
 `createdAt`; z działami najpierw dział.
 
+
+**Poprawki po przeglądzie kodu** (osobna sesja `/code-review`, 4 ważne, 5 drobnych):
+„Usuń transakcję" przeszło do pasa akcji (pod pasem nic nie stoi, ADR-105); „Cofnij"
+po usunięciu z Kupionych przywraca pozycję jako kupioną; „Cofnij" układa kolejność
+z danych w chwili cofnięcia, nie usunięcia; `move` zakłada produkt w słowniku, gdy go
+nie ma; odznaczona pozycja wraca na koniec (07 §14.6); migawki offline bez `sortOrder`
+dostają 0; dotknięcie tłumione tylko w przeciągniętym wierszu (także po anulowaniu);
+„kolejność na liście" zamiast „w dziale" w 03/05; snapshoty migracji 0004–0008 bez
+zmian.
 ---
 
 <a id="adr-105"></a>

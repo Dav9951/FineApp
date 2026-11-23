@@ -191,7 +191,7 @@ export const shoppingItems = sqliteTable(
     unit: text('unit').$type<ShoppingUnit>(),
     note: text('note'),
     section: text('section').notNull().$type<ShoppingSection>(),
-    /** Kolejność w dziale, ustawiana przeciąganiem (ADR-104); nowa = max na liście + 1. */
+    /** Kolejność na liście, ustawiana przeciąganiem (ADR-104); nowa = max na liście + 1. */
     sortOrder: integer('sort_order', { mode: 'number' }).notNull().default(0),
     source: text('source').notNull().default('manual').$type<ShoppingItemSource>(),
     importId: text('import_id').references((): AnySQLiteColumn => shoppingImports.id, {

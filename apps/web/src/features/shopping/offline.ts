@@ -183,10 +183,24 @@ export function pendingOps(listId: string): OutboxOp[] {
  */
 export function readSnapshot(listId: string): ShoppingItemsDto | undefined {
   const value = readOffline(snapshotKey(listId));
-  if (typeof value !== 'object' || value === null || !('items' in value) || !('list' in value)) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('items' in value) ||
+    !('list' in value) ||
+    !Array.isArray(value.items)
+  ) {
     return undefined;
   }
-  return value as ShoppingItemsDto;
+  const data = value as ShoppingItemsDto;
+  // Migawki sprzed ADR-104 nie mają `sortOrder` — bez niego sortowanie dostawało `NaN`.
+  return {
+    ...data,
+    items: data.items.map((item) => ({
+      ...item,
+      sortOrder: (item as Partial<ShoppingItemDto>).sortOrder ?? 0,
+    })),
+  };
 }
 
 /**
@@ -327,6 +341,8 @@ function applyOp(
             next.checked = false;
             next.checkedAt = null;
             next.checkedByInitials = null;
+            // Odznaczona wraca na koniec do kupienia — jak na serwerze (07 §14.6).
+            next.sortOrder = items.reduce((max, other) => Math.max(max, other.sortOrder), -1) + 1;
           }
           return next;
         })

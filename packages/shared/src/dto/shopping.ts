@@ -103,7 +103,7 @@ export const ShoppingItemDtoSchema = z.object({
   unit: ShoppingUnitSchema.nullable(),
   note: z.string().nullable(),
   section: ShoppingSectionSchema,
-  /** Kolejność w dziale (ADR-104). */
+  /** Kolejność na liście (ADR-104). */
   sortOrder: z.number().int(),
   source: ShoppingItemSourceSchema,
   checked: z.boolean(),
