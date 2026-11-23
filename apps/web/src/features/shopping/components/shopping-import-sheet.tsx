@@ -41,9 +41,29 @@ export interface ShoppingImportSheetProps {
  * @returns Element arkusza.
  */
 export function ShoppingImportSheet(props: ShoppingImportSheetProps): ReactNode {
+  const navigate = useNavigate();
+  const { onOpenChange } = props;
   return (
-    <Sheet onOpenChange={props.onOpenChange} open={props.open} title="Dodaj z…">
-      {props.open ? <ImportForm {...props} /> : null}
+    <Sheet onOpenChange={onOpenChange} open={props.open} title="Dodaj z…">
+      {props.open ? (
+        <ImportForm
+          {...props}
+          onCreated={(path) => {
+            // Zamknięcie arkusza cofa jego wpis historii (`history.back()`, 15 §4.6).
+            // Przejście w tej samej chwili zostałoby tym cofnięciem odwołane — telefon
+            // zostawał na liście bez drogi do przeglądu. Przejście dopiero po `popstate`,
+            // jak filtry historii (ADR-037).
+            window.addEventListener(
+              'popstate',
+              () => {
+                void navigate(path);
+              },
+              { once: true },
+            );
+            onOpenChange(false);
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }
@@ -57,12 +77,17 @@ type RecipeInput = 'images' | 'url' | 'text';
  * @param props - Właściwości komponentu.
  * @param props.listId - Lista docelowa.
  * @param props.initial - Link albo tekst z udostępnienia.
+ * @param props.onCreated - Po założeniu odczytu (ścieżka przeglądu); bez niego — od razu
+ *   przejście (ekran `/shopping/share`, gdzie nie ma arkusza).
  * @returns Element formularza.
  */
 export function ImportForm({
   listId,
   initial,
-}: Pick<ShoppingImportSheetProps, 'listId' | 'initial'>): ReactNode {
+  onCreated,
+}: Pick<ShoppingImportSheetProps, 'listId' | 'initial'> & {
+  readonly onCreated?: (path: string) => void;
+}): ReactNode {
   const navigate = useNavigate();
   const create = useCreateImport();
   const shared = initial?.url !== undefined || initial?.text !== undefined;
@@ -127,7 +152,9 @@ export function ImportForm({
       );
     };
     const onSuccess = (created: { id: string }): void => {
-      void navigate(`/shopping/${listId}/import/${created.id}`);
+      const path = `/shopping/${listId}/import/${created.id}`;
+      if (onCreated === undefined) void navigate(path, { replace: true });
+      else onCreated(path);
     };
     if (source === 'photo' || recipeInput === 'images') {
       if (images.length === 0) {

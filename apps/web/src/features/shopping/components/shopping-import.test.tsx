@@ -319,6 +319,43 @@ describe('arkusz „Dodaj z…" i udostępnianie', () => {
     });
   });
 
+  it('po „Odczytaj" telefon trafia do przeglądu — zamknięcie arkusza nie cofa przejścia', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(shoppingApi, 'fetchShoppingItems').mockResolvedValue({ list: LIST, items: [] });
+    vi.spyOn(shoppingApi, 'createTextImport').mockResolvedValue({
+      ...RECIPE,
+      status: 'processing',
+      items: [],
+    });
+    vi.spyOn(shoppingApi, 'fetchImport').mockResolvedValue({
+      ...RECIPE,
+      status: 'processing',
+      items: [],
+    });
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES, undefined, { history: 'browser' });
+    await user.click(
+      await screen.findByRole(
+        'button',
+        { name: 'Dodaj ze zdjęcia albo przepisu' },
+        { timeout: 3_000 },
+      ),
+    );
+    const sheet = await screen.findByRole('dialog');
+    await user.click(within(sheet).getByRole('button', { name: 'Przepis' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Tekst' }));
+    await user.type(
+      within(sheet).getByLabelText('Treść przepisu'),
+      '200 g czekolady, 3 jajka, masło',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Odczytaj przepis' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Czytam przepis…' }, { timeout: 3_000 }),
+    ).toBeInTheDocument();
+    // Chwilę później: `popstate` z zamknięcia arkusza nie może wrócić na listę.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(window.location.pathname).toBe(`/shopping/${LIST_ID}/import/${IMPORT_ID}`);
+  });
+
   it('zdjęcie listy: skalowane w przeglądarce i wysłane jako obraz', async () => {
     const user = userEvent.setup();
     vi.spyOn(shoppingApi, 'fetchShoppingItems').mockResolvedValue({ list: LIST, items: [] });

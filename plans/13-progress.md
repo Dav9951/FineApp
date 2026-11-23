@@ -3,9 +3,9 @@
 > Stan realizacji faz, sprawy zauważone do rozważenia i wskaźniki jakości.
 > Plan zadań: [11-roadmap.md](./11-roadmap.md).
 
-**Ostatnia aktualizacja:** 2026-11-23 (listy zakupów po pierwszym użyciu: widok płaski, kosz, kolejność przeciąganiem, nieruchome pole — ADR-104; akcje arkuszy zawsze widoczne — ADR-105)
+**Ostatnia aktualizacja:** 2026-11-23 (naprawa wejścia do przeglądu odczytu listy — ADR-106)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
-**Stan:** ✅ typecheck · lint · format · **2863 testy zielone**
+**Stan:** ✅ typecheck · lint · format · **2866 testów zielonych**
 
 ---
 

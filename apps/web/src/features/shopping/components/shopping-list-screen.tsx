@@ -603,7 +603,15 @@ function ListMenu({
         onSubmit={async (name) => {
           if (naming === 'duplicate') {
             const copy = await duplicate.mutateAsync(name);
-            void navigate(`/shopping/${copy.id}`);
+            // Arkusz nazwy zamyka się po zapisie i cofa swój wpis historii — przejście
+            // na kopię dopiero po tym cofnięciu, inaczej zostałoby odwołane (15 §4.6).
+            window.addEventListener(
+              'popstate',
+              () => {
+                void navigate(`/shopping/${copy.id}`);
+              },
+              { once: true },
+            );
           } else {
             await update.mutateAsync({ name });
           }
