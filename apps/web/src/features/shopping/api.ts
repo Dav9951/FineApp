@@ -5,6 +5,7 @@ import type {
   CreateShoppingItemRequest,
   CreateShoppingItemResult,
   CreateShoppingListRequest,
+  ReorderShoppingItemsRequest,
   RestoreClearedResult,
   ShoppingItemDto,
   ShoppingItemsDto,
@@ -191,6 +192,26 @@ export function clearCheckedItems(
   return apiRequest<ClearCheckedResult>(`/shopping-lists/${listId}/clear-checked`, {
     method: 'POST',
     accessToken,
+  });
+}
+
+/**
+ * Kolejność pozycji do kupienia po przeciągnięciu (ADR-104).
+ *
+ * @param accessToken - Token dostępu.
+ * @param listId - Lista.
+ * @param body - Kolejność i ewentualna zmiana działu.
+ * @returns Obietnica spełniona po zapisie (`204`).
+ */
+export function reorderShoppingItems(
+  accessToken: string,
+  listId: string,
+  body: ReorderShoppingItemsRequest,
+): Promise<void> {
+  return apiRequest<void>(`/shopping-lists/${listId}/items/order`, {
+    method: 'PUT',
+    accessToken,
+    body,
   });
 }
 

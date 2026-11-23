@@ -1,17 +1,5 @@
-import {
-  formatShoppingQuantity,
-  type ShoppingItemDto,
-  type ShoppingListDto,
-} from '@fineapp/shared';
-import {
-  Camera,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  Circle,
-  MoreHorizontal,
-  WifiOff,
-} from 'lucide-react';
+import { type ShoppingItemDto, type ShoppingListDto } from '@fineapp/shared';
+import { Camera, ChevronDown, ChevronLeft, MoreHorizontal, WifiOff } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -42,10 +30,13 @@ import {
   useUndoClear,
   useUpdateShoppingList,
 } from '../hooks/use-shopping.js';
-import { checkedItems, groupToBuy, shareText } from '../shopping-view.js';
+import { useShoppingSections } from '../sections-preference.js';
+import { toBuyItems } from '../shopping-arrange.js';
+import { checkedItems, shareText } from '../shopping-view.js';
 import { ShoppingAddBar } from './shopping-add-bar.js';
 import { ShoppingConfirmSheet } from './shopping-confirm-sheet.js';
 import { ShoppingImportSheet } from './shopping-import-sheet.js';
+import { ItemRow, ToBuyList } from './shopping-item-row.js';
 import { ShoppingItemSheet } from './shopping-item-sheet.js';
 import { ShoppingNameSheet } from './shopping-name-sheet.js';
 
@@ -93,6 +84,7 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
   const [importing, setImporting] = useState(false);
   const aiEnabled = useAiEnabled();
   const online = useOnline();
+  const { bySection } = useShoppingSections();
 
   if (query.isPending) {
     return (
@@ -137,7 +129,7 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
   }
 
   const { list, items } = query.data;
-  const groups = groupToBuy(items);
+  const toBuy = toBuyItems(items, bySection);
   const bought = checkedItems(items);
   const archived = list.archived;
 
@@ -167,7 +159,7 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
         </p>
       ) : null}
 
-      {groups.length === 0 && bought.length === 0 ? (
+      {toBuy.length === 0 && bought.length === 0 ? (
         <EmptyState
           className="mt-6"
           description="Dopisz pierwszy produkt na dole ekranu. Ilość możesz wpisać od razu: „2 mleko”, „mąka 1kg”."
@@ -175,17 +167,15 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
         />
       ) : null}
 
-      {groups.map((group, index) => (
-        <Section first={index === 0} key={group.section} title={group.label}>
-          <ul>
-            {group.items.map((item) => (
-              <li key={item.id}>
-                <ItemRow archived={archived} item={item} onEdit={setEditing} />
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ))}
+      {toBuy.length > 0 ? (
+        <ToBuyList
+          archived={archived}
+          bySection={bySection}
+          listId={listId}
+          onEdit={setEditing}
+          toBuy={toBuy}
+        />
+      ) : null}
 
       {bought.length > 0 ? (
         <BoughtSection
@@ -201,7 +191,7 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
 
       {cleared ? (
         <AfterClear
-          canArchive={!list.isDefault && groups.length === 0}
+          canArchive={!list.isDefault && toBuy.length === 0}
           listId={listId}
           listName={list.name}
           onDismiss={() => {
@@ -261,106 +251,6 @@ function OfflineNote(): ReactNode {
       />
       Brak połączenia — odhaczenia i nowe pozycje wyślę, gdy wróci sieć.
     </p>
-  );
-}
-
-/**
- * Wiersz pozycji: dotknięcie całego wiersza odhacza, „⋯" otwiera arkusz.
- *
- * @param props - Właściwości komponentu.
- * @param props.item - Pozycja.
- * @param props.archived - Lista w archiwum — wiersz tylko do odczytu.
- * @param props.onEdit - Otwarcie arkusza pozycji.
- * @returns Element wiersza.
- */
-function ItemRow({
-  item,
-  archived,
-  onEdit,
-}: {
-  readonly item: ShoppingItemDto;
-  readonly archived: boolean;
-  readonly onEdit: (item: ShoppingItemDto) => void;
-}): ReactNode {
-  const change = useItemChange(item.listId);
-  const toast = useToast();
-  const quantity = formatShoppingQuantity(item);
-
-  const toggle = (): void => {
-    const checked = !item.checked;
-    void change({ kind: 'update', itemId: item.id, body: { checked } }).then((outcome) => {
-      if (outcome.rejected) {
-        toast.show({ message: 'Nie udało się zapisać — lista się odświeży.' });
-      }
-    });
-    if (checked) {
-      toast.show({
-        message: `Odhaczono ${item.name}`,
-        action: {
-          label: 'Cofnij',
-          onAction: () => {
-            void change({ kind: 'update', itemId: item.id, body: { checked: false } });
-          },
-        },
-      });
-    }
-  };
-
-  return (
-    <div className="flex items-stretch border-t border-border first:border-t-0">
-      <button
-        aria-checked={item.checked}
-        className="flex min-h-touch min-w-0 flex-1 items-center gap-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted disabled:opacity-60"
-        disabled={archived}
-        onClick={toggle}
-        role="checkbox"
-        type="button"
-      >
-        {item.checked ? (
-          <Check aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
-        ) : (
-          <Circle
-            aria-hidden="true"
-            className="h-5 w-5 shrink-0 text-muted-foreground"
-            strokeWidth={1.5}
-          />
-        )}
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span
-            className={cn(
-              'truncate text-base',
-              item.checked && 'text-muted-foreground line-through',
-            )}
-          >
-            {item.name}
-          </span>
-          {item.note === null ? null : (
-            <span className="truncate text-caption text-muted-foreground">{item.note}</span>
-          )}
-        </span>
-        {quantity === '' ? null : (
-          <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{quantity}</span>
-        )}
-        {item.checked && item.checkedByInitials !== null ? (
-          <span
-            aria-label={`odhaczył(a) ${item.checkedByInitials}`}
-            className="shrink-0 rounded-full bg-muted px-2 text-caption"
-          >
-            {item.checkedByInitials}
-          </span>
-        ) : null}
-      </button>
-      <IconButton
-        disabled={archived}
-        label={`Szczegóły: ${item.name}`}
-        onClick={() => {
-          onEdit(item);
-        }}
-        variant="link"
-      >
-        <MoreHorizontal aria-hidden="true" className="h-5 w-5" strokeWidth={1.5} />
-      </IconButton>
-    </div>
   );
 }
 

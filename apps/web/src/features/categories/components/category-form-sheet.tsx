@@ -9,6 +9,7 @@ import {
   Sheet,
   TextField,
   useToast,
+  SHEET_ACTIONS,
 } from '../../../components/ui/index.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import { cn } from '../../../lib/cn.js';
@@ -490,7 +491,7 @@ function CategoryForm({
         </Section>
       )}
 
-      <div className="sticky bottom-0 -mx-4 mt-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         <Button
           disabled={busy && !(create.isPending || update.isPending)}
           loading={create.isPending || update.isPending}

@@ -7,6 +7,7 @@ import {
   DuplicateShoppingListRequestSchema,
   FrequentProductsQuerySchema,
   OptionalFlagSchema,
+  ReorderShoppingItemsRequestSchema,
   ReorderShoppingListsRequestSchema,
   RestoreClearedRequestSchema,
   RestoreClearedResultSchema,
@@ -43,6 +44,7 @@ import {
   listShoppingLists,
   listShoppingProducts,
   reorderShoppingLists,
+  reorderShoppingItems,
   restoreClearedShoppingItems,
   shoppingListVersion,
   updateShoppingItem,
@@ -288,6 +290,18 @@ export const shoppingRoutes: FastifyPluginCallbackZod<{
         request.params.id,
       ),
     }),
+  });
+
+  app.route({
+    ...protectedRoute,
+    method: 'PUT',
+    url: '/shopping-lists/:id/items/order',
+    schema: { params: ShoppingIdParamsSchema, body: ReorderShoppingItemsRequestSchema },
+    handler: async (request, reply) => {
+      const { householdId, userId } = authContext(request);
+      reorderShoppingItems(db, clock, householdId, userId, request.params.id, request.body);
+      await reply.status(204).send();
+    },
   });
 
   app.route({

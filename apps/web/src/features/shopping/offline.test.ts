@@ -36,6 +36,7 @@ function item(over: Partial<ShoppingItemDto> & { id: string; name: string }): Sh
     unit: null,
     note: null,
     section: 'other',
+    sortOrder: 0,
     source: 'manual',
     checked: false,
     checkedAt: null,
@@ -156,6 +157,64 @@ describe('applyOps — zmiany nałożone na listę', () => {
         'AK',
       ).items.map((i) => i.id),
     ).toEqual([ID(2)]);
+  });
+});
+
+describe('kolejność offline (ADR-104)', () => {
+  it('reorder przestawia do kupienia jak serwer, move zmienia dział, kupione bez zmian', () => {
+    const before = data([
+      item({ id: ID(1), name: 'Mleko', sortOrder: 0, section: 'dairy' }),
+      item({ id: ID(2), name: 'Chleb', sortOrder: 1, section: 'bakery' }),
+      item({ id: ID(3), name: 'Jajka', sortOrder: 2, section: 'dairy' }),
+      item({ id: ID(4), name: 'Masło', sortOrder: 3, checked: true, checkedAt: 5 }),
+    ]);
+    const after = applyOps(
+      before,
+      [
+        {
+          kind: 'reorder',
+          listId: LIST,
+          body: { itemIds: [ID(3), ID(9), ID(1)], move: { itemId: ID(3), section: 'bakery' } },
+        },
+      ],
+      'AK',
+    );
+    const byId = new Map(after.items.map((i) => [i.id, i]));
+    expect([ID(3), ID(1), ID(2)].map((id) => byId.get(id)?.sortOrder)).toEqual([0, 1, 2]);
+    expect(byId.get(ID(3))?.section).toBe('bakery');
+    expect(byId.get(ID(4))?.sortOrder).toBe(3);
+  });
+
+  it('dopisanie lokalne ląduje na końcu listy', () => {
+    const after = applyOps(
+      data([item({ id: ID(1), name: 'Mleko', sortOrder: 7 })]),
+      [{ kind: 'add', listId: LIST, body: { id: ID(2), name: 'chleb' } }],
+      'AK',
+    );
+    expect(after.items.find((i) => i.id === ID(2))?.sortOrder).toBe(8);
+  });
+
+  it('odznaczona wraca na koniec do kupienia, jak na serwerze', () => {
+    const after = applyOps(
+      data([
+        item({ id: ID(1), name: 'Mleko', sortOrder: 0 }),
+        item({ id: ID(2), name: 'Chleb', sortOrder: 1, checked: true, checkedAt: 5 }),
+        item({ id: ID(3), name: 'Jajka', sortOrder: 4 }),
+      ]),
+      [{ kind: 'update', listId: LIST, itemId: ID(2), body: { checked: false } }],
+      'AK',
+    );
+    expect(after.items.map((i) => i.name)).toEqual(['Mleko', 'Jajka', 'Chleb']);
+  });
+
+  it('migawka sprzed ADR-104 (bez sortOrder) dostaje 0 zamiast NaN', () => {
+    const old = data([item({ id: ID(1), name: 'Mleko' })]);
+    const { sortOrder: _dropped, ...legacy } = old.items[0] as ShoppingItemDto;
+    window.localStorage.setItem(
+      `fineapp.offline.shopping.items.${LIST}`,
+      JSON.stringify({ ...old, items: [legacy] }),
+    );
+    expect(readSnapshot(LIST)?.items[0]?.sortOrder).toBe(0);
   });
 });
 

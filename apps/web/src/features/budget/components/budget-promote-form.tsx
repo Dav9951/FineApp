@@ -7,7 +7,14 @@ import {
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Button, Field, OptionGrid, TextField, useToast } from '../../../components/ui/index.js';
+import {
+  Button,
+  Field,
+  OptionGrid,
+  TextField,
+  useToast,
+  SHEET_ACTIONS,
+} from '../../../components/ui/index.js';
 import { useAccountList } from '../../accounts/hooks/use-accounts.js';
 import { useAuth } from '../../auth/auth-context.js';
 import { PRIORITY_LABEL, PRIORITY_ORDER } from '../../planned-expenses/planned-view.js';
@@ -223,7 +230,7 @@ export function BudgetPromoteForm({
           />
         </>
       )}
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         {formError === undefined ? null : (
           <p className="mb-2 text-sm text-danger" role="alert">
             {formError}

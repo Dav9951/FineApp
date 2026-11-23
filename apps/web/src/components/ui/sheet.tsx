@@ -23,6 +23,17 @@ import { IconButton } from './button.js';
  * ekran zamiast go przygasić.
  */
 
+/**
+ * Przyklejony pasek akcji na dole arkusza (15 §4, ADR-105): „Zapisz", „Usuń" są zawsze
+ * widoczne, bez przewijania. Klejony do **krawędzi** przewijanego obszaru, nie do jego
+ * wcięcia — `bottom-0` zostawiał szparę wielkości dolnego paddingu, przez którą
+ * przewijała się treść. Ujemny dolny margines zjada ten padding na końcu treści, a własny
+ * dolny padding pasa niesie bezpieczny margines urządzenia. Element ma być ostatnim
+ * dzieckiem treści arkusza.
+ */
+export const SHEET_ACTIONS =
+  'sticky bottom-[calc(-1rem-env(safe-area-inset-bottom))] z-10 -mx-4 mb-[calc(-1rem-env(safe-area-inset-bottom))] mt-4 border-t border-border bg-card px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3';
+
 /** Właściwości arkusza. */
 export interface SheetProps {
   /** Czy arkusz jest otwarty. */

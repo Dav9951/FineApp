@@ -192,6 +192,17 @@ describe('stany ekranu', () => {
     expect(await screen.findByText(/Limit na ten miesiąc wyczerpany/u)).toBeInTheDocument();
   });
 
+  it('„Lista zakupów: podział na działy" — domyślnie wyłączone, zapamiętane na urządzeniu (ADR-104)', async () => {
+    renderSettings();
+    const toggle = await screen.findByRole('switch', { name: 'Lista zakupów: podział na działy' });
+    expect(toggle).not.toBeChecked();
+    await userEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    expect(window.localStorage.getItem('fineapp.shopping.sections')).toBe('on');
+    await userEvent.click(toggle);
+    expect(window.localStorage.getItem('fineapp.shopping.sections')).toBe('off');
+  });
+
   it('przełącznik modelu zapisuje wybór od razu (ADR-085)', async () => {
     vi.spyOn(documentsApi, 'fetchAiUsage').mockResolvedValue({
       ...USAGE,

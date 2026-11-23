@@ -10,7 +10,14 @@ import {
 } from '@fineapp/shared';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
-import { Button, Sheet, Switch, TextField, useToast } from '../../../components/ui/index.js';
+import {
+  Button,
+  Sheet,
+  Switch,
+  TextField,
+  useToast,
+  SHEET_ACTIONS,
+} from '../../../components/ui/index.js';
 import { newClientId } from '../../../lib/client-id.js';
 import { cn } from '../../../lib/cn.js';
 import {
@@ -227,12 +234,13 @@ function ItemForm({
           </div>
         </section>
       ) : null}
-      <div className="flex flex-col gap-2">
-        <Button size="large" type="submit">
-          Zapisz
-        </Button>
-        <Button onClick={remove} size="large" type="button" variant="ghost">
+      {/* Zawsze widoczne, bez przewijania (ADR-105). */}
+      <div className={cn(SHEET_ACTIONS, 'flex gap-3')}>
+        <Button className="flex-1" onClick={remove} size="large" type="button" variant="ghost">
           Usuń z listy
+        </Button>
+        <Button className="flex-1" size="large" type="submit">
+          Zapisz
         </Button>
       </div>
     </form>

@@ -95,7 +95,7 @@ interface Reply {
  */
 async function call(
   s: Setup,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   url: string,
   payload?: unknown,
   headers: Record<string, string> = {},
@@ -1050,5 +1050,106 @@ describe('poprawki po przeglądzie kodu', () => {
     const cleared = await patchItem(s, item.id, { quantityMilli: null });
     expect(cleared).toMatchObject({ quantityMilli: null, unit: null });
     await patchItem(s, item.id, { quantityMilli: 1000 }, 400);
+  });
+});
+
+describe('kolejność przeciąganiem (07 §14.6, ADR-104)', () => {
+  it('nowa pozycja na końcu; PUT order przestawia, reszta idzie za wymienionymi', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const mleko = (await add(s, listId, { name: 'mleko' })).item;
+    const chleb = (await add(s, listId, { name: 'chleb' })).item;
+    const jajka = (await add(s, listId, { name: 'jajka' })).item;
+    expect([mleko.sortOrder, chleb.sortOrder, jajka.sortOrder]).toEqual([0, 1, 2]);
+
+    const etag = (await call(s, 'GET', `/shopping-lists/${listId}/items`)).headers.etag;
+    const reply = await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, {
+      itemIds: [jajka.id, mleko.id],
+    });
+    expect(reply.status, reply.body).toBe(204);
+    const after = await items(s, listId);
+    const order = new Map(after.items.map((item) => [item.name, item.sortOrder]));
+    expect([order.get('Jajka'), order.get('Mleko'), order.get('Chleb')]).toEqual([0, 1, 2]);
+    // Zmiana kolejności podbija wersję listy — drugi telefon ją zobaczy (ETag).
+    expect((await call(s, 'GET', `/shopping-lists/${listId}/items`)).headers.etag).not.toBe(etag);
+  });
+
+  it('move zmienia dział pozycji i słownika; nieznane i kupione pomijane; archiwum → 409', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const skyr = (await add(s, listId, { name: 'skyr', section: 'other' })).item;
+    const masło = (await add(s, listId, { name: 'masło' })).item;
+    await patchItem(s, masło.id, { checked: true });
+    const reply = await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, {
+      itemIds: ['01JC7K0000000000000000ZZZZ', masło.id, skyr.id],
+      move: { itemId: skyr.id, section: 'dairy' },
+    });
+    expect(reply.status, reply.body).toBe(204);
+    const after = await items(s, listId);
+    expect(after.items.find((item) => item.id === skyr.id)).toMatchObject({
+      section: 'dairy',
+      sortOrder: 0,
+    });
+    // Słownik się nauczył — następne „skyr" trafia do nabiału.
+    await call(s, 'DELETE', `/shopping-items/${skyr.id}`);
+    expect((await add(s, listId, { name: 'skyr' })).item.section).toBe('dairy');
+
+    await call(s, 'PATCH', `/shopping-lists/${listId}`, { archived: true });
+    expect(
+      (
+        await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, {
+          itemIds: [masło.id],
+        })
+      ).status,
+    ).toBe(409);
+  });
+
+  it('przeniesienie na inną listę i duplikat zachowują sens kolejności', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const a = (await add(s, listId, { name: 'a-produkt' })).item;
+    const b = (await add(s, listId, { name: 'b-produkt' })).item;
+    await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, { itemIds: [b.id, a.id] });
+    const other = (
+      await call(s, 'POST', '/shopping-lists', { name: 'Decathlon' })
+    ).json<ShoppingListDto>();
+    await add(s, other.id, { name: 'skarpety' });
+    const moved = await patchItem(s, a.id, { listId: other.id });
+    expect(moved.sortOrder).toBe(1);
+    const copy = (
+      await call(s, 'POST', `/shopping-lists/${listId}/duplicate`, { name: 'Kopia' })
+    ).json<ShoppingListDto>();
+    expect((await items(s, copy.id)).items.map((item) => [item.name, item.sortOrder])).toEqual([
+      ['B-produkt', 0],
+    ]);
+  });
+
+  it('poprawki po przeglądzie: move zakłada produkt w słowniku; odznaczona wraca na koniec', async () => {
+    const s = await setup();
+    const listId = await groceries(s);
+    const nowy = (await add(s, listId, { name: 'kwas chlebowy' })).item;
+    const a = (await add(s, listId, { name: 'a-produkt' })).item;
+    const b = (await add(s, listId, { name: 'b-produkt' })).item;
+    // Nazwy nie ma jeszcze w słowniku (dopisanie ją zakłada — usuwamy, żeby sprawdzić drogę „zapisz").
+    s.app.db.db
+      .delete(shoppingProducts)
+      .where(eq(shoppingProducts.normalizedName, 'kwas chlebowy'))
+      .run();
+    expect(
+      (
+        await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, {
+          itemIds: [nowy.id, a.id, b.id],
+          move: { itemId: nowy.id, section: 'drinks' },
+        })
+      ).status,
+    ).toBe(204);
+    await call(s, 'DELETE', `/shopping-items/${nowy.id}`);
+    expect((await add(s, listId, { name: 'kwas chlebowy' })).item.section).toBe('drinks');
+
+    await patchItem(s, a.id, { checked: true });
+    await call(s, 'PUT', `/shopping-lists/${listId}/items/order`, { itemIds: [b.id] });
+    const back = await patchItem(s, a.id, { checked: false });
+    const max = Math.max(...(await items(s, listId)).items.map((item) => item.sortOrder));
+    expect(back.sortOrder).toBe(max);
   });
 });

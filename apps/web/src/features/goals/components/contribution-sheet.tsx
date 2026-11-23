@@ -2,7 +2,14 @@ import type { GoalDto } from '@fineapp/shared';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { AmountInput, Button, Field, Sheet, useToast } from '../../../components/ui/index.js';
+import {
+  AmountInput,
+  Button,
+  Field,
+  Sheet,
+  useToast,
+  SHEET_ACTIONS,
+} from '../../../components/ui/index.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import { useAuth } from '../../auth/auth-context.js';
 import { defaultAccountId } from '../../transactions/transaction-form-state.js';
@@ -153,7 +160,7 @@ function ContributionForm({ goal, onDone }: { goal: GoalDto; onDone: () => void 
           </p>
         )}
       </div>
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         {formError === undefined ? null : (
           <p className="mb-2 text-sm text-danger" role="alert">
             {formError}

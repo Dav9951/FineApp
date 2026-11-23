@@ -19,6 +19,7 @@ import {
   Tabs,
   TextField,
   useToast,
+  SHEET_ACTIONS,
 } from '../../../components/ui/index.js';
 import { ApiRequestError } from '../../../lib/api-client.js';
 import { cn } from '../../../lib/cn.js';
@@ -144,6 +145,8 @@ export interface TransactionFormProps {
   onDone: () => void;
   /** Wyjście do ekranu kont, gdy nie ma żadnego. */
   onManageAccounts: () => void;
+  /** Druga akcja w pasie obok „Zapisz" (np. „Usuń" przy edycji) — pas jest ostatni (ADR-105). */
+  secondaryAction?: ReactNode;
 }
 
 /**
@@ -156,6 +159,7 @@ export interface TransactionFormProps {
  * @param props.onTypeChange - Zmiana typu.
  * @param props.onDone - Zakończenie po zapisie.
  * @param props.onManageAccounts - Wyjście do ekranu kont.
+ * @param props.secondaryAction - Druga akcja w pasie.
  * @returns Element formularza.
  */
 export function TransactionForm({
@@ -165,6 +169,7 @@ export function TransactionForm({
   onTypeChange,
   onDone,
   onManageAccounts,
+  secondaryAction,
 }: TransactionFormProps): ReactNode {
   const { household } = useAuth();
   const [today] = useState(() => todayInTimezone(household?.timezone ?? 'Europe/Warsaw'));
@@ -679,15 +684,18 @@ export function TransactionForm({
       )}
 
       {/* Przyklejony do dołu arkusza: widoczny nad klawiaturą kwoty i w zasięgu kciuka. */}
-      <div className="sticky bottom-0 -mx-4 mt-4 border-t border-border bg-card px-4 pb-2 pt-3">
+      <div className={SHEET_ACTIONS}>
         {formError === undefined ? null : (
           <p className="mb-2 text-sm text-danger" role="alert">
             {formError}
           </p>
         )}
-        <Button loading={pending} size="large" type="submit" variant="primary">
-          {original === undefined ? 'Zapisz' : 'Zapisz zmiany'}
-        </Button>
+        <div className="flex gap-3">
+          {secondaryAction}
+          <Button className="flex-1" loading={pending} size="large" type="submit" variant="primary">
+            {original === undefined ? 'Zapisz' : 'Zapisz zmiany'}
+          </Button>
+        </div>
       </div>
     </form>
   );

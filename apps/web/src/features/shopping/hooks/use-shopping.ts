@@ -151,7 +151,8 @@ export type ItemChange =
   | Omit<Extract<OutboxChange, { kind: 'add' }>, 'listId'>
   | Omit<Extract<OutboxChange, { kind: 'update' }>, 'listId'>
   | Omit<Extract<OutboxChange, { kind: 'delete' }>, 'listId'>
-  | Omit<Extract<OutboxChange, { kind: 'clear' }>, 'listId'>;
+  | Omit<Extract<OutboxChange, { kind: 'clear' }>, 'listId'>
+  | Omit<Extract<OutboxChange, { kind: 'reorder' }>, 'listId'>;
 
 /** Los jednej zmiany po próbie wysłania kolejki. */
 export interface ChangeOutcome {

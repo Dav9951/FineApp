@@ -103,6 +103,8 @@ export const ShoppingItemDtoSchema = z.object({
   unit: ShoppingUnitSchema.nullable(),
   note: z.string().nullable(),
   section: ShoppingSectionSchema,
+  /** Kolejność na liście (ADR-104). */
+  sortOrder: z.number().int(),
   source: ShoppingItemSourceSchema,
   checked: z.boolean(),
   checkedAt: TimestampSchema.nullable(),
@@ -203,6 +205,17 @@ export type ClearCheckedResult = z.infer<typeof ClearCheckedResultSchema>;
 
 /** `POST /shopping-lists/:id/restore-cleared`. */
 export const RestoreClearedRequestSchema = z.object({ itemIds: z.array(IdSchema).min(1).max(500) });
+
+/**
+ * Kolejność pozycji do kupienia po przeciągnięciu (`PUT /shopping-lists/:id/items/order`,
+ * ADR-104): cała kolejność z ekranu i — w widoku z działami — zmiana działu upuszczonej.
+ */
+export const ReorderShoppingItemsRequestSchema = z.object({
+  itemIds: z.array(IdSchema).min(1).max(500),
+  move: z.object({ itemId: IdSchema, section: ShoppingSectionSchema }).optional(),
+});
+/** Kolejność pozycji do kupienia. */
+export type ReorderShoppingItemsRequest = z.infer<typeof ReorderShoppingItemsRequestSchema>;
 /** Cofnięcie czyszczenia. */
 export type RestoreClearedRequest = z.infer<typeof RestoreClearedRequestSchema>;
 

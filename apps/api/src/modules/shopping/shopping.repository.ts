@@ -433,6 +433,24 @@ export function itemIdTaken(handle: DbHandle, itemId: string): boolean {
 }
 
 /**
+ * Największa kolejność pozycji na liście (także kupionych i wyczyszczonych) — nowa
+ * pozycja dostaje o jeden więcej i ląduje na końcu (07 §14.6, ADR-104).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param listId - Lista.
+ * @returns Największa kolejność albo `-1` dla pustej listy.
+ */
+export function findMaxItemOrder(handle: DbHandle, householdId: string, listId: string): number {
+  const row = handle.db
+    .select({ max: sql<number | null>`max(${shoppingItems.sortOrder})` })
+    .from(shoppingItems)
+    .where(and(eq(shoppingItems.householdId, householdId), eq(shoppingItems.listId, listId)))
+    .get();
+  return row?.max ?? -1;
+}
+
+/**
  * Wstawia pozycje.
  *
  * @param handle - Uchwyt bazy.

@@ -116,21 +116,29 @@ function EditContent({
   const original = tx.data;
   return (
     <>
-      <TransactionForm onDone={onDone} onManageAccounts={onManageAccounts} original={original} />
-      {/* Druga droga do usunięcia obok gestu na liście (15 §2.7). Wariant `ghost`, nie
-          `danger`: usunięcie trafia do kosza i ma „Cofnij" (15 §4.3). */}
-      {locked ? null : (
-        <Button
-          className="mt-6"
-          onClick={() => {
-            trash({ id: original.id, monthKey: original.monthKey }, onDone);
-          }}
-          size="large"
-          variant="ghost"
-        >
-          Usuń transakcję
-        </Button>
-      )}
+      <TransactionForm
+        onDone={onDone}
+        onManageAccounts={onManageAccounts}
+        original={original}
+        secondaryAction={
+          // Druga droga do usunięcia obok gestu na liście (15 §2.7). Wariant `ghost`, nie
+          // `danger`: usunięcie trafia do kosza i ma „Cofnij" (15 §4.3). W pasie akcji —
+          // zawsze widoczne, a pod pasem nic nie może stać (ADR-105).
+          locked ? undefined : (
+            <Button
+              className="flex-1"
+              onClick={() => {
+                trash({ id: original.id, monthKey: original.monthKey }, onDone);
+              }}
+              size="large"
+              type="button"
+              variant="ghost"
+            >
+              Usuń transakcję
+            </Button>
+          )
+        }
+      />
     </>
   );
 }

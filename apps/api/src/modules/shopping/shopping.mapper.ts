@@ -71,6 +71,7 @@ export function toShoppingItemDto(
     unit: row.unit,
     note: row.note,
     section: row.section,
+    sortOrder: row.sortOrder,
     source: row.source,
     checked: row.checkedAt !== null,
     checkedAt: row.checkedAt,
