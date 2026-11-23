@@ -1,5 +1,7 @@
 import type {
   ClearCheckedResult,
+  CommitShoppingImportResult,
+  CreateShoppingImportRequest,
   CreateShoppingItemRequest,
   CreateShoppingItemResult,
   CreateShoppingListRequest,
@@ -7,7 +9,10 @@ import type {
   ShoppingItemDto,
   ShoppingItemsDto,
   ShoppingListDto,
+  ShoppingImportDto,
   ShoppingProductDto,
+  UpdateShoppingImportItemRequest,
+  UpdateShoppingImportRequest,
   UpdateShoppingItemRequest,
   UpdateShoppingListRequest,
   UpdateShoppingProductRequest,
@@ -288,5 +293,157 @@ export function updateProduct(
     method: 'PATCH',
     accessToken,
     body,
+  });
+}
+
+/** Zdjęcia do importu — już przeskalowane w przeglądarce (`prepareUpload`, 08 §3). */
+export interface ImportImageFile {
+  readonly blob: Blob;
+  readonly filename: string;
+}
+
+/**
+ * Import ze zdjęć: lista z tablicy albo przepis ze zrzutów ekranu.
+ *
+ * @param accessToken - Token dostępu.
+ * @param input - Lista, rodzaj, mnożnik (przepis), zdjęcia.
+ * @param input.listId - Lista docelowa.
+ * @param input.kind - Zdjęcie listy albo przepis.
+ * @param input.servingsFactorBps - Mnożnik (tylko przepis).
+ * @param input.images - 1…3 zdjęcia.
+ * @returns Import w stanie `processing`.
+ */
+export function createImageImport(
+  accessToken: string,
+  input: {
+    listId: string;
+    kind: 'list_photo' | 'recipe';
+    servingsFactorBps?: number;
+    images: readonly ImportImageFile[];
+  },
+): Promise<ShoppingImportDto> {
+  const form = new FormData();
+  form.append('listId', input.listId);
+  form.append('kind', input.kind);
+  if (input.servingsFactorBps !== undefined) {
+    form.append('servingsFactorBps', String(input.servingsFactorBps));
+  }
+  for (const image of input.images) form.append('image', image.blob, image.filename);
+  return apiRequest<ShoppingImportDto>('/shopping-imports', {
+    method: 'POST',
+    accessToken,
+    formData: form,
+  });
+}
+
+/**
+ * Import przepisu z linku albo wklejonego tekstu.
+ *
+ * @param accessToken - Token dostępu.
+ * @param body - Lista, link albo tekst, mnożnik.
+ * @returns Import w stanie `processing`.
+ */
+export function createTextImport(
+  accessToken: string,
+  body: CreateShoppingImportRequest,
+): Promise<ShoppingImportDto> {
+  return apiRequest<ShoppingImportDto>('/shopping-imports', { method: 'POST', accessToken, body });
+}
+
+/**
+ * Import z propozycjami.
+ *
+ * @param accessToken - Token dostępu.
+ * @param id - Import.
+ * @returns Import.
+ */
+export function fetchImport(accessToken: string, id: string): Promise<ShoppingImportDto> {
+  return apiRequest<ShoppingImportDto>(`/shopping-imports/${id}`, { accessToken });
+}
+
+/**
+ * Mnożnik albo lista docelowa — przeliczenie bez AI.
+ *
+ * @param accessToken - Token dostępu.
+ * @param id - Import.
+ * @param body - Zmiany.
+ * @returns Import.
+ */
+export function updateImport(
+  accessToken: string,
+  id: string,
+  body: UpdateShoppingImportRequest,
+): Promise<ShoppingImportDto> {
+  return apiRequest<ShoppingImportDto>(`/shopping-imports/${id}`, {
+    method: 'PATCH',
+    accessToken,
+    body,
+  });
+}
+
+/**
+ * Korekta propozycji.
+ *
+ * @param accessToken - Token dostępu.
+ * @param id - Import.
+ * @param itemId - Propozycja.
+ * @param body - Zmiany.
+ * @returns Import.
+ */
+export function updateImportItem(
+  accessToken: string,
+  id: string,
+  itemId: string,
+  body: UpdateShoppingImportItemRequest,
+): Promise<ShoppingImportDto> {
+  return apiRequest<ShoppingImportDto>(`/shopping-imports/${id}/items/${itemId}`, {
+    method: 'PATCH',
+    accessToken,
+    body,
+  });
+}
+
+/**
+ * Zatwierdza import — z kluczem idempotencji (jeden na otwarcie przeglądu).
+ *
+ * @param accessToken - Token dostępu.
+ * @param id - Import.
+ * @param idempotencyKey - Klucz idempotencji.
+ * @returns Ile dopisano i scalono.
+ */
+export function commitImport(
+  accessToken: string,
+  id: string,
+  idempotencyKey: string,
+): Promise<CommitShoppingImportResult> {
+  return apiRequest<CommitShoppingImportResult>(`/shopping-imports/${id}/commit`, {
+    method: 'POST',
+    accessToken,
+    idempotencyKey,
+  });
+}
+
+/**
+ * Odrzuca import.
+ *
+ * @param accessToken - Token dostępu.
+ * @param id - Import.
+ * @returns Obietnica spełniona po odrzuceniu.
+ */
+export async function discardImport(accessToken: string, id: string): Promise<void> {
+  await apiRequest<undefined>(`/shopping-imports/${id}/discard`, { method: 'POST', accessToken });
+}
+
+/**
+ * Ponawia nieudany odczyt.
+ *
+ * @param accessToken - Token dostępu.
+ * @param id - Import.
+ * @returns Import w stanie `processing`.
+ */
+export function retryImport(accessToken: string, id: string): Promise<ShoppingImportDto> {
+  return apiRequest<ShoppingImportDto>(`/shopping-imports/${id}/retry`, {
+    method: 'POST',
+    accessToken,
   });
 }

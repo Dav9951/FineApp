@@ -3,10 +3,15 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from
 import type { DbHandle } from '../../db/client.js';
 import { households } from '../../db/schema/households.js';
 import {
+  shoppingImportItems,
   shoppingImports,
   shoppingItems,
   shoppingLists,
   shoppingProducts,
+  type ShoppingImportInsert,
+  type ShoppingImportItemInsert,
+  type ShoppingImportItemRow,
+  type ShoppingImportRow,
   type ShoppingItemInsert,
   type ShoppingItemRow,
   type ShoppingListInsert,
@@ -805,4 +810,204 @@ export function clearImportFiles(handle: DbHandle, householdId: string, importId
     .set({ filePaths: '[]' })
     .where(and(eq(shoppingImports.householdId, householdId), eq(shoppingImports.id, importId)))
     .run();
+}
+
+/**
+ * Wstawia import.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param row - Wiersz.
+ */
+export function insertImport(handle: DbHandle, row: ShoppingImportInsert): void {
+  handle.db.insert(shoppingImports).values(row).run();
+}
+
+/**
+ * Import gospodarstwa.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param importId - Import.
+ * @returns Wiersz albo `undefined`.
+ */
+export function findImport(
+  handle: DbHandle,
+  householdId: string,
+  importId: string,
+): ShoppingImportRow | undefined {
+  return handle.db
+    .select()
+    .from(shoppingImports)
+    .where(and(eq(shoppingImports.householdId, householdId), eq(shoppingImports.id, importId)))
+    .get();
+}
+
+/**
+ * Zmienia import, ale tylko w jednym z dozwolonych stanów — atomowo, więc dwa równoległe
+ * zatwierdzenia albo analiza i odrzucenie nie nadpiszą się nawzajem.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param importId - Import.
+ * @param from - Stany, z których wolno przejść.
+ * @param patch - Zmienione kolumny.
+ * @returns Wiersz po zmianie albo `undefined`, gdy stan się nie zgadzał.
+ */
+export function transitionImport(
+  handle: DbHandle,
+  householdId: string,
+  importId: string,
+  from: readonly ShoppingImportRow['status'][],
+  patch: Partial<Omit<ShoppingImportRow, 'id' | 'householdId' | 'createdAt' | 'createdBy'>>,
+): ShoppingImportRow | undefined {
+  return handle.db
+    .update(shoppingImports)
+    .set(patch)
+    .where(
+      and(
+        eq(shoppingImports.householdId, householdId),
+        eq(shoppingImports.id, importId),
+        inArray(shoppingImports.status, [...from]),
+      ),
+    )
+    .returning()
+    .get();
+}
+
+/**
+ * Propozycje importu w kolejności odczytu.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param importId - Import.
+ * @returns Wiersze propozycji.
+ */
+export function findImportItems(
+  handle: DbHandle,
+  householdId: string,
+  importId: string,
+): ShoppingImportItemRow[] {
+  return handle.db
+    .select()
+    .from(shoppingImportItems)
+    .where(
+      and(
+        eq(shoppingImportItems.householdId, householdId),
+        eq(shoppingImportItems.importId, importId),
+      ),
+    )
+    .orderBy(asc(shoppingImportItems.sortOrder))
+    .all();
+}
+
+/**
+ * Zastępuje propozycje importu (ponowny odczyt).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param importId - Import.
+ * @param rows - Nowe propozycje.
+ */
+export function replaceImportItems(
+  handle: DbHandle,
+  householdId: string,
+  importId: string,
+  rows: readonly ShoppingImportItemInsert[],
+): void {
+  handle.db
+    .delete(shoppingImportItems)
+    .where(
+      and(
+        eq(shoppingImportItems.householdId, householdId),
+        eq(shoppingImportItems.importId, importId),
+      ),
+    )
+    .run();
+  if (rows.length > 0)
+    handle.db
+      .insert(shoppingImportItems)
+      .values([...rows])
+      .run();
+}
+
+/**
+ * Zmienia propozycję importu.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param itemId - Propozycja.
+ * @param patch - Zmienione kolumny.
+ */
+export function patchImportItem(
+  handle: DbHandle,
+  householdId: string,
+  itemId: string,
+  patch: Partial<Omit<ShoppingImportItemRow, 'id' | 'householdId' | 'importId' | 'createdAt'>>,
+): void {
+  handle.db
+    .update(shoppingImportItems)
+    .set(patch)
+    .where(
+      and(eq(shoppingImportItems.householdId, householdId), eq(shoppingImportItems.id, itemId)),
+    )
+    .run();
+}
+
+/**
+ * Produkty „zawsze w domu" — nazwy do kontekstu modelu (08 §17.3).
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @returns Wiersze produktów.
+ */
+export function findStapleProducts(handle: DbHandle, householdId: string): ShoppingProductRow[] {
+  return handle.db
+    .select()
+    .from(shoppingProducts)
+    .where(and(eq(shoppingProducts.householdId, householdId), eq(shoppingProducts.isStaple, true)))
+    .orderBy(asc(shoppingProducts.normalizedName))
+    .all();
+}
+
+/**
+ * Produkty o wskazanych kluczach nazw — do „Już mam" w przeglądzie przepisu.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param normalizedNames - Klucze nazw.
+ * @returns Wiersze produktów.
+ */
+export function findProductsByNames(
+  handle: DbHandle,
+  householdId: string,
+  normalizedNames: readonly string[],
+): ShoppingProductRow[] {
+  if (normalizedNames.length === 0) return [];
+  return handle.db
+    .select()
+    .from(shoppingProducts)
+    .where(
+      and(
+        eq(shoppingProducts.householdId, householdId),
+        inArray(shoppingProducts.normalizedName, [...normalizedNames]),
+      ),
+    )
+    .all();
+}
+
+/**
+ * Oznacza importy w `processing` starsze niż `before` jako przerwane — przy starcie
+ * procesu (08 §17.1). **Bez `householdId`**: zadanie konserwacyjne.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param before - Granica `updated_at`.
+ * @param now - Znacznik systemowy.
+ * @returns Liczba oznaczonych.
+ */
+export function failStaleImports(handle: DbHandle, before: number, now: number): number {
+  return handle.db
+    .update(shoppingImports)
+    .set({ status: 'failed', errorCode: 'INTERRUPTED', updatedAt: now })
+    .where(and(eq(shoppingImports.status, 'processing'), lt(shoppingImports.updatedAt, before)))
+    .run().changes;
 }

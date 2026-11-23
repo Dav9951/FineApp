@@ -319,13 +319,15 @@ Dodatkowo: `Strict-Transport-Security` (gdy HTTPS), `X-Content-Type-Options: nos
 | Kontrola | Realizacja |
 |---|---|
 | Schemat i port | tylko `http:` / `https:`, port 80 / 443 (domyślny); dane logowania w URL (`user:pass@`) → odrzucone |
-| Adres docelowy | nazwa rozwiązywana przez `dns.lookup` (wszystkie adresy); **każdy** musi być publiczny — odrzucane: `0.0.0.0/8`, `10/8`, `100.64/10`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `198.18/15`, `224/4`, `240/4`, `::`, `::1`, `fc00::/7`, `fe80::/10`, IPv4 mapowane na IPv6 z tych zakresów; adres IP podany wprost — te same reguły |
-| DNS rebinding | połączenie idzie na **sprawdzony** adres (własny `lookup` w agencie `undici`), nie na ponownie rozwiązaną nazwę |
+| Adres docelowy | nazwa rozwiązywana przez `dns.lookup` (wszystkie adresy); **każdy** musi być publiczny — odrzucane: `0.0.0.0/8`, `10/8`, `100.64/10`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `198.18/15`, `224/4`, `240/4`; IPv6 **tylko z listy dozwolonych** — globalny unicast `2000::/3` bez `2001::/32` (Teredo), `2001:10::/28`, `2001:db8::/32`, `2002::/16` (6to4); IPv4 mapowane (`::ffff:a.b.c.d`, także szesnastkowo) sprawdzane jak IPv4; adres IP podany wprost — te same reguły ([ADR-102](./14-decisions-log.md#adr-102)) |
+| DNS rebinding | połączenie idzie na **sprawdzony** adres (własny `lookup` przypinający sprawdzony adres w `node:http`/`https`, `agent: false` — bez puli połączeń), nie na ponownie rozwiązaną nazwę |
 | Przekierowania | ręcznie, max 3, każde sprawdzane od nowa jak wyżej |
 | Limity | 10 s na całość, 3 MB treści (przerwanie strumienia), tylko `text/html` / `application/xhtml+xml` |
 | Nagłówki | bez ciasteczek i `Authorization`; `User-Agent: FineApp/1.0 (recipe import)` — bez danych gospodarstwa |
 | Wynik | wyłącznie tekst do modelu; HTML nigdy nie trafia do przeglądarki ani do logów; w logu tylko host i status |
-| Limit żądań | wspólny z importami AI (04 §17) |
+| Parsowanie | HTML przetwarzany liniowo (wyszukiwanie znaczników, bez wyrażeń regularnych z zagnieżdżonymi kwantyfikatorami); tekst przycinany **przed** zwijaniem białych znaków; test czasu na złośliwych stronach (ADR-102) |
+| Prompt injection | tekst strony w znaczniku `<przepis>` jako dane; każde `<` z treści zamieniane na `‹`, więc treść nie zamknie znacznika; wynik przez schemat i przegląd człowieka |
+| Limit żądań | ten sam co importy AI: 20 / godz. na gospodarstwo, osobno na `POST /shopping-imports` i `…/retry` (04 §17, ADR-101) |
 
 ## 8. Prywatność danych
 

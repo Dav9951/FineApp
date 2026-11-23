@@ -119,6 +119,8 @@ export const qk = {
   shoppingFrequent: (listId: string) => ['shopping', 'products', 'frequent', listId] as const,
   /** Produkty „zawsze w domu". */
   shoppingStaples: () => ['shopping', 'products', 'staples'] as const,
+  /** Import listy zakupów przez AI — odpytywany, póki trwa odczyt. */
+  shoppingImport: (id: string) => ['shopping', 'imports', id] as const,
 
   /** Dokumenty wrzucone do OCR. */
   documents: () => ['documents'] as const,

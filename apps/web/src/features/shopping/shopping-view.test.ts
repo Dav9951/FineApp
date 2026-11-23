@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   checkedItems,
+  factorLabel,
   groupToBuy,
   initialsOf,
+  parseFactorInput,
   parseQuantityInput,
   quantityInputValue,
   relativeTime,
+  sharedRecipe,
   shareText,
   toBuyLabel,
 } from './shopping-view.js';
@@ -126,5 +129,43 @@ describe('pole ilości w arkuszu', () => {
     expect(quantityInputValue(1500)).toBe('1,5');
     expect(quantityInputValue(250)).toBe('0,25');
     expect(parseQuantityInput(quantityInputValue(62_500))).toBe(62_500);
+  });
+});
+
+describe('mnożnik porcji', () => {
+  it.each([
+    [5_000, '×0,5'],
+    [7_500, '×0,75'],
+    [10_000, '×1'],
+    [12_500, '×1,25'],
+    [40_000, '×4'],
+  ])('%i → %s', (bps, label) => {
+    expect(factorLabel(bps)).toBe(label);
+  });
+
+  it.each([
+    ['1,25', 12_500],
+    ['0.5', 5_000],
+    [' 2 ', 20_000],
+    ['0,25', 2_500],
+    ['0,2', undefined],
+    ['4,5', undefined],
+    ['abc', undefined],
+    ['', undefined],
+  ])('%j → %s', (text, bps) => {
+    expect(parseFactorInput(text)).toBe(bps);
+  });
+});
+
+describe('sharedRecipe (share_target)', () => {
+  it.each([
+    ['https://przepisy.pl/a', null, { url: 'https://przepisy.pl/a' }],
+    [null, 'Zobacz! https://przepisy.pl/b?x=1 super', { url: 'https://przepisy.pl/b?x=1' }],
+    [null, '200 g czekolady, 4 jajka', { text: '200 g czekolady, 4 jajka' }],
+    ['javascript:alert(1)', null, {}],
+    [null, null, {}],
+    [`https://a.pl/${'x'.repeat(2100)}`, null, {}],
+  ])('url %j, text %j → %j', (url, text, expected) => {
+    expect(sharedRecipe(url, text)).toEqual(expected);
   });
 });

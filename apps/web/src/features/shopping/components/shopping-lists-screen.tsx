@@ -168,6 +168,9 @@ function ListCard({ list }: { readonly list: ShoppingListDto }): ReactNode {
           {parsed === undefined ? null : (
             <span className="text-caption text-primary">Odczyt gotowy do przejrzenia</span>
           )}
+          {parsed === undefined && list.pendingImports.length > 0 ? (
+            <span className="text-caption text-muted-foreground">Czytam…</span>
+          ) : null}
         </span>
         <ChevronRight aria-hidden="true" className="h-5 w-5 shrink-0" strokeWidth={1.5} />
       </Link>

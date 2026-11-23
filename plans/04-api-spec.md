@@ -1460,7 +1460,7 @@ z zapytania, domyślnie 3, inne wartości → `400`.
   > 1 000 000 (1000 jednostek) → `400`.
 - Import: pliki jak w §13 (10 MB, magic bytes, HEIC tylko po konwersji w przeglądarce);
   `kind='list_photo'` z `input` innym niż obraz → `400`; `servingsFactorBps` poza
-  2500…40 000 → `400`. `AI_ENABLED=false` → `503` „Odczyt przez AI jest wyłączony.";
+  2500…40 000 → `400`. `AI_ENABLED=false` → `502 EXTERNAL_SERVICE_ERROR` „Odczyt przez AI jest wyłączony." (jak §13);
   limit kosztów → `AI_BUDGET_EXCEEDED` jak w §13.
 - Pobranie przepisu (`input='url'`) odbywa się w tle; porażka kończy import jako `failed`
   z `errorCode` `RECIPE_FETCH_BLOCKED` (adres prywatny / zły port / zły schemat),
@@ -1528,5 +1528,5 @@ z zapytania, domyślnie 3, inne wartości → `400`.
 | `POST /auth/refresh` | 60 / godz. na sesję |
 | `POST /documents` | 20 / godz. na gospodarstwo (ochrona kosztów AI) |
 | `POST /documents/:id/analyze` | 5 / godz. na dokument |
-| `POST /shopping-imports`, `/shopping-imports/:id/retry` | wliczane do tych samych 20 / godz. co `POST /documents` (wspólny limit AI, ADR-094) |
+| `POST /shopping-imports`, `/shopping-imports/:id/retry` | 20 / godz. na gospodarstwo, osobny licznik na każdą z tras; koszty pilnuje wspólny miesięczny budżet AI (ADR-094, [ADR-101](./14-decisions-log.md#adr-101)) |
 | Pozostałe | 300 / min na użytkownika |

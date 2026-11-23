@@ -4838,3 +4838,89 @@ jest wczytana.
 **Konsekwencje.** Testy regresji w `offline.test.ts`, `offline-store.test.ts`,
 `wake-lock.test.tsx`, `shopping-screens.test.tsx`. ADR-099 obowiązuje z poprawkami
 z punktów 1–5.
+
+---
+
+<a id="adr-101"></a>
+
+## ADR-101 — Importy list zakupów: decyzje wdrożenia `F10-8`…`F10-10`
+
+**Data:** 2026-11-23 · **Zadanie:** `F10-8`, `F10-9`, `F10-10` · **Status:** przyjęta
+
+**Kontekst.** Kontrakty importów (ADR-094, 04 §14b, 08 §17) zostawiły kilka szczegółów,
+które wyszły dopiero przy wdrożeniu: wspólny licznik żądań z dokumentami, puste odczyty,
+pobieranie stron spoza naszej kontroli i sposób oceny jakości.
+
+**Decyzja.**
+
+1. **Osobny licznik 20 / godz.** na `POST /shopping-imports` i na `…/retry` zamiast
+   wspólnego z `POST /documents`. `@fastify/rate-limit` trzyma licznik na trasę; wspólny
+   wymagałby własnego magazynu. Kosztów i tak pilnuje wspólny miesięczny budżet AI
+   (`ai_spend_<YYYY-MM>_minor`) sprawdzany przed każdym wywołaniem modelu.
+2. **AI wyłączone → `502 EXTERNAL_SERVICE_ERROR`** przy zakładaniu importu, jak przy
+   analizie dokumentu (04 §14b).
+3. **Puste odczyty:** zdjęcie bez pozycji → `parsed` z pustą listą (przegląd mówi „Nie
+   znalazłem pozycji" i daje *Spróbuj ponownie* / *Odrzuć*); przepis bez składników →
+   `failed` z `RECIPE_NOT_FOUND`.
+4. **Nieudane pobranie linku nie woła modelu** — `failed` z `RECIPE_FETCH_BLOCKED`
+   (adres prywatny, zły schemat, port) albo `RECIPE_FETCH_FAILED` (status, typ, rozmiar,
+   czas). `safeFetchHtml`: tylko `http(s)` na portach 80/443, adresy publiczne sprawdzane
+   po rozwiązaniu nazwy i przypięte do połączenia (bez podmiany DNS), każde przekierowanie
+   sprawdzane od nowa, limity czasu, bajtów i przekierowań. HTML parsowany liniowo
+   (bez wyrażeń regularnych podatnych na ReDoS); treść przepisu trafia do modelu oznaczona
+   jako dane, nie polecenia, a wynik zawsze przechodzi przez przegląd człowieka.
+5. **Zatwierdzenie w jednej transakcji** (I-30) czyści `ai_raw_response`, `source_text`
+   i `file_paths`; pliki znikają z dysku po zatwierdzeniu transakcji (plik bez wiersza to
+   mniejsze zło niż wiersz bez pliku).
+6. **Front:** banery importów `processing` / `parsed` na ekranie listy; `share_target`
+   (`GET /shopping/share`) otwiera formularz przepisu z linkiem wyłuskanym z udostępnionego
+   tekstu dla listy domyślnej; 📷 wyszarzone bez sieci; *Wklej ze schowka* przy linku.
+7. **Ocena jakości** (`shopping:evaluate`) paruje pozycje po nazwie z tolerancją odmiany
+   (wspólny początek słowa), ilości z tolerancją ±10% w tej samej jednostce. Cele:
+   ≥ 90% znalezionych, ≤ 10% nadmiarowych, ≥ 85% trafnych ilości. Pomiar na danych
+   właściciela (Z-55), jak `F7-11`.
+
+**Konsekwencje.** 04 §17, 06 §3.15, 08 §17, 17 §11 zaktualizowane. Testy:
+`safe-fetch.test.ts`, `shopping.recipe-source.test.ts`, `shopping.imports.test.ts`,
+`ai/schemas/shopping.test.ts`, `shopping-metrics.test.ts`, `shopping-import.test.tsx`,
+`shopping-view.test.ts`.
+
+---
+
+<a id="adr-102"></a>
+
+## ADR-102 — Importy list zakupów: poprawki po przeglądzie kodu i bezpieczeństwa `F10-8`…`F10-10`
+
+**Data:** 2026-11-23 · **Zadanie:** przeglądy `/code-review` i `/security-review` przed PR · **Status:** przyjęta
+
+**Kontekst.** Dwa przeglądy w osobnych sesjach: bezpieczeństwa (1 wysoka, 3 niskie)
+i kodu (7 ważnych, 3 drobne; jedno wspólne — IPv4 w IPv6).
+
+**Decyzja.**
+
+1. **ReDoS w `visibleText` (wysoka).** `\s*\n\s*` na długim ciągu spacji Unicode bez
+   `\n` był kwadratowy — 3 MB strony blokowały API na dziesiątki minut. Tekst jest
+   przycinany **przed** zwijaniem, a zwijanie to wyłącznie wyrażenia liniowe.
+2. **IPv6 z listy dozwolonych** (`2000::/3` bez Teredo, ORCHID, dokumentacji i 6to4);
+   adres rozwijany do ośmiu grup, IPv4 zmapowane sprawdzane jak IPv4. Zamyka
+   `::7f00:1`, `::ffff:0:7f00:1`, NAT64 `64:ff9b:1::/48`, `fec0::/10`.
+3. **Prompt injection:** każde `<` z treści przepisu zamieniane na `‹` — żaden wariant
+   `</PRZEPIS >` nie zamknie znacznika danych.
+4. **Dział ze słownika wygrywa z modelem** w propozycjach; zatwierdzenie nie nadpisuje
+   działu, którego słownik się nauczył (chyba że domownik zmienił go w przeglądzie).
+5. **Pusty odczyt zdjęcia da się ponowić** (`parsed` bez propozycji → `retry`), ekran
+   „Nie znalazłem pozycji" ma *Spróbuj ponownie*.
+6. **Przy starcie każdy `processing` → `failed` (`INTERRUPTED`)** — zadania żyją
+   w pamięci, próg 10 min zostawiał świeżo przerwany import bez wyjścia (08 §17).
+   Dokumenty mają ten sam próg — Z-56.
+7. **Ilość z przepisu bez jednostki to sztuki** („3 jajka" nie staje się „do smaku").
+8. **Encja spoza Unicode → `U+FFFD`** zamiast wyjątku wywracającego import.
+9. **Kodowanie strony** z `Content-Type` albo `<meta charset>`, domyślnie UTF-8
+   (ISO-8859-2, windows-1250).
+10. Drobne: `Idempotent-Replayed: true` przy powtórzonym zatwierdzeniu; strona bez
+    widocznego tekstu kończy się `RECIPE_NOT_FOUND` bez płatnego wywołania modelu;
+    baner „Czytam przepis…" / „Czytam listę…" (06 §3.15); 09 §7a zgodne z kodem.
+
+**Konsekwencje.** Testy regresji w `safe-fetch.test.ts`, `shopping.recipe-source.test.ts`,
+`shopping-prompts.test.ts`, `ai/schemas/shopping.test.ts`, `shopping.imports.test.ts`,
+`shopping-import.test.tsx`. ADR-101 obowiązuje z poprawkami z punktów 5 i 6.

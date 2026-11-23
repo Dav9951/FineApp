@@ -4,6 +4,10 @@ import { z } from 'zod';
 
 import { createAnthropicExtractor } from '../ai/anthropic-extractor.js';
 import type { DocumentExtractor } from '../ai/document-extractor.js';
+import {
+  createAnthropicShoppingExtractor,
+  type ShoppingExtractor,
+} from '../ai/shopping-extractor.js';
 import { systemClock, type Clock } from '../core/clock.js';
 import type { Config } from '../core/config.js';
 import { ValidationError } from '../core/errors.js';
@@ -24,6 +28,7 @@ import { plannedExpensesRoutes } from '../modules/planned-expenses/planned-expen
 import { liabilitiesRoutes } from '../modules/liabilities/liabilities.routes.js';
 import { recurringRoutes } from '../modules/recurring/recurring.routes.js';
 import { settingsRoutes } from '../modules/settings/settings.routes.js';
+import { shoppingImportsRoutes } from '../modules/shopping/shopping.imports.routes.js';
 import { shoppingRoutes } from '../modules/shopping/shopping.routes.js';
 import { transactionsRoutes } from '../modules/transactions/transactions.routes.js';
 import { registerErrorHandler } from './error-handler.js';
@@ -106,6 +111,10 @@ export interface ServerDeps {
   readonly extractor?: DocumentExtractor | null;
   /** Rejestr analiz w tle; testy czekają na nim, aż analiza się skończy. */
   readonly documentJobs?: DocumentJobs;
+  /** Ekstraktor list zakupów (`F10-8`); jak `extractor` — testy podstawiają atrapę. */
+  readonly shoppingExtractor?: ShoppingExtractor | null;
+  /** Pobranie strony przepisu; testy podstawiają atrapę bez sieci. */
+  readonly fetchRecipeHtml?: (url: string) => Promise<{ url: string; html: string }>;
 }
 
 /**
@@ -123,6 +132,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
         : null
       : deps.extractor;
   const documentJobs = deps.documentJobs ?? createDocumentJobs();
+  const shoppingExtractor =
+    deps.shoppingExtractor === undefined
+      ? config.ai.enabled
+        ? createAnthropicShoppingExtractor(config.ai)
+        : null
+      : deps.shoppingExtractor;
   const startedAt = Date.now();
 
   const app = Fastify({
@@ -228,6 +243,15 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
   await app.register(budgetRoutes, { prefix: `${API_PREFIX}/budget-drafts`, db, config, clock });
   await app.register(shoppingRoutes, { prefix: API_PREFIX, db, config, clock });
+  await app.register(shoppingImportsRoutes, {
+    prefix: `${API_PREFIX}/shopping-imports`,
+    db,
+    config,
+    clock,
+    extractor: shoppingExtractor,
+    jobs: documentJobs,
+    ...(deps.fetchRecipeHtml === undefined ? {} : { fetchHtml: deps.fetchRecipeHtml }),
+  });
   await app.register(allocationRoutes, {
     prefix: `${API_PREFIX}/allocation`,
     db,
