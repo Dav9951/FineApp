@@ -3,9 +3,9 @@
 > Stan realizacji faz, sprawy zauważone do rozważenia i wskaźniki jakości.
 > Plan zadań: [11-roadmap.md](./11-roadmap.md).
 
-**Ostatnia aktualizacja:** 2026-11-23 (Faza 10 — `F10-5`…`F10-7`: ekrany list zakupów, praca offline, wejścia)
+**Ostatnia aktualizacja:** 2026-11-23 (Faza 10 — `F10-8`…`F10-10`: import ze zdjęcia listy i z przepisu, ocena jakości)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
-**Stan:** ✅ typecheck · lint · format · **2409 testów zielonych**
+**Stan:** ✅ typecheck · lint · format · **2815 testów zielonych**
 
 ---
 
@@ -24,7 +24,7 @@
 | 7 | OCR i AI | ✅ zrobione (`F7-11` potwierdzone przez właściciela) | 11 / 11 |
 | 8 | Dopracowanie i wdrożenie | 🟡 działa produkcyjnie; zostaje `F8-10` | 9 / 10 |
 | 9 | Planer budżetu ([16](./16-budget-planner.md)) | ✅ zrobione (grupy i kolejność) | 13 / 13 |
-| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 🟡 listy bez AI gotowe (`F10-1`…`F10-7`); następne `F10-8` (import ze zdjęcia) | 7 / 10 |
+| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 🟡 listy i importy AI gotowe (`F10-1`…`F10-9`); `F10-10` czeka na pomiar na danych właściciela (`shopping:evaluate`, Z-55) | 9 / 10 |
 
 ---
 
@@ -85,6 +85,7 @@
 | Z-52 | Na Windowsie bez uprawnień do dowiązań `entry-point.test.ts` (symlink) i dwa testy `backup.test.ts` (usuwanie katalogu tymczasowego) padają na `EPERM` — do pominięcia warunkowego albo uruchamiania tylko w CI/Linuksie | niska |
 | Z-53 | ~~Niestabilny `transaction-sheet.test.tsx` › „FAB → kwota → kategoria → zapis…” w CI~~ — **naprawione**: pierwsze otwarcie leniwego arkusza w pliku testów kosztuje jednorazowo ok. 450 ms na jednym rdzeniu (kolejne ok. 50 ms) — `import()` arkusza (ADR-037) i pierwszy montaż Radix `Dialog` z formularzem; na obciążonym runnerze przekraczało domyślne 1000 ms `findBy*`. `SHEET_OPEN_TIMEOUT` (5 s, `apps/web/test/timeouts.ts`) wyłącznie na kroku otwarcia arkusza w `transaction-sheet`, `month-screen`, `allocation-screen`; asercje po nim przy domyślnym limicie. Odrzucone: globalne `asyncUtilTimeout` i wczytanie modułu w `beforeAll` (zdejmuje ≤ 150 ms) | — |
 | Z-54 | Praca offline list zakupów (ADR-096) działa, dopóki karta aplikacji jest wczytana. **Przeładowanie bez sieci** kończy się ekranem logowania: odnowienie sesji (`/auth/refresh`) nie przechodzi, a `AuthProvider` traktuje błąd sieci jak wygasłą sesję. Kolejka zmian przetrwa i wyśle się po zalogowaniu, ale w piwnicy marketu listy nie da się otworzyć od nowa. Do rozważenia: przy `NetworkError` odnowienia zostawić ostatnią sesję w trybie „tylko listy zakupów” | średnia |
+| Z-55 | Zestaw 10 zdjęć tablicy z listą i 10 przepisów (linki, zrzuty, tekst) do oceny importów — **zbiera właściciel**; narzędzie gotowe: `pnpm --filter @fineapp/api shopping:evaluate`, pliki w `apps/api/test/fixtures/shopping/` (poza repozytorium), opis formatu w nagłówku `evaluate-shopping.ts`. Cele: ≥ 90% znalezionych pozycji, ≤ 10% nadmiarowych, ≥ 85% trafnych ilości (`F10-10`) | średnia |
 | Z-46 | Eksport JSON nie ma jeszcze importu — format (`fineapp-export` v1, kolejność tabel pod klucze obce) jest pod niego przygotowany. Odtwarzanie całości idzie z kopii bazy (10 §5.4), nie z eksportu | niska |
 | Z-9 | ~~`core/money.ts` kontra `shared/utils/money.ts`~~ — rozstrzygnięte w `F0-3`: całość w `shared`, [ADR-017](./14-decisions-log.md#adr-017) | — |
 | Z-10 | ~~Brak konwersji `Date` → data biznesowa~~ — **zrobione w `F0-8`**, ale nie tam, gdzie zakładałem: pierwszym odbiorcą okazał się router frontu, więc funkcja mieszka w `shared/utils/date-tz.ts` i jest izomorficzna. `core/dates.ts` nie powstanie ([ADR-022](./14-decisions-log.md#adr-022)) | — |
@@ -128,4 +129,4 @@ Uzupełniane w miarę postępu prac.
 | 12 | Widok miesiąca, przełączanie, księgowanie wstecz | 3 | ✅ dashboard `/m/:month` z przełącznikiem (siatka, gest), okno księgowania i zamknięte miesiące (`F3-1`…`F3-7`) |
 | 13 | Planowane wydatki z odkładaniem | 6 | ✅ API i ekran `/planned`, sekcja „Nadchodzące” (`F6-1`…`F6-9`) |
 | 14 | Planer budżetu: szkic miesiąca (bieżący … +12) ze źródeł, edycja, zamiana linii w pozycję cykliczną / planowany wydatek, średnie kategorii, ocena celów | 9 | ⬜ zaplanowane (16, ADR-075…079); `F9-1`…`F9-10` |
-| 15 | Listy zakupów: kilka list, odhaczanie offline, „Wyczyść kupione”, import ze zdjęcia i z przepisu | 10 | ⬜ kontrakty gotowe (`F10-1`: 03 §3.23–3.27, 04 §14b, 05 §13c, 06 §3.15, 07 §14, 08 §17, 09 §7a); implementacja `F10-2`…`F10-10` |
+| 15 | Listy zakupów: kilka list, odhaczanie offline, „Wyczyść kupione”, import ze zdjęcia i z przepisu | 10 | 🟡 zrobione `F10-1`…`F10-9`; pomiar jakości importów na danych właściciela — `F10-10` (Z-55) |

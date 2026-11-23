@@ -1316,8 +1316,8 @@ makieta [`design/mockups/budget-layout.html`](../design/mockups/budget-layout.ht
 Wymaganie #15. **Wejścia** (P-1): *Więcej → Zakupy* i pasek boczny (grupa „Planowanie",
 nad „Budżet"), pozycja **Do listy zakupów** w menu szybkich akcji FAB, skrót „Lista
 zakupów" w manifeście PWA (`shortcuts` → `/shopping/default`). Cel udostępniania
-(`share_target`, Android) dochodzi z importem przepisu w `F10-9` — bez importu nie ma
-co zrobić z udostępnionym linkiem (ADR-099). Bez zakładki w dolnym pasku — decyzja po
+(`share_target`, Android, `GET /shopping/share?title&text&url`) otwiera formularz
+przepisu z wyłuskanym linkiem (albo tekstem) dla listy domyślnej (`F10-9`, ADR-101). Bez zakładki w dolnym pasku — decyzja po
 miesiącu używania; jeśli wejdzie, to zamiast „Cele".
 
 **`/shopping`** — listy:
@@ -1396,7 +1396,11 @@ miesiącu używania; jeśli wejdzie, to zamiast „Cele".
 - *Przepis* → trzy zakładki: **Zrzut ekranu** (do 3 obrazów, miniatury z usuwaniem) ·
   **Link** (pole URL, wklejenie z schowka jednym przyciskiem) · **Tekst**; pod nimi
   mnożnik: segmenty `×0,5 · ×0,75 · ×1 · ×1,5 · ×2 · inny` (inny → pole 0,25…4).
-  Domyślnie ×1. *Czytaj przepis*.
+  Domyślnie ×1. *Odczytaj przepis*. Pod polem linku *Wklej ze schowka*, gdy przeglądarka
+  daje odczyt schowka. Bez sieci 📷 wyszarzone — odczyt wymaga serwera.
+- Na ekranie listy, pod nagłówkiem, baner na każdy import tej listy w `processing`
+  („Czytam przepis…") albo `parsed` („Przepis odczytany — przejrzyj przed dodaniem") —
+  prowadzi do przeglądu.
 
 **`/shopping/:listId/import/:importId`** — przegląd:
 

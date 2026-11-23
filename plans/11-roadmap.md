@@ -423,7 +423,9 @@ Faza zależy tylko od `F7` (infrastruktura AI) i `F8-3` (PWA); nie zależy od Fa
 `F10-1` ✅ — kontrakty: 03 §3.23–3.27 i §5a, 04 §14b, 05 §13c, 06 §3.15, 07 §14, 08 §17,
 09 §7a, wyjątki w 01 i 02. `F10-2`…`F10-4` ✅ — migracja `0008_shopping`, `shared/domain/shopping.ts`
 (100% pokrycia), moduł `shopping` (listy, pozycje, słownik, czyszczenie, `ETag`).
-`F10-5`…`F10-7` ✅ — ekrany list, praca offline, wejścia (ADR-099). Następne: `F10-8` (import ze zdjęcia).
+`F10-5`…`F10-7` ✅ — ekrany list, praca offline, wejścia (ADR-099). `F10-8`, `F10-9` ✅ — import
+ze zdjęcia listy i z przepisu (link z ochroną SSRF, tekst, zrzuty), `share_target` (ADR-101).
+`F10-10` 🟡 — skrypt `shopping:evaluate` i sprawdzenie 390 px gotowe; pomiar czeka na dane właściciela (Z-55).
 
 ---
 

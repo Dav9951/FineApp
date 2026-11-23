@@ -547,7 +547,7 @@ w `shopping_import_items`, na listę trafiają wyłącznie przez commit (I-30).
 |---|---|
 | `prepareForVision` (obrót, EXIF, 1568 px, JPEG q80), skalowanie i HEIC w przeglądarce | osobne tabele; brak SHA-256 i wykrywania ponownego wrzucenia |
 | model z `households.ai_model` / `AI_MODEL`, structured outputs (`output_config.format`), `max_tokens`, timeout, ponowienia | do 3 obrazów na import (przepis na kilku ekranach) |
-| licznik `ai_spend_<YYYY-MM>_minor`, `AI_MONTHLY_BUDGET_MINOR`, `AI_ENABLED`, limit 20 / godz. | pliki w `UPLOAD_DIR/shopping/YYYY/MM/`, usuwane po commit / discard, najpóźniej po 7 dniach (I-31) |
+| licznik `ai_spend_<YYYY-MM>_minor`, `AI_MONTHLY_BUDGET_MINOR`, `AI_ENABLED`; limit 20 / godz. z osobnym licznikiem (ADR-101) | pliki w `UPLOAD_DIR/shopping/YYYY/MM/`, usuwane po commit / discard, najpóźniej po 7 dniach (I-31) |
 | praca w tle, `processing` starsze niż 10 min → `failed` (`INTERRUPTED`) przy starcie | wejście tekstowe (link, wklejony tekst) bez obrazu |
 | błędy `AI_REFUSED`, `AI_OUTPUT_TRUNCATED`, `AI_UNAVAILABLE`, `AI_SCHEMA_MISMATCH` | bez dziennika `document_logs` w v1 — `error_code` i `ai_raw_response` importu wystarczają |
 

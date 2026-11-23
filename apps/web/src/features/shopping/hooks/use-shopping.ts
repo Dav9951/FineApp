@@ -1,8 +1,13 @@
 import type {
+  CommitShoppingImportResult,
+  CreateShoppingImportRequest,
   CreateShoppingListRequest,
+  ShoppingImportDto,
   ShoppingItemsDto,
   ShoppingListDto,
   ShoppingProductDto,
+  UpdateShoppingImportItemRequest,
+  UpdateShoppingImportRequest,
   UpdateShoppingListRequest,
   UpdateShoppingProductRequest,
   UpsertShoppingProductRequest,
@@ -372,4 +377,124 @@ export function useUpdateProduct(): UseMutationResult<
       shoppingApi.updateProduct(requireToken(accessToken), productId, body),
     onSuccess: () => invalidateShopping(client),
   });
+}
+
+/** Co ile pytamy o wynik odczytu, póki trwa (jak przy dokumentach). */
+export const IMPORT_POLL_MS = 2_000;
+
+/**
+ * Import z propozycjami — odpytywany co 2 s, póki trwa odczyt.
+ *
+ * @param id - Import.
+ * @returns Wynik zapytania.
+ */
+export function useShoppingImport(id: string): UseQueryResult<ShoppingImportDto> {
+  const accessToken = useAccessToken();
+  return useQuery({
+    queryKey: qk.shoppingImport(id),
+    queryFn: () => shoppingApi.fetchImport(requireToken(accessToken), id),
+    enabled: accessToken !== null,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'processing' ? IMPORT_POLL_MS : false,
+  });
+}
+
+/** Nowy import: zdjęcia albo przepis z linku / tekstu. */
+export type NewImport =
+  | {
+      readonly source: 'images';
+      readonly input: Parameters<typeof shoppingApi.createImageImport>[1];
+    }
+  | { readonly source: 'text'; readonly input: CreateShoppingImportRequest };
+
+/**
+ * Wysłanie importu.
+ *
+ * Unieważnia: `qk.shopping()` — karta listy pokazuje odczyt w toku.
+ *
+ * @returns Mutacja.
+ */
+export function useCreateImport(): UseMutationResult<ShoppingImportDto, Error, NewImport> {
+  const accessToken = useAccessToken();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (request: NewImport) =>
+      request.source === 'images'
+        ? shoppingApi.createImageImport(requireToken(accessToken), request.input)
+        : shoppingApi.createTextImport(requireToken(accessToken), request.input),
+    onSuccess: async (created) => {
+      client.setQueryData(qk.shoppingImport(created.id), created);
+      await invalidateShopping(client);
+    },
+  });
+}
+
+/** Zmiana importu w przeglądzie. */
+export type ImportChange =
+  | { readonly kind: 'import'; readonly body: UpdateShoppingImportRequest }
+  | {
+      readonly kind: 'item';
+      readonly itemId: string;
+      readonly body: UpdateShoppingImportItemRequest;
+    };
+
+/**
+ * Zmiany w przeglądzie: mnożnik, lista, propozycje — każda od razu na serwerze, żeby
+ * odświeżenie i druga osoba widziały ten sam stan (06 §3.15).
+ *
+ * Unieważnia: nic — odpowiedź to cały import, wpisany do `qk.shoppingImport(id)`.
+ *
+ * @param id - Import.
+ * @returns Mutacja.
+ */
+export function useImportChange(
+  id: string,
+): UseMutationResult<ShoppingImportDto, Error, ImportChange> {
+  const accessToken = useAccessToken();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (change: ImportChange) =>
+      change.kind === 'import'
+        ? shoppingApi.updateImport(requireToken(accessToken), id, change.body)
+        : shoppingApi.updateImportItem(requireToken(accessToken), id, change.itemId, change.body),
+    onSuccess: (updated) => {
+      client.setQueryData(qk.shoppingImport(id), updated);
+    },
+  });
+}
+
+/**
+ * Zatwierdzenie, odrzucenie, ponowienie importu.
+ *
+ * Unieważnia: `qk.shopping()`.
+ *
+ * @param id - Import.
+ * @returns Trzy mutacje.
+ */
+export function useImportActions(id: string): {
+  commit: UseMutationResult<CommitShoppingImportResult, Error, string>;
+  discard: UseMutationResult<void, Error, void>;
+  retry: UseMutationResult<ShoppingImportDto, Error, void>;
+} {
+  const accessToken = useAccessToken();
+  const client = useQueryClient();
+  const refresh = (): Promise<void> => invalidateShopping(client);
+  return {
+    commit: useMutation({
+      mutationFn: (idempotencyKey: string) =>
+        shoppingApi.commitImport(requireToken(accessToken), id, idempotencyKey),
+      onSuccess: refresh,
+    }),
+    discard: useMutation({
+      mutationFn: () => shoppingApi.discardImport(requireToken(accessToken), id),
+      onSuccess: refresh,
+    }),
+    retry: useMutation({
+      mutationFn: () => shoppingApi.retryImport(requireToken(accessToken), id),
+      onSuccess: async (updated) => {
+        client.setQueryData(qk.shoppingImport(id), updated);
+        await refresh();
+      },
+    }),
+  };
 }

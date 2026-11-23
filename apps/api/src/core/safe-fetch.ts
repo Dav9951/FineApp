@@ -233,6 +233,16 @@ async function readLimited(response: IncomingMessage, maxBytes: number): Promise
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/** Limity pobrania. */
+export interface SafeFetchLimits {
+  /** Czas całego pobrania. */
+  readonly timeoutMs: number;
+  /** Najwięcej bajtów treści. */
+  readonly maxBytes: number;
+  /** Najwięcej przekierowań. */
+  readonly maxRedirects: number;
+}
+
 /** Wynik pobrania. */
 export interface SafeFetchResult {
   /** Ostateczny adres po przekierowaniach. */
@@ -252,7 +262,7 @@ export interface SafeFetchResult {
 export async function safeFetchHtml(
   rawUrl: string,
   deps: SafeFetchDeps = defaultSafeFetchDeps,
-  limits: { timeoutMs: number; maxBytes: number; maxRedirects: number } = SAFE_FETCH_LIMITS,
+  limits: SafeFetchLimits = SAFE_FETCH_LIMITS,
 ): Promise<SafeFetchResult> {
   let url: URL;
   try {

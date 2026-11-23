@@ -142,3 +142,51 @@ export function quantityInputValue(milli: number | null): string {
     ? String(Math.floor(milli / 1000))
     : `${String(Math.floor(milli / 1000))},${fraction}`;
 }
+
+/**
+ * Mnożnik porcji do wyświetlenia: 5000 → „×0,5", 12 500 → „×1,25".
+ *
+ * @param bps - Mnożnik w bps.
+ * @returns Opis.
+ */
+export function factorLabel(bps: number): string {
+  const whole = Math.floor(bps / 10_000);
+  const fraction = String(bps % 10_000)
+    .padStart(4, '0')
+    .replace(/0+$/u, '');
+  return `×${String(whole)}${fraction === '' ? '' : `,${fraction}`}`;
+}
+
+/**
+ * Mnożnik z pola „Inny mnożnik" („1,25", „0.5") w bps; poza ×0,25…×4 albo nie-liczba —
+ * `undefined`.
+ *
+ * @param text - Tekst pola.
+ * @returns Mnożnik w bps albo `undefined`.
+ */
+export function parseFactorInput(text: string): number | undefined {
+  const match = /^(\d)(?:[.,](\d{1,4}))?$/u.exec(text.trim());
+  if (match === null) return undefined;
+  const bps = Number(match[1]) * 10_000 + Number((match[2] ?? '').padEnd(4, '0'));
+  return bps >= 2_500 && bps <= 40_000 ? bps : undefined;
+}
+
+/**
+ * Link albo tekst z udostępnienia (`share_target`): przeglądarki na Androidzie często
+ * wkładają adres do `text` zamiast `url`. Adres tylko `http(s)`, do 2000 znaków.
+ *
+ * @param url - Parametr `url`.
+ * @param text - Parametr `text`.
+ * @returns Link albo tekst do formularza przepisu.
+ */
+export function sharedRecipe(
+  url: string | null,
+  text: string | null,
+): { url?: string; text?: string } {
+  const candidate = [url, text]
+    .map((value) => /https?:\/\/\S+/iu.exec(value ?? '')?.[0])
+    .find((value) => value !== undefined);
+  if (candidate !== undefined && candidate.length <= 2000) return { url: candidate };
+  const body = (text ?? '').trim();
+  return body === '' ? {} : { text: body.slice(0, 30_000) };
+}

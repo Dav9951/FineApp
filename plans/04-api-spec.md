@@ -1528,5 +1528,5 @@ z zapytania, domyślnie 3, inne wartości → `400`.
 | `POST /auth/refresh` | 60 / godz. na sesję |
 | `POST /documents` | 20 / godz. na gospodarstwo (ochrona kosztów AI) |
 | `POST /documents/:id/analyze` | 5 / godz. na dokument |
-| `POST /shopping-imports`, `/shopping-imports/:id/retry` | wliczane do tych samych 20 / godz. co `POST /documents` (wspólny limit AI, ADR-094) |
+| `POST /shopping-imports`, `/shopping-imports/:id/retry` | 20 / godz. na gospodarstwo, osobny licznik na każdą z tras; koszty pilnuje wspólny miesięczny budżet AI (ADR-094, [ADR-101](./14-decisions-log.md#adr-101)) |
 | Pozostałe | 300 / min na użytkownika |

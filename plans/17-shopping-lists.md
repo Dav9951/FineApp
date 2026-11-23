@@ -375,9 +375,9 @@ eksport i „Usuń wszystkie dane".
 | F10-5 | ✅ Ekrany `/shopping` i `/shopping/:listId`: dopisywanie z podpowiedziami, odhaczanie, działy, kupione, arkusz pozycji, cztery stany, 390 px — **zrobione** |
 | F10-6 | ✅ Odświeżanie co 15 s, migawka listy i kolejka zmian offline, baner, Wake Lock (ADR-099) — **zrobione** |
 | F10-7 | ✅ Wejścia: *Więcej*, pasek boczny, FAB, skrót w manifeście, udostępnienie jako tekst; `share_target` przeniesiony do `F10-9` — **zrobione** |
-| F10-8 | Import ze zdjęcia listy: `shopping_imports`, ekstraktor, prompt i schemat (08 §17), przegląd, scalanie, commit |
-| F10-9 | Import przepisu: `fetchRecipeSource` z ochroną SSRF i JSON-LD, wklejony tekst, zrzuty, mnożnik z przeliczeniem bez AI, sekcja „Już mam", `share_target` (z `F10-7`); ekran *Zawsze w domu* powstał w `F10-5` |
-| F10-10 | Ocena jakości: 10 zdjęć tablicy i 10 przepisów (linki i zrzuty) z oczekiwanym wynikiem, jak `ocr:evaluate`; sprawdzenie przepływów na 390 px w obu motywach |
+| F10-8 | ✅ Import ze zdjęcia listy: `shopping_imports`, ekstraktor, prompt i schemat (08 §17), przegląd, scalanie, commit — **zrobione** |
+| F10-9 | ✅ Import przepisu: `fetchRecipeSource` z ochroną SSRF i JSON-LD, wklejony tekst, zrzuty, mnożnik z przeliczeniem bez AI, sekcja „Już mam", `share_target` (z `F10-7`); ekran *Zawsze w domu* powstał w `F10-5` — **zrobione** |
+| F10-10 | 🟡 Ocena jakości: 10 zdjęć tablicy i 10 przepisów (linki i zrzuty) z oczekiwanym wynikiem, jak `ocr:evaluate`; sprawdzenie przepływów na 390 px w obu motywach — skrypt `shopping:evaluate` i sprawdzenie 390 px **zrobione**; pomiar czeka na zdjęcia i przepisy właściciela (jak `F7-11`) |
 
 `F10-2` → `F10-3` → `F10-4` → `F10-5` → (`F10-6`, `F10-7`, `F10-8`) → `F10-9` → `F10-10`.
 Część bez AI (`F10-2`…`F10-7`) jest używalna sama i warto ją wdrożyć przed importami:

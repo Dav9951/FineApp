@@ -4838,3 +4838,49 @@ jest wczytana.
 **Konsekwencje.** Testy regresji w `offline.test.ts`, `offline-store.test.ts`,
 `wake-lock.test.tsx`, `shopping-screens.test.tsx`. ADR-099 obowiązuje z poprawkami
 z punktów 1–5.
+
+---
+
+<a id="adr-101"></a>
+
+## ADR-101 — Importy list zakupów: decyzje wdrożenia `F10-8`…`F10-10`
+
+**Data:** 2026-11-23 · **Zadanie:** `F10-8`, `F10-9`, `F10-10` · **Status:** przyjęta
+
+**Kontekst.** Kontrakty importów (ADR-094, 04 §14b, 08 §17) zostawiły kilka szczegółów,
+które wyszły dopiero przy wdrożeniu: wspólny licznik żądań z dokumentami, puste odczyty,
+pobieranie stron spoza naszej kontroli i sposób oceny jakości.
+
+**Decyzja.**
+
+1. **Osobny licznik 20 / godz.** na `POST /shopping-imports` i na `…/retry` zamiast
+   wspólnego z `POST /documents`. `@fastify/rate-limit` trzyma licznik na trasę; wspólny
+   wymagałby własnego magazynu. Kosztów i tak pilnuje wspólny miesięczny budżet AI
+   (`ai_spend_<YYYY-MM>_minor`) sprawdzany przed każdym wywołaniem modelu.
+2. **AI wyłączone → `502 EXTERNAL_SERVICE_ERROR`** przy zakładaniu importu, jak przy
+   analizie dokumentu (04 §14b).
+3. **Puste odczyty:** zdjęcie bez pozycji → `parsed` z pustą listą (przegląd mówi „Nie
+   znalazłem pozycji" i daje *Spróbuj ponownie* / *Odrzuć*); przepis bez składników →
+   `failed` z `RECIPE_NOT_FOUND`.
+4. **Nieudane pobranie linku nie woła modelu** — `failed` z `RECIPE_FETCH_BLOCKED`
+   (adres prywatny, zły schemat, port) albo `RECIPE_FETCH_FAILED` (status, typ, rozmiar,
+   czas). `safeFetchHtml`: tylko `http(s)` na portach 80/443, adresy publiczne sprawdzane
+   po rozwiązaniu nazwy i przypięte do połączenia (bez podmiany DNS), każde przekierowanie
+   sprawdzane od nowa, limity czasu, bajtów i przekierowań. HTML parsowany liniowo
+   (bez wyrażeń regularnych podatnych na ReDoS); treść przepisu trafia do modelu oznaczona
+   jako dane, nie polecenia, a wynik zawsze przechodzi przez przegląd człowieka.
+5. **Zatwierdzenie w jednej transakcji** (I-30) czyści `ai_raw_response`, `source_text`
+   i `file_paths`; pliki znikają z dysku po zatwierdzeniu transakcji (plik bez wiersza to
+   mniejsze zło niż wiersz bez pliku).
+6. **Front:** banery importów `processing` / `parsed` na ekranie listy; `share_target`
+   (`GET /shopping/share`) otwiera formularz przepisu z linkiem wyłuskanym z udostępnionego
+   tekstu dla listy domyślnej; 📷 wyszarzone bez sieci; *Wklej ze schowka* przy linku.
+7. **Ocena jakości** (`shopping:evaluate`) paruje pozycje po nazwie z tolerancją odmiany
+   (wspólny początek słowa), ilości z tolerancją ±10% w tej samej jednostce. Cele:
+   ≥ 90% znalezionych, ≤ 10% nadmiarowych, ≥ 85% trafnych ilości. Pomiar na danych
+   właściciela (Z-55), jak `F7-11`.
+
+**Konsekwencje.** 04 §17, 06 §3.15, 08 §17, 17 §11 zaktualizowane. Testy:
+`safe-fetch.test.ts`, `shopping.recipe-source.test.ts`, `shopping.imports.test.ts`,
+`ai/schemas/shopping.test.ts`, `shopping-metrics.test.ts`, `shopping-import.test.tsx`,
+`shopping-view.test.ts`.

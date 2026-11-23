@@ -51,6 +51,7 @@ __pycache__/
 
 # Zbiór oceny OCR (08 §15) — prawdziwe paragony, nie trafiają do repozytorium
 apps/api/test/fixtures/receipts/
+apps/api/test/fixtures/shopping/
 
 # prywatne notatki i narzędzia opiekuna — nie trafiają do repozytorium
 .private/

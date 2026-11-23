@@ -31,6 +31,12 @@ export default defineConfig({
         start_url: '/',
         lang: 'pl',
         // Długie przytrzymanie ikony aplikacji → prosto do listy zakupów (06 §3.15).
+        // „Udostępnij → FineApp" na stronie przepisu (Android) — 06 §3.15, `F10-9`.
+        share_target: {
+          action: '/shopping/share',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         shortcuts: [
           {
             name: 'Lista zakupów',

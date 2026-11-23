@@ -3,7 +3,15 @@ import {
   type ShoppingItemDto,
   type ShoppingListDto,
 } from '@fineapp/shared';
-import { Check, ChevronDown, ChevronLeft, Circle, MoreHorizontal, WifiOff } from 'lucide-react';
+import {
+  Camera,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  Circle,
+  MoreHorizontal,
+  WifiOff,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -37,6 +45,7 @@ import {
 import { checkedItems, groupToBuy, shareText } from '../shopping-view.js';
 import { ShoppingAddBar } from './shopping-add-bar.js';
 import { ShoppingConfirmSheet } from './shopping-confirm-sheet.js';
+import { ShoppingImportSheet } from './shopping-import-sheet.js';
 import { ShoppingItemSheet } from './shopping-item-sheet.js';
 import { ShoppingNameSheet } from './shopping-name-sheet.js';
 
@@ -81,6 +90,9 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
   useHideFab(true);
   const [editing, setEditing] = useState<ShoppingItemDto | null>(null);
   const [cleared, setCleared] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const aiEnabled = useAiEnabled();
+  const online = useOnline();
 
   if (query.isPending) {
     return (
@@ -133,6 +145,20 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
     <main>
       <ListHeader items={items} list={list} name={list.name} />
       <OfflineNote />
+      {list.pendingImports.map((pending) => (
+        <Link
+          className="mt-4 flex min-h-touch items-center justify-between gap-2 rounded-md border border-primary bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          key={pending.id}
+          to={`/shopping/${listId}/import/${pending.id}`}
+        >
+          {pending.status === 'parsed'
+            ? pending.kind === 'recipe'
+              ? 'Przepis odczytany — przejrzyj przed dodaniem'
+              : 'Lista ze zdjęcia odczytana — przejrzyj przed dodaniem'
+            : 'Czytam…'}
+          <span aria-hidden="true">›</span>
+        </Link>
+      ))}
       {archived ? (
         <p className="mt-4 rounded-md border border-border bg-card p-3 text-sm">
           Lista jest w archiwum — przywróć ją w menu, żeby coś zmienić.
@@ -185,9 +211,24 @@ function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode 
       <div
         className={cn('z-20 -mx-4 mt-6 bg-background px-4 py-3 md:-mx-6 md:px-6', ADD_BAR_STICKY)}
       >
-        <ShoppingAddBar disabled={archived} listId={listId} />
+        <div className="flex items-end gap-2">
+          <ShoppingAddBar className="min-w-0 flex-1" disabled={archived} listId={listId} />
+          {aiEnabled && !archived ? (
+            <IconButton
+              disabled={!online}
+              label="Dodaj ze zdjęcia albo przepisu"
+              onClick={() => {
+                setImporting(true);
+              }}
+              variant="ghost"
+            >
+              <Camera aria-hidden="true" className="h-5 w-5" strokeWidth={1.5} />
+            </IconButton>
+          ) : null}
+        </div>
       </div>
 
+      <ShoppingImportSheet listId={listId} onOpenChange={setImporting} open={importing} />
       <ShoppingItemSheet
         item={editing}
         onClose={() => {
