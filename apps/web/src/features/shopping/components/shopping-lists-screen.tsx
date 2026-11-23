@@ -231,12 +231,21 @@ function ArchiveSheet({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }): ReactNode {
-  const archived = useShoppingLists(true);
+  const archived = useShoppingLists(true, open);
   return (
     <Sheet onOpenChange={onOpenChange} open={open} title="Archiwum">
       {archived.isPending ? (
         <SkeletonList rows={2} />
-      ) : (archived.data ?? []).length === 0 ? (
+      ) : archived.isError ? (
+        <ErrorState
+          details={errorDetails(archived.error)}
+          onRetry={() => {
+            void archived.refetch();
+          }}
+          retrying={archived.isFetching}
+          title="Nie udało się wczytać archiwum"
+        />
+      ) : archived.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">Archiwum jest puste.</p>
       ) : (
         <ul className="flex flex-col gap-2">

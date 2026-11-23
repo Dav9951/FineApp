@@ -8,11 +8,13 @@ import {
   applyOps,
   enqueue,
   flushOutbox,
+  forgetList,
+  undoClear,
   pendingOps,
   readOutbox,
   readSnapshot,
   writeSnapshot,
-  type OutboxOp,
+  type OutboxChange,
 } from './offline.js';
 
 /** Testy pracy offline list zakupów (ADR-096, 07 §14.3, §14.7). */
@@ -89,7 +91,7 @@ describe('applyOps — zmiany nałożone na listę', () => {
   });
 
   it('dopisanie: nowa pozycja z działem ze słów kluczowych; to samo id drugi raz nic nie zmienia', () => {
-    const op: OutboxOp = { kind: 'add', listId: LIST, body: { id: ID(3), name: 'cebula' } };
+    const op: OutboxChange = { kind: 'add', listId: LIST, body: { id: ID(3), name: 'cebula' } };
     const result = applyOps(base, [op, op], 'AK', 10);
     expect(result.items.map((i) => [i.name, i.section])).toEqual([
       ['Cebula', 'produce'],
@@ -100,7 +102,7 @@ describe('applyOps — zmiany nałożone na listę', () => {
   });
 
   it('dopisanie istniejącej scala jak serwer', () => {
-    const op: OutboxOp = {
+    const op: OutboxChange = {
       kind: 'add',
       listId: LIST,
       body: { id: ID(3), name: 'MLEKO', quantityMilli: 1000, unit: 'pcs', note: 'bez laktozy' },
@@ -110,7 +112,7 @@ describe('applyOps — zmiany nałożone na listę', () => {
   });
 
   it('odhaczenie, odznaczenie, zmiana pól, usunięcie, przeniesienie, czyszczenie', () => {
-    const ops: OutboxOp[] = [
+    const ops: OutboxChange[] = [
       { kind: 'update', listId: LIST, itemId: ID(1), body: { checked: true } },
       { kind: 'update', listId: LIST, itemId: ID(2), body: { checked: false } },
       {
@@ -179,7 +181,7 @@ describe('kolejka i migawka', () => {
       .spyOn(shoppingApi, 'createShoppingItem')
       .mockRejectedValueOnce(new NetworkError());
     const first = await flushOutbox('t');
-    expect(first).toEqual({ sent: 0, rejected: 0, stoppedOffline: true });
+    expect(first).toMatchObject({ sent: 0, rejected: 0, stoppedOffline: true });
     expect(readOutbox()).toHaveLength(4);
 
     add.mockResolvedValue({ item: item({ id: ID(1), name: 'Mleko' }), merged: false });
@@ -191,7 +193,8 @@ describe('kolejka i migawka', () => {
       .spyOn(shoppingApi, 'clearCheckedItems')
       .mockResolvedValue({ clearedIds: [], listEmpty: false });
     const second = await flushOutbox('t');
-    expect(second).toEqual({ sent: 4, rejected: 1, stoppedOffline: false });
+    expect(second).toMatchObject({ sent: 4, rejected: 1, stoppedOffline: false });
+    expect(second.rejectedOpIds).toHaveLength(1);
     expect(readOutbox()).toEqual([]);
     expect(remove).toHaveBeenCalledWith('t', ID(2));
     expect(clear).toHaveBeenCalledWith('t', LIST);
@@ -215,5 +218,58 @@ describe('kolejka i migawka', () => {
     enqueue({ kind: 'delete', listId: LIST, itemId: ID(1) });
     vi.spyOn(shoppingApi, 'deleteShoppingItem').mockRejectedValue(new TypeError('x'));
     expect(await flushOutbox('t')).toMatchObject({ stoppedOffline: true });
+  });
+
+  it.each([401, 403, 429])(
+    'odpowiedź %i zostawia zmianę w kolejce (np. wygasły token)',
+    async (status) => {
+      enqueue({ kind: 'update', listId: LIST, itemId: ID(1), body: { checked: true } });
+      vi.spyOn(shoppingApi, 'updateShoppingItem').mockRejectedValue(
+        new ApiRequestError('UNAUTHORIZED', 'x', status, 'r'),
+      );
+      expect(await flushOutbox('t')).toMatchObject({ stoppedOffline: true, rejected: 0 });
+      expect(readOutbox()).toHaveLength(1);
+    },
+  );
+
+  it('„Cofnij" przed wysłaniem czyszczenia po prostu je wycofuje', () => {
+    enqueue({ kind: 'update', listId: LIST, itemId: ID(1), body: { checked: true } });
+    enqueue({ kind: 'clear', listId: LIST });
+    expect(undoClear(LIST, [ID(1)])).toBe('cancelled');
+    expect(readOutbox().map((op) => op.kind)).toEqual(['update']);
+  });
+
+  it('„Cofnij" po wysłaniu czyszczenia staje za nim w kolejce', async () => {
+    enqueue({ kind: 'clear', listId: LIST });
+    let release: () => void = () => undefined;
+    vi.spyOn(shoppingApi, 'clearCheckedItems').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve({ clearedIds: [ID(1)], listEmpty: false });
+          };
+        }),
+    );
+    const restore = vi
+      .spyOn(shoppingApi, 'restoreClearedItems')
+      .mockResolvedValue({ restoredIds: [ID(1)] });
+    const flushing = flushOutbox('t');
+    await Promise.resolve();
+    // Czyszczenie jest w drodze — nie wolno go wyjąć; przywrócenie idzie za nim.
+    expect(undoClear(LIST, [ID(1)])).toBe('queued');
+    release();
+    // To samo wysyłanie zabiera też przywrócenie — po czyszczeniu, nigdy przed nim.
+    await flushing;
+    expect(restore).toHaveBeenCalledWith('t', LIST, [ID(1)]);
+    expect(readOutbox()).toEqual([]);
+  });
+
+  it('zapomnienie listy usuwa jej migawkę i zmiany, cudze zostają', () => {
+    writeSnapshot(data([item({ id: ID(1), name: 'Mleko' })]));
+    enqueue({ kind: 'delete', listId: LIST, itemId: ID(1) });
+    enqueue({ kind: 'delete', listId: 'INNA', itemId: ID(2) });
+    forgetList(LIST);
+    expect(readSnapshot(LIST)).toBeUndefined();
+    expect(readOutbox().map((op) => op.listId)).toEqual(['INNA']);
   });
 });

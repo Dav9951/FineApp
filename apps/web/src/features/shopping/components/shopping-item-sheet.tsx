@@ -83,6 +83,8 @@ function ItemForm({
   const [note, setNote] = useState(item.note ?? '');
   const [section, setSection] = useState<ShoppingSection>(item.section);
   const [errors, setErrors] = useState<{ name?: string; quantity?: string }>({});
+  // Własny stan przełącznika: pozycja w propsach to migawka z chwili otwarcia arkusza.
+  const [staple, setStaple] = useState(item.isStaple);
 
   const others = (lists.data ?? []).filter((list) => list.id !== item.listId);
 
@@ -111,7 +113,9 @@ function ItemForm({
   };
 
   const toggleStaple = (isStaple: boolean): void => {
+    setStaple(isStaple);
     const onError = (failure: Error): void => {
+      setStaple(!isStaple);
       toast.show({ message: failure.message });
     };
     if (item.productId === null) {
@@ -201,7 +205,7 @@ function ItemForm({
             Przy przepisie trafi do „Już mam”.
           </span>
         </span>
-        <Switch checked={item.isStaple} label="Zawsze w domu" onCheckedChange={toggleStaple} />
+        <Switch checked={staple} label="Zawsze w domu" onCheckedChange={toggleStaple} />
       </div>
       {others.length > 0 ? (
         <section aria-label="Przenieś na inną listę" className="flex flex-col gap-2">

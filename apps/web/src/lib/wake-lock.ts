@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * „Nie wygaszaj ekranu" w sklepie (06 §3.15) — Screen Wake Lock API.
@@ -44,29 +44,38 @@ export function useWakeLock(): WakeLockControls {
   const [active, setActive] = useState(false);
   const sentinel = useRef<WakeLockSentinelLike | null>(null);
 
-  const acquire = useCallback(async (): Promise<void> => {
-    if (api === null) return;
-    try {
-      sentinel.current = await api.request('screen');
-    } catch {
-      // Odmowa (np. tryb oszczędzania baterii) — ekran po prostu zgaśnie jak zwykle.
-      setActive(false);
-    }
-  }, [api]);
-
   useEffect(() => {
-    if (!active) return undefined;
+    if (!active || api === null) return undefined;
+    // Flaga per przebieg efektu: blokada, która przyjdzie po wyłączeniu przełącznika
+    // albo wyjściu z ekranu, jest zwalniana od razu, zamiast zostać na zawsze.
+    let cancelled = false;
+    const acquire = async (): Promise<void> => {
+      try {
+        const next = await api.request('screen');
+        if (cancelled) {
+          await next.release();
+          return;
+        }
+        const previous = sentinel.current;
+        sentinel.current = next;
+        await previous?.release();
+      } catch {
+        // Odmowa (np. tryb oszczędzania baterii) — ekran po prostu zgaśnie jak zwykle.
+        if (!cancelled) setActive(false);
+      }
+    };
     void acquire();
     const onVisible = (): void => {
       if (document.visibilityState === 'visible') void acquire();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
+      cancelled = true;
       document.removeEventListener('visibilitychange', onVisible);
       void sentinel.current?.release().catch(() => undefined);
       sentinel.current = null;
     };
-  }, [active, acquire]);
+  }, [active, api]);
 
   return {
     supported: api !== null,

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Sheet, SkeletonList, useToast } from '../../../components/ui/index.js';
+import { ErrorState, Sheet, SkeletonList, useToast } from '../../../components/ui/index.js';
+import { errorDetails } from '../../../lib/api-client.js';
 import { useShoppingLists } from '../hooks/use-shopping.js';
 import { ShoppingAddBar } from './shopping-add-bar.js';
 
@@ -46,6 +47,18 @@ function QuickAdd({ onOpenChange }: { readonly onOpenChange: (open: boolean) => 
   const lists = useShoppingLists();
   const toast = useToast();
   if (lists.isPending) return <SkeletonList rows={1} />;
+  if (lists.isError) {
+    return (
+      <ErrorState
+        details={errorDetails(lists.error)}
+        onRetry={() => {
+          void lists.refetch();
+        }}
+        retrying={lists.isFetching}
+        title="Nie udało się wczytać list"
+      />
+    );
+  }
   const target = (lists.data ?? []).find((list) => list.isDefault) ?? lists.data?.[0];
   if (target === undefined) {
     return (

@@ -55,6 +55,20 @@ export function removeOffline(key: string): void {
   }
 }
 
+const OWNER_KEY = 'owner';
+
+/**
+ * Przypisuje magazyn zalogowanej osobie. Gdy na tym urządzeniu loguje się ktoś inny,
+ * dane poprzedniej osoby znikają — jej kolejka nie może wyjść z cudzym tokenem.
+ *
+ * @param userId - Zalogowana osoba.
+ */
+export function claimOfflineStore(userId: string): void {
+  if (readOffline(OWNER_KEY) === userId) return;
+  clearOfflineStore();
+  writeOffline(OWNER_KEY, userId);
+}
+
 /** Usuwa wszystkie dane magazynu — przy wylogowaniu, żeby lista nie została na urządzeniu. */
 export function clearOfflineStore(): void {
   try {

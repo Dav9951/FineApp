@@ -21,15 +21,17 @@ import { qk } from '../../../lib/query-keys.js';
 import { useAuth } from '../../auth/auth-context.js';
 import { requireToken, useAccessToken } from '../../auth/use-token.js';
 import * as shoppingApi from '../api.js';
+import { ApiRequestError } from '../../../lib/api-client.js';
 import {
   applyOps,
   enqueue,
   flushOutbox,
+  forgetList,
   pendingOps,
   readSnapshot,
+  undoClear,
   writeSnapshot,
-  type FlushResult,
-  type OutboxOp,
+  type OutboxChange,
 } from '../offline.js';
 import { initialsOf } from '../shopping-view.js';
 
@@ -50,14 +52,18 @@ export const SHOPPING_POLL_MS = 15_000;
  * Listy bieżące albo archiwum. Pierwsze wywołanie zakłada „Spożywcze" (07 §14.6).
  *
  * @param archived - Archiwum zamiast list bieżących.
+ * @param enabled - Czy pytać (archiwum — dopiero po otwarciu arkusza).
  * @returns Wynik zapytania.
  */
-export function useShoppingLists(archived = false): UseQueryResult<ShoppingListDto[]> {
+export function useShoppingLists(
+  archived = false,
+  enabled = true,
+): UseQueryResult<ShoppingListDto[]> {
   const accessToken = useAccessToken();
   return useQuery({
     queryKey: qk.shoppingLists(archived),
     queryFn: () => shoppingApi.fetchShoppingLists(requireToken(accessToken), archived),
-    enabled: accessToken !== null,
+    enabled: accessToken !== null && enabled,
   });
 }
 
@@ -102,7 +108,14 @@ export function useShoppingItems(listId: string): UseQueryResult<ShoppingItemsDt
   return useQuery({
     queryKey: qk.shoppingItems(listId),
     queryFn: async () => {
-      const data = await shoppingApi.fetchShoppingItems(requireToken(accessToken), listId);
+      let data: ShoppingItemsDto;
+      try {
+        data = await shoppingApi.fetchShoppingItems(requireToken(accessToken), listId);
+      } catch (error) {
+        // Lista usunięta na drugim telefonie — migawka i jej zmiany nie mają dokąd trafić.
+        if (error instanceof ApiRequestError && error.status === 404) forgetList(listId);
+        throw error;
+      }
       writeSnapshot(data);
       return applyOps(data, pendingOps(listId), initials);
     },
@@ -130,10 +143,18 @@ function invalidateShopping(client: QueryClient): Promise<void> {
 
 /** Zmiana pozycji bez pola listy — listę dokłada hook. */
 export type ItemChange =
-  | Omit<Extract<OutboxOp, { kind: 'add' }>, 'listId'>
-  | Omit<Extract<OutboxOp, { kind: 'update' }>, 'listId'>
-  | Omit<Extract<OutboxOp, { kind: 'delete' }>, 'listId'>
-  | Omit<Extract<OutboxOp, { kind: 'clear' }>, 'listId'>;
+  | Omit<Extract<OutboxChange, { kind: 'add' }>, 'listId'>
+  | Omit<Extract<OutboxChange, { kind: 'update' }>, 'listId'>
+  | Omit<Extract<OutboxChange, { kind: 'delete' }>, 'listId'>
+  | Omit<Extract<OutboxChange, { kind: 'clear' }>, 'listId'>;
+
+/** Los jednej zmiany po próbie wysłania kolejki. */
+export interface ChangeOutcome {
+  /** Serwer ostatecznie odrzucił **tę** zmianę (nie cudzą z kolejki). */
+  readonly rejected: boolean;
+  /** Kolejka czeka na sieć — zmiana jeszcze nie doszła. */
+  readonly offline: boolean;
+}
 
 /**
  * Zapis zmian pozycji jednej listy przez kolejkę (ADR-096): zmiana od razu na ekranie,
@@ -142,44 +163,50 @@ export type ItemChange =
  * @param listId - Lista.
  * @returns Funkcja zapisu; obietnica daje wynik wysłania kolejki.
  */
-export function useItemChange(listId: string): (change: ItemChange) => Promise<FlushResult> {
+export function useItemChange(listId: string): (change: ItemChange) => Promise<ChangeOutcome> {
   const accessToken = useAccessToken();
   const client = useQueryClient();
   const initials = useOwnInitials();
 
   return useCallback(
-    async (change: ItemChange): Promise<FlushResult> => {
-      const op = { ...change, listId } as OutboxOp;
-      enqueue(op);
+    async (change: ItemChange): Promise<ChangeOutcome> => {
+      const op = enqueue({ ...change, listId });
       client.setQueryData<ShoppingItemsDto>(qk.shoppingItems(listId), (current) =>
         current === undefined ? current : applyOps(current, [op], initials),
       );
       const result = await flushOutbox(requireToken(accessToken));
       if (!result.stoppedOffline) await invalidateShopping(client);
-      return result;
+      return {
+        rejected: result.rejectedOpIds.includes(op.opId),
+        offline: result.stoppedOffline,
+      };
     },
     [accessToken, client, initials, listId],
   );
 }
 
 /**
- * Cofnięcie „Wyczyść kupione" — tylko z siecią (04 §14b).
+ * „Cofnij" po „Wyczyść kupione" — przez tę samą kolejkę co czyszczenie, więc nigdy go
+ * nie wyprzedzi (ADR-099). Czyszczenie, które jeszcze nie wyszło, po prostu znika.
  *
  * Unieważnia: `qk.shopping()`.
  *
  * @param listId - Lista.
- * @returns Mutacja.
+ * @returns Funkcja cofnięcia.
  */
-export function useRestoreCleared(
-  listId: string,
-): UseMutationResult<unknown, Error, readonly string[]> {
+export function useUndoClear(listId: string): (itemIds: readonly string[]) => Promise<void> {
   const accessToken = useAccessToken();
   const client = useQueryClient();
-  return useMutation({
-    mutationFn: (itemIds: readonly string[]) =>
-      shoppingApi.restoreClearedItems(requireToken(accessToken), listId, itemIds),
-    onSuccess: () => invalidateShopping(client),
-  });
+  return useCallback(
+    async (itemIds: readonly string[]): Promise<void> => {
+      if (undoClear(listId, itemIds) === 'queued') {
+        const result = await flushOutbox(requireToken(accessToken));
+        if (result.stoppedOffline) return;
+      }
+      await invalidateShopping(client);
+    },
+    [accessToken, client, listId],
+  );
 }
 
 /**

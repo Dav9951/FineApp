@@ -4804,3 +4804,37 @@ kolejności zmian między „z siecią" i „bez sieci".
 17 §11. Ograniczenie zapisane jako Z-54: przeładowanie strony bez sieci kończy się
 ekranem logowania (odnowienie sesji), więc praca offline działa, dopóki karta aplikacji
 jest wczytana.
+
+---
+
+<a id="adr-100"></a>
+
+## ADR-100 — Listy zakupów na froncie: poprawki po przeglądzie kodu `F10-5`…`F10-7`
+
+**Data:** 2026-11-23 · **Zadanie:** przegląd `/code-review` przed PR · **Status:** przyjęta
+
+**Kontekst.** Przegląd w osobnej sesji znalazł 10 problemów, w tym trzy w kolejce offline
+(ADR-099), które mogły po cichu gubić zmiany.
+
+**Decyzja.**
+
+1. **Ostateczna odmowa to tylko `400`, `404`, `409`, `422`.** `401` (wygasły token), `403`,
+   `429` i `5xx` zatrzymują wysyłanie i zostawiają zmianę w kolejce.
+2. **Zmiany w kolejce mają identyfikator** (`opId`); schodzą z kolejki po nim, a ekran
+   zgłasza błąd tylko przy własnej, odrzuconej zmianie.
+3. **„Cofnij" po „Wyczyść kupione" idzie przez kolejkę**: czyszczenie jeszcze niewysłane
+   po prostu z niej znika, wysłane — dostaje za sobą przywrócenie (`restore`); wysyłana
+   w tej chwili zmiana nie może zostać wyjęta.
+4. **`404` listy wygrywa z migawką** — ekran „Tej listy już nie ma", migawka i zmiany tej
+   listy znikają z urządzenia.
+5. **Magazyn offline należy do osoby** (`claimOfflineStore` przy każdej sesji): logowanie
+   innej osoby na tym urządzeniu czyści dane poprzedniej. „Wyloguj" i „Wyloguj wszystkie
+   urządzenia" czyszczą magazyn; nieudane odnowienie sesji (np. bez sieci) — nie, bo
+   kolejka zmian ma przetrwać (Z-54).
+6. Drobne: wyścig blokady ekranu przy szybkim włącz/wyłącz, przełącznik „Zawsze w domu"
+   z własnym stanem, stany błędu w szybkim dopisaniu i archiwum (archiwum pytane dopiero
+   po otwarciu), ekran listy montowany od nowa przy zmianie listy.
+
+**Konsekwencje.** Testy regresji w `offline.test.ts`, `offline-store.test.ts`,
+`wake-lock.test.tsx`, `shopping-screens.test.tsx`. ADR-099 obowiązuje z poprawkami
+z punktów 1–5.

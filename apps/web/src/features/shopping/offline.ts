@@ -12,7 +12,8 @@ import {
   type UpdateShoppingItemRequest,
 } from '@fineapp/shared';
 
-import { ApiRequestError, NetworkError } from '../../lib/api-client.js';
+import { ApiRequestError } from '../../lib/api-client.js';
+import { newClientId } from '../../lib/client-id.js';
 import { readOffline, removeOffline, writeOffline } from '../../lib/offline-store.js';
 import * as shoppingApi from './api.js';
 
@@ -33,8 +34,8 @@ import * as shoppingApi from './api.js';
  * odpytywanie co 15 s nie może jej „cofnąć" na oczach użytkownika.
  */
 
-/** Zmiana pozycji czekająca na sieć. */
-export type OutboxOp =
+/** Zmiana pozycji czekająca na sieć (bez identyfikatora — nadaje go {@link enqueue}). */
+export type OutboxChange =
   | {
       readonly kind: 'add';
       readonly listId: string;
@@ -47,7 +48,19 @@ export type OutboxOp =
       readonly body: UpdateShoppingItemRequest;
     }
   | { readonly kind: 'delete'; readonly listId: string; readonly itemId: string }
-  | { readonly kind: 'clear'; readonly listId: string };
+  | { readonly kind: 'clear'; readonly listId: string }
+  /** „Cofnij" po „Wyczyść kupione" — za czyszczeniem w tej samej kolejce. */
+  | { readonly kind: 'restore'; readonly listId: string; readonly itemIds: readonly string[] };
+
+/** Zmiana w kolejce — z identyfikatorem, po którym schodzi z kolejki i jest zgłaszana. */
+export type OutboxOp = OutboxChange & { readonly opId: string };
+
+/**
+ * Kody odpowiedzi, przy których serwer **ostatecznie** odmówił zmiany — powtarzanie nic nie
+ * da (pozycja usunięta, lista w archiwum, zły kształt). Pozostałe błędy (`401` po
+ * wygaśnięciu tokenu, `429`, `5xx`) zostawiają zmianę w kolejce na następną próbę.
+ */
+const FINAL_REJECTION = new Set([400, 404, 409, 422]);
 
 const OUTBOX_KEY = 'shopping.outbox';
 
@@ -70,7 +83,10 @@ function snapshotKey(listId: string): string {
 function isOutbox(value: unknown): value is OutboxOp[] {
   return (
     Array.isArray(value) &&
-    value.every((op) => typeof op === 'object' && op !== null && 'kind' in op && 'listId' in op)
+    value.every(
+      (op) =>
+        typeof op === 'object' && op !== null && 'kind' in op && 'listId' in op && 'opId' in op,
+    )
   );
 }
 
@@ -97,10 +113,49 @@ function writeOutbox(ops: readonly OutboxOp[]): void {
 /**
  * Dokłada zmianę na koniec kolejki.
  *
- * @param op - Zmiana.
+ * @param change - Zmiana.
+ * @returns Zmiana z identyfikatorem w kolejce.
  */
-export function enqueue(op: OutboxOp): void {
+export function enqueue(change: OutboxChange): OutboxOp {
+  const op = { ...change, opId: newClientId() } as OutboxOp;
   writeOutbox([...readOutbox(), op]);
+  return op;
+}
+
+/** Zmiana właśnie wysyłana — nie wolno jej wyjąć z kolejki w trakcie. */
+let inFlightOpId: string | null = null;
+
+/**
+ * „Cofnij" po „Wyczyść kupione". Gdy czyszczenie jeszcze nie wyszło, po prostu znika
+ * z kolejki; w przeciwnym razie za nim staje przywrócenie — serwer zobaczy obie zmiany
+ * w kolejności, w jakiej powstały.
+ *
+ * @param listId - Lista.
+ * @param itemIds - Wyczyszczone pozycje.
+ * @returns `cancelled` — czyszczenie wycofane przed wysłaniem; `queued` — przywrócenie w kolejce.
+ */
+export function undoClear(listId: string, itemIds: readonly string[]): 'cancelled' | 'queued' {
+  const ops = readOutbox();
+  const index = ops.findLastIndex(
+    (op) => op.kind === 'clear' && op.listId === listId && op.opId !== inFlightOpId,
+  );
+  if (index >= 0) {
+    writeOutbox(ops.filter((_, position) => position !== index));
+    return 'cancelled';
+  }
+  enqueue({ kind: 'restore', listId, itemIds });
+  return 'queued';
+}
+
+/**
+ * Zapomina listę na urządzeniu — po `404` (usunięta na drugim telefonie): migawka i jej
+ * zmiany w kolejce i tak nie mają już dokąd trafić.
+ *
+ * @param listId - Lista.
+ */
+export function forgetList(listId: string): void {
+  removeOffline(snapshotKey(listId));
+  writeOutbox(readOutbox().filter((op) => op.listId !== listId || op.opId === inFlightOpId));
 }
 
 /**
@@ -143,7 +198,7 @@ export function writeSnapshot(data: ShoppingItemsDto): void {
  * @param now - Znacznik czasu.
  * @returns Pozycja w kształcie kontraktu.
  */
-function localItem(op: Extract<OutboxOp, { kind: 'add' }>, now: number): ShoppingItemDto {
+function localItem(op: Extract<OutboxChange, { kind: 'add' }>, now: number): ShoppingItemDto {
   const name = tidyShoppingName(op.body.name);
   return {
     id: op.body.id,
@@ -176,7 +231,7 @@ function localItem(op: Extract<OutboxOp, { kind: 'add' }>, now: number): Shoppin
  */
 function applyOp(
   items: readonly ShoppingItemDto[],
-  op: OutboxOp,
+  op: OutboxChange,
   now: number,
   initials: string | null,
 ): ShoppingItemDto[] {
@@ -230,6 +285,9 @@ function applyOp(
       return items.filter((item) => item.id !== op.itemId);
     case 'clear':
       return items.filter((item) => !item.checked);
+    case 'restore':
+      // Wyczyszczonych nie ma w danych — wrócą z serwera po wysłaniu.
+      return [...items];
   }
 }
 
@@ -244,7 +302,7 @@ function applyOp(
  */
 export function applyOps(
   data: ShoppingItemsDto,
-  ops: readonly OutboxOp[],
+  ops: readonly OutboxChange[],
   initials: string | null,
   now: number = Date.now(),
 ): ShoppingItemsDto {
@@ -269,6 +327,8 @@ export interface FlushResult {
   readonly sent: number;
   /** Zmiany odrzucone przez serwer (np. pozycja usunięta przez drugą osobę). */
   readonly rejected: number;
+  /** Identyfikatory odrzuconych — ekran zgłasza błąd tylko przy własnej zmianie. */
+  readonly rejectedOpIds: readonly string[];
   /** Sieć znów zawiodła — reszta czeka. */
   readonly stoppedOffline: boolean;
 }
@@ -294,16 +354,19 @@ async function send(token: string, op: OutboxOp): Promise<void> {
     case 'clear':
       await shoppingApi.clearCheckedItems(token, op.listId);
       return;
+    case 'restore':
+      await shoppingApi.restoreClearedItems(token, op.listId, op.itemIds);
+      return;
   }
 }
 
 let flushing: Promise<FlushResult> | null = null;
 
 /**
- * Wysyła kolejkę po kolei. Błąd sieci zatrzymuje wysyłanie (reszta czeka na następną
- * okazję); odmowa serwera (`4xx`) usuwa zmianę z kolejki — powtarzanie jej nic nie da,
- * a lista po odświeżeniu pokaże stan z serwera. Jednocześnie biegnie najwyżej jedno
- * wysyłanie.
+ * Wysyła kolejkę po kolei. Brak sieci, `401`, `429` i `5xx` zatrzymują wysyłanie (reszta
+ * czeka na następną okazję); ostateczna odmowa (`400`, `404`, `409`, `422`) usuwa zmianę
+ * z kolejki — powtarzanie jej nic nie da, a lista po odświeżeniu pokaże stan z serwera.
+ * Jednocześnie biegnie najwyżej jedno wysyłanie.
  *
  * @param token - Token dostępu.
  * @returns Ile wysłano i czy przerwał brak sieci.
@@ -312,24 +375,32 @@ export function flushOutbox(token: string): Promise<FlushResult> {
   if (flushing) return flushing;
   flushing = (async (): Promise<FlushResult> => {
     let sent = 0;
-    let rejected = 0;
+    const rejectedOpIds: string[] = [];
+    const result = (stoppedOffline: boolean): FlushResult => ({
+      sent,
+      rejected: rejectedOpIds.length,
+      rejectedOpIds,
+      stoppedOffline,
+    });
     for (;;) {
       const [op] = readOutbox();
-      if (op === undefined) return { sent, rejected, stoppedOffline: false };
+      if (op === undefined) return result(false);
+      inFlightOpId = op.opId;
       try {
         await send(token, op);
       } catch (error) {
-        if (error instanceof NetworkError) return { sent, rejected, stoppedOffline: true };
-        if (!(error instanceof ApiRequestError) || error.status >= 500) {
-          return { sent, rejected, stoppedOffline: true };
+        if (!(error instanceof ApiRequestError) || !FINAL_REJECTION.has(error.status)) {
+          // Brak sieci, wygasły token, limit, awaria serwera — zmiana czeka dalej.
+          return result(true);
         }
-        rejected += 1;
+        rejectedOpIds.push(op.opId);
       }
       sent += 1;
-      writeOutbox(readOutbox().slice(1));
+      writeOutbox(readOutbox().filter((queued) => queued.opId !== op.opId));
     }
   })().finally(() => {
     flushing = null;
+    inFlightOpId = null;
   });
   return flushing;
 }

@@ -11,7 +11,7 @@ import {
 } from 'react';
 
 import { ApiRequestError } from '../../lib/api-client.js';
-import { clearOfflineStore } from '../../lib/offline-store.js';
+import { claimOfflineStore, clearOfflineStore } from '../../lib/offline-store.js';
 import * as authApi from './api.js';
 
 /**
@@ -89,6 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       user: UserDto;
       household: HouseholdDto;
     }) => {
+      // Lista zakupów na urządzeniu należy do zalogowanej osoby (ADR-099).
+      claimOfflineStore(session.user.id);
       setAccessToken(session.accessToken);
       setUser(session.user);
       setHousehold(session.household);
@@ -144,6 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     }
   }, [clearSession]);
 
+  const dropSession = useCallback((): void => {
+    clearOfflineStore();
+    clearSession();
+  }, [clearSession]);
+
   const applyProfile = useCallback(
     (changes: { user?: UserDto; household?: HouseholdDto }): void => {
       if (changes.user !== undefined) setUser(changes.user);
@@ -161,9 +168,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       signIn,
       signOut,
       applyProfile,
-      dropSession: clearSession,
+      // „Wyloguj wszystkie urządzenia" — jawne wylogowanie, jak `signOut`. Nieudane
+      // odnowienie sesji (np. bez sieci) danych nie czyści: kolejka zmian ma przetrwać.
+      dropSession: dropSession,
     }),
-    [status, user, household, accessToken, signIn, signOut, applyProfile, clearSession],
+    [status, user, household, accessToken, signIn, signOut, applyProfile, dropSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

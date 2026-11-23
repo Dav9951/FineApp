@@ -8,7 +8,7 @@ import { AppShell } from '../../../components/layout/app-shell.js';
 import { ApiRequestError, NetworkError } from '../../../lib/api-client.js';
 import { clearOfflineStore } from '../../../lib/offline-store.js';
 import * as shoppingApi from '../api.js';
-import { readOutbox } from '../offline.js';
+import { readOutbox, writeSnapshot } from '../offline.js';
 import ShoppingListScreen from './shopping-list-screen.js';
 import ShoppingListsScreen from './shopping-lists-screen.js';
 import ShoppingStaplesScreen from './shopping-staples-screen.js';
@@ -350,6 +350,67 @@ describe('ShoppingListScreen', () => {
     ).toBeInTheDocument();
   });
 
+  it('404 wygrywa z migawką na urządzeniu i zapomina listę', async () => {
+    writeSnapshot({ list: list(), items: ITEMS });
+    vi.spyOn(shoppingApi, 'fetchShoppingItems').mockRejectedValue(
+      new ApiRequestError('NOT_FOUND', 'Nie znaleziono listy zakupów.', 404, 'r'),
+    );
+    vi.spyOn(shoppingApi, 'fetchSuggestions').mockResolvedValue([]);
+    vi.spyOn(shoppingApi, 'fetchFrequent').mockResolvedValue([]);
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    expect(
+      await screen.findByText('Tej listy już nie ma', {}, { timeout: 3_000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /Chleb/u })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(`fineapp.offline.shopping.items.${LIST_ID}`)).toBeNull();
+  });
+
+  it('przejście na inną listę zaczyna ekran od nowa', async () => {
+    const user = userEvent.setup();
+    mockList();
+    vi.spyOn(shoppingApi, 'clearCheckedItems').mockResolvedValue({
+      clearedIds: [],
+      listEmpty: false,
+    });
+    const { router } = renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    await user.click(
+      await screen.findByRole('button', { name: 'Wyczyść kupione' }, { timeout: 3_000 }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Po zakupach' })).toBeInTheDocument();
+    await router.navigate(`/shopping/${OTHER_ID}`);
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Po zakupach' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('przełącznik „Zawsze w domu" w arkuszu przestawia się od razu', async () => {
+    const user = userEvent.setup();
+    mockList();
+    const upsert = vi.spyOn(shoppingApi, 'upsertProduct').mockResolvedValue({
+      id: '01JC7K000000000000000000P1',
+      name: 'Chleb',
+      section: 'bakery',
+      isStaple: true,
+      useCount: 1,
+      lastUsedAt: null,
+    });
+    renderScreen(`/shopping/${LIST_ID}`, ROUTES);
+    await user.click(
+      await screen.findByRole('button', { name: 'Szczegóły: Chleb' }, { timeout: 3_000 }),
+    );
+    const toggle = within(await screen.findByRole('dialog')).getByRole('switch', {
+      name: 'Zawsze w domu',
+    });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(upsert).toHaveBeenCalledWith('token-testowy', {
+      name: 'Chleb',
+      section: 'bakery',
+      isStaple: true,
+    });
+  });
+
   it('lista w archiwum jest tylko do odczytu', async () => {
     mockList(ITEMS, { archived: true, isDefault: false });
     renderScreen(`/shopping/${LIST_ID}`, ROUTES);
@@ -434,6 +495,36 @@ describe('ShoppingQuickAddSheet (FAB → „Do listy zakupów")', () => {
       expect.objectContaining({ name: 'Chleb' }),
     );
     expect(await screen.findByText('Dopisano „Chleb” do „Spożywcze”.')).toBeInTheDocument();
+  });
+});
+
+describe('stany błędu arkuszy', () => {
+  it('szybkie dopisanie bez list z serwera pokazuje błąd, a nie „Załóż listę"', async () => {
+    vi.spyOn(shoppingApi, 'fetchShoppingLists').mockRejectedValue(new NetworkError());
+    renderScreen('/scan', ROUTES);
+    fireEvent.contextMenu(
+      await screen.findByRole('button', { name: 'Dodaj transakcję' }, { timeout: 3_000 }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Do listy zakupów' }));
+    expect(await screen.findByText('Nie udało się wczytać list')).toBeInTheDocument();
+    expect(screen.queryByText(/Nie masz żadnej listy/u)).not.toBeInTheDocument();
+  });
+
+  it('archiwum pyta serwer dopiero po otwarciu i ma stan błędu', async () => {
+    const user = userEvent.setup();
+    const fetch = vi
+      .spyOn(shoppingApi, 'fetchShoppingLists')
+      .mockImplementation((_token, archived) =>
+        archived === true
+          ? Promise.reject(new NetworkError())
+          : Promise.resolve([list(), list({ id: OTHER_ID, name: 'Dom', isDefault: false })]),
+      );
+    renderScreen('/shopping?all=1', ROUTES);
+    await screen.findByRole('link', { name: /Dom/u }, { timeout: 3_000 });
+    expect(fetch.mock.calls.some(([, archived]) => archived === true)).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Więcej opcji' }));
+    await user.click(screen.getByRole('button', { name: 'Archiwum' }));
+    expect(await screen.findByText('Nie udało się wczytać archiwum')).toBeInTheDocument();
   });
 });
 

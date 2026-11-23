@@ -30,8 +30,8 @@ import {
   useDeleteShoppingList,
   useDuplicateShoppingList,
   useItemChange,
-  useRestoreCleared,
   useShoppingItems,
+  useUndoClear,
   useUpdateShoppingList,
 } from '../hooks/use-shopping.js';
 import { checkedItems, groupToBuy, shareText } from '../shopping-view.js';
@@ -59,12 +59,24 @@ const ADD_BAR_STICKY =
   'sticky bottom-[calc(theme(spacing.tabbar)+1px+env(safe-area-inset-bottom))] md:bottom-0';
 
 /**
- * Ekran listy.
+ * Trasa listy.
  *
  * @returns Element ekranu.
  */
-export default function ShoppingListScreen(): ReactNode {
+export default function ShoppingListRoute(): ReactNode {
   const { listId = '' } = useParams();
+  // Nowa lista = nowy stan ekranu (arkusz, podpowiedź po zakupach) — np. po „Duplikuj".
+  return <ShoppingListScreen key={listId} listId={listId} />;
+}
+
+/**
+ * Ekran jednej listy.
+ *
+ * @param props - Właściwości komponentu.
+ * @param props.listId - Lista.
+ * @returns Element ekranu.
+ */
+function ShoppingListScreen({ listId }: { readonly listId: string }): ReactNode {
   const query = useShoppingItems(listId);
   useHideFab(true);
   const [editing, setEditing] = useState<ShoppingItemDto | null>(null);
@@ -81,8 +93,9 @@ export default function ShoppingListScreen(): ReactNode {
     );
   }
 
-  if (query.isError && query.data === undefined) {
-    const notFound = query.error instanceof ApiRequestError && query.error.status === 404;
+  const notFound = query.error instanceof ApiRequestError && query.error.status === 404;
+  // 404 wygrywa z migawką: stare pozycje usuniętej listy nie mogą wyglądać na żywe.
+  if (notFound || (query.isError && query.data === undefined)) {
     return (
       <main>
         <ListHeader name="" />
@@ -232,9 +245,10 @@ function ItemRow({
 
   const toggle = (): void => {
     const checked = !item.checked;
-    void change({ kind: 'update', itemId: item.id, body: { checked } }).then((result) => {
-      if (result.rejected > 0)
+    void change({ kind: 'update', itemId: item.id, body: { checked } }).then((outcome) => {
+      if (outcome.rejected) {
         toast.show({ message: 'Nie udało się zapisać — lista się odświeży.' });
+      }
     });
     if (checked) {
       toast.show({
@@ -333,7 +347,7 @@ function BoughtSection({
 }): ReactNode {
   const [open, setOpen] = useState(false);
   const change = useItemChange(listId);
-  const restore = useRestoreCleared(listId);
+  const undo = useUndoClear(listId);
   const toast = useToast();
 
   const clear = (): void => {
@@ -344,11 +358,7 @@ function BoughtSection({
       action: {
         label: 'Cofnij',
         onAction: () => {
-          restore.mutate(ids, {
-            onError: (failure) => {
-              toast.show({ message: failure.message });
-            },
-          });
+          void undo(ids);
         },
       },
     });
