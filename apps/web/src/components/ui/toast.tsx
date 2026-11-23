@@ -113,6 +113,10 @@ export function ToastProvider({ children }: { children: ReactNode }): ReactNode 
           // Nad paskiem zakładek, obok FAB-a (56 px + 16 px marginesu), nie pod nim.
           'bottom-[calc(theme(spacing.tabbar)+1px+env(safe-area-inset-bottom)+1rem)] left-4 right-[5.5rem]',
           'md:bottom-6 md:left-auto md:right-6 md:w-96',
+          // Bez FAB-a ekran ma własny pasek przy dole (pole dodawania listy zakupów, „Gotowe"
+          // planera) — toast wchodzi nad niego, a nie na niego.
+          '[body[data-fab-hidden]_&]:bottom-[calc(theme(spacing.tabbar)+1px+env(safe-area-inset-bottom)+5.5rem)] [body[data-fab-hidden]_&]:right-4',
+          'md:[body[data-fab-hidden]_&]:bottom-24',
         )}
         role="status"
       >

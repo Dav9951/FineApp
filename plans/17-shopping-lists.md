@@ -372,11 +372,11 @@ eksport i „Usuń wszystkie dane".
 | F10-2 | ✅ Schemat i migracja `0008` (pięć tabel), eksport, „Usuń wszystkie dane", sprzątanie plików przy starcie — **zrobione** |
 | F10-3 | ✅ DTO `dto/shopping.ts` i `shared/domain/shopping.ts`: normalizacja, opakowania, scalanie, szybkie dopisanie, **100% pokrycia** — **zrobione** |
 | F10-4 | ✅ Moduł `shopping`: listy, pozycje, słownik, czyszczenie z cofnięciem, `ETag`; testy tras — **zrobione** |
-| F10-5 | Ekrany `/shopping` i `/shopping/:listId`: dopisywanie z podpowiedziami, odhaczanie, działy, kupione, arkusz pozycji, cztery stany, 390 px |
-| F10-6 | Odświeżanie co 15 s, utrwalenie zapytań i kolejka mutacji offline, baner, Wake Lock |
-| F10-7 | Wejścia: *Więcej*, pasek boczny, FAB, skrót w manifeście, `share_target`, udostępnienie jako tekst |
+| F10-5 | ✅ Ekrany `/shopping` i `/shopping/:listId`: dopisywanie z podpowiedziami, odhaczanie, działy, kupione, arkusz pozycji, cztery stany, 390 px — **zrobione** |
+| F10-6 | ✅ Odświeżanie co 15 s, migawka listy i kolejka zmian offline, baner, Wake Lock (ADR-099) — **zrobione** |
+| F10-7 | ✅ Wejścia: *Więcej*, pasek boczny, FAB, skrót w manifeście, udostępnienie jako tekst; `share_target` przeniesiony do `F10-9` — **zrobione** |
 | F10-8 | Import ze zdjęcia listy: `shopping_imports`, ekstraktor, prompt i schemat (08 §17), przegląd, scalanie, commit |
-| F10-9 | Import przepisu: `fetchRecipeSource` z ochroną SSRF i JSON-LD, wklejony tekst, zrzuty, mnożnik z przeliczeniem bez AI, sekcja „Już mam", ekran *Zawsze w domu* |
+| F10-9 | Import przepisu: `fetchRecipeSource` z ochroną SSRF i JSON-LD, wklejony tekst, zrzuty, mnożnik z przeliczeniem bez AI, sekcja „Już mam", `share_target` (z `F10-7`); ekran *Zawsze w domu* powstał w `F10-5` |
 | F10-10 | Ocena jakości: 10 zdjęć tablicy i 10 przepisów (linki i zrzuty) z oczekiwanym wynikiem, jak `ocr:evaluate`; sprawdzenie przepływów na 390 px w obu motywach |
 
 `F10-2` → `F10-3` → `F10-4` → `F10-5` → (`F10-6`, `F10-7`, `F10-8`) → `F10-9` → `F10-10`.

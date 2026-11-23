@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { ApiRequestError } from '../../lib/api-client.js';
+import { clearOfflineStore } from '../../lib/offline-store.js';
 import * as authApi from './api.js';
 
 /**
@@ -137,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       // ma zniknąć tak czy inaczej — inaczej użytkownik zostaje zalogowany wbrew sobie.
       if (!(error instanceof ApiRequestError)) throw error;
     } finally {
+      // Lista zakupów leży na urządzeniu (ADR-096) — po wylogowaniu nie może zostać.
+      clearOfflineStore();
       clearSession();
     }
   }, [clearSession]);

@@ -20,7 +20,7 @@
 | Style | Tailwind CSS 3.4 + Radix UI primitives | Mobile-first, brak walki z CSS, dostępne komponenty bez ciężkiej biblioteki. |
 | Wykresy | Recharts | Proste wykresy (donut alokacji, słupki miesięczne). |
 | PWA | vite-plugin-pwa | Instalowalność na telefonie, offline shell. Od Fazy 10 także `shortcuts` i `share_target` w manifeście. |
-| Offline list zakupów | `@tanstack/react-query-persist-client` + `idb-keyval` (Faza 10, ADR-096) | Utrwalenie wyłącznie zapytań list zakupów i kolejki ich mutacji w IndexedDB; wersje ustalane instalacją w `F10-6`. |
+| Offline list zakupów | bez nowych zależności (Faza 10, ADR-096, ADR-099) | Migawka listy i kolejka zmian w `localStorage` (`lib/offline-store.ts`, `features/shopping/offline.ts`); `ETag` obsługuje pamięć HTTP przeglądarki. |
 | Logi | pino (+ pino-pretty w dev) | Structured logging, tanie. |
 | Testy | Vitest + `fastify.inject()` | Bez uruchamiania serwera; szybkie testy integracyjne na SQLite in-memory. |
 | Konteneryzacja | Docker multi-stage, jeden obraz | Jeden proces = jeden kontener + wolumen `/data`. |

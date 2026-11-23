@@ -3,7 +3,7 @@
 > Stan realizacji faz, sprawy zauważone do rozważenia i wskaźniki jakości.
 > Plan zadań: [11-roadmap.md](./11-roadmap.md).
 
-**Ostatnia aktualizacja:** 2026-11-22 (Faza 10 — `F10-2`…`F10-4`: migracja `0008_shopping`, domena i moduł `shopping`)
+**Ostatnia aktualizacja:** 2026-11-23 (Faza 10 — `F10-5`…`F10-7`: ekrany list zakupów, praca offline, wejścia)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
 **Stan:** ✅ typecheck · lint · format · **2409 testów zielonych**
 
@@ -24,7 +24,7 @@
 | 7 | OCR i AI | ✅ zrobione (`F7-11` potwierdzone przez właściciela) | 11 / 11 |
 | 8 | Dopracowanie i wdrożenie | 🟡 działa produkcyjnie; zostaje `F8-10` | 9 / 10 |
 | 9 | Planer budżetu ([16](./16-budget-planner.md)) | ✅ zrobione (grupy i kolejność) | 13 / 13 |
-| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 🟡 backend list bez AI gotowy (`F10-1`…`F10-4`); następne `F10-5` (ekrany) | 4 / 10 |
+| 10 | Listy zakupów ([17](./17-shopping-lists.md)) | 🟡 listy bez AI gotowe (`F10-1`…`F10-7`); następne `F10-8` (import ze zdjęcia) | 7 / 10 |
 
 ---
 
@@ -84,6 +84,7 @@
 | Z-51 | `router.test.tsx` › „w trakcie sprawdzania sesji NIE migają ekranem logowania" — pada przy pełnym przebiegu web (nie znajduje „Nawigacja główna"), osobno zielony; pod obciążeniem (`pnpm test` z api równolegle) na limicie czasu pada więcej testów ekranów | średnia |
 | Z-52 | Na Windowsie bez uprawnień do dowiązań `entry-point.test.ts` (symlink) i dwa testy `backup.test.ts` (usuwanie katalogu tymczasowego) padają na `EPERM` — do pominięcia warunkowego albo uruchamiania tylko w CI/Linuksie | niska |
 | Z-53 | ~~Niestabilny `transaction-sheet.test.tsx` › „FAB → kwota → kategoria → zapis…” w CI~~ — **naprawione**: pierwsze otwarcie leniwego arkusza w pliku testów kosztuje jednorazowo ok. 450 ms na jednym rdzeniu (kolejne ok. 50 ms) — `import()` arkusza (ADR-037) i pierwszy montaż Radix `Dialog` z formularzem; na obciążonym runnerze przekraczało domyślne 1000 ms `findBy*`. `SHEET_OPEN_TIMEOUT` (5 s, `apps/web/test/timeouts.ts`) wyłącznie na kroku otwarcia arkusza w `transaction-sheet`, `month-screen`, `allocation-screen`; asercje po nim przy domyślnym limicie. Odrzucone: globalne `asyncUtilTimeout` i wczytanie modułu w `beforeAll` (zdejmuje ≤ 150 ms) | — |
+| Z-54 | Praca offline list zakupów (ADR-096) działa, dopóki karta aplikacji jest wczytana. **Przeładowanie bez sieci** kończy się ekranem logowania: odnowienie sesji (`/auth/refresh`) nie przechodzi, a `AuthProvider` traktuje błąd sieci jak wygasłą sesję. Kolejka zmian przetrwa i wyśle się po zalogowaniu, ale w piwnicy marketu listy nie da się otworzyć od nowa. Do rozważenia: przy `NetworkError` odnowienia zostawić ostatnią sesję w trybie „tylko listy zakupów” | średnia |
 | Z-46 | Eksport JSON nie ma jeszcze importu — format (`fineapp-export` v1, kolejność tabel pod klucze obce) jest pod niego przygotowany. Odtwarzanie całości idzie z kopii bazy (10 §5.4), nie z eksportu | niska |
 | Z-9 | ~~`core/money.ts` kontra `shared/utils/money.ts`~~ — rozstrzygnięte w `F0-3`: całość w `shared`, [ADR-017](./14-decisions-log.md#adr-017) | — |
 | Z-10 | ~~Brak konwersji `Date` → data biznesowa~~ — **zrobione w `F0-8`**, ale nie tam, gdzie zakładałem: pierwszym odbiorcą okazał się router frontu, więc funkcja mieszka w `shared/utils/date-tz.ts` i jest izomorficzna. `core/dates.ts` nie powstanie ([ADR-022](./14-decisions-log.md#adr-022)) | — |

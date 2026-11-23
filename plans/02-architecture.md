@@ -375,8 +375,9 @@ Reszta rozsądnie. Fabryki danych w `apps/api/test/factories/`.
   Wyjątek: brak pliku ekranu po wdrożeniu nowej wersji (nieudany dynamiczny import)
   przeładowuje stronę, z ochroną przed pętlą ([ADR-090](./14-decisions-log.md#adr-090)).
 - **Listy zakupów — dwa udokumentowane wyjątki** (Faza 10,
-  [ADR-096](./14-decisions-log.md#adr-096)): (1) zapytania `qk.shopping*` są utrwalane
-  na urządzeniu (IndexedDB), a mutacje pozycji mają `networkMode: 'offlineFirst'`
-  i wznawiają się po powrocie sieci; reszta cache żyje tylko w pamięci. (2) Nowa pozycja
+  [ADR-096](./14-decisions-log.md#adr-096)): (1) migawka pozycji listy leży na
+  urządzeniu (`localStorage`, `lib/offline-store.ts`), a zmiany pozycji idą przez własną
+  kolejkę (`features/shopping/offline.ts`) — zawsze, także z siecią, żeby kolejność zmian
+  była jedna; reszta cache żyje tylko w pamięci (ADR-099). (2) Nowa pozycja
   dostaje **ULID od klienta** (`POST …/items` z `id`) — jedyne miejsce, gdzie identyfikator
   nie powstaje na serwerze; serwer sprawdza format i przynależność (04 §14b).

@@ -10,6 +10,7 @@ import {
   ReceiptText,
   Repeat,
   Settings,
+  ShoppingCart,
   Tags,
   Target,
   type LucideIcon,
@@ -74,6 +75,8 @@ export function planningNav(): NavItem[] {
     { to: '/liabilities', label: 'Zobowiązania', icon: CreditCard, nested: true },
     { to: '/recurring', label: 'Cykliczne', icon: Repeat, nested: true },
     { to: '/planned', label: 'Planowane', icon: Banknote, nested: true },
+    // Listy zakupów (Faza 10, P-1): na start tu, nie w dolnym pasku.
+    { to: '/shopping', label: 'Zakupy', icon: ShoppingCart, nested: true },
     { to: '/budget', label: 'Budżet', icon: ClipboardList, nested: true },
     // Wykres kołowy, nie tarcza — tarczę ma „Cele" (ADR-082).
     { to: '/allocation', label: 'Rozkład docelowy', icon: PieChart },
