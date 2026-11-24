@@ -143,6 +143,11 @@ export const shoppingImports = sqliteTable(
     notes: text('notes'),
     aiModel: text('ai_model'),
     aiRawResponse: text('ai_raw_response'),
+    /** Zużycie odczytu (ADR-107); `null`, gdy model nie odpowiedział. */
+    aiInputTokens: integer('ai_input_tokens', { mode: 'number' }),
+    aiOutputTokens: integer('ai_output_tokens', { mode: 'number' }),
+    /** Chwila odczytu z odpowiedzią modelu — miesiąc w zużyciu (ADR-107). */
+    processedAt: timestampColumn('processed_at'),
     costMinor: minorColumn('cost_minor').notNull().default(0),
     errorCode: text('error_code'),
     createdBy: text('created_by')

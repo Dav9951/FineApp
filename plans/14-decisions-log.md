@@ -5060,3 +5060,35 @@ przerwanych) podbija wersję listy — w repozytorium, w jednym miejscu.
 **Konsekwencje.** `renderScreen` dostał opcję `history: 'browser'` (prawdziwa historia
 okna) — testy regresji obu przejść na niej, sprawdzone, że bez poprawki nie przechodzą.
 04 §14b i 15 §4.6 zaktualizowane.
+
+---
+
+<a id="adr-107"></a>
+
+## ADR-107 — Odczyty list zakupów w dzienniku odczytu i w zużyciu AI
+
+**Data:** 2026-11-24 · **Zadanie:** prośba właściciela po pierwszych odczytach · **Status:** przyjęta
+
+**Kontekst.** Odczyty zdjęć list i przepisów kosztują tak samo jak paragony i ich koszt
+wchodził do wspólnego licznika miesiąca, ale w Ustawieniach nie było ich widać: zużycie
+liczyło tylko dokumenty, a dziennik (ADR-086) miał tylko dokumenty — 08 §17.1 odkładało
+dziennik importów na później. Nieudany odczyt listy nie miał więc żadnej diagnozy w aplikacji.
+
+**Decyzja.**
+
+1. **Jeden dziennik odczytu AI** — ta sama tabela `document_logs` z kolumnami `source`
+   (`document` | `shopping`) i `shopping_import_id` (`SET NULL` po zatwierdzeniu albo
+   odrzuceniu). Ten sam widok w Ustawieniach, te same etapy, ta sama retencja 90 dni.
+   Osobna tabela byłaby drugim widokiem tej samej rzeczy dla tej samej osoby.
+2. **Nazwa wpisu** zamiast pliku: „Zdjęcie listy", „Przepis — zdjęcia", „Przepis — tekst",
+   „Przepis — <host>" — bez pełnego adresu i bez treści (jak w §16).
+3. **Zużycie:** `shopping_imports` dostaje `ai_input_tokens`, `ai_output_tokens`
+   i `processed_at`; `AiUsageDto.shoppingImportCount` liczy odczyty z odpowiedzią modelu
+   w miesiącu, a tokeny sumują się z dokumentami. Koszt w złotych już był wspólny
+   (`ai_spend_<YYYY-MM>_minor`) — bez zmian.
+4. Sekcja w Ustawieniach zmienia nazwę na „Odczyt AI" i dostaje wiersz „Odczytane listy
+   i przepisy".
+
+**Konsekwencje.** Migracja `0010`; 03 §3.22, §3.26, 04 §13, §15, 05 §12, 06 §3.12,
+08 §17.1 zaktualizowane. Wpis bez `shopping_import_id` (po zatwierdzeniu) nie ma odnośnika
+— import po zatwierdzeniu i tak nie istnieje jako ekran.

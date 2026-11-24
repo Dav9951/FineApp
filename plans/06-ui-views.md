@@ -1025,14 +1025,15 @@ księgowania wstecz), **Użytkownicy** (dwie osoby, zmiana PIN-u, aktywne sesje)
   Zły PIN — komunikat przy polu, arkusz zostaje; po usunięciu toast „Dane usunięte:
   N transakcji, M kont." i pamięć zapytań wyczyszczona — ekrany pokazują stany puste
   ([ADR-072](./14-decisions-log.md#adr-072)).
-- **Odczyt dokumentów (AI)** — koszt w miesiącu z limitem i procentem, liczba
-  dokumentów, model; wyczerpany limit — ostrzeżenie; `AI_ENABLED=false` — wyjaśnienie.
+- **Odczyt AI** — koszt w miesiącu z limitem i procentem (wspólny dla paragonów
+  i list zakupów), liczba dokumentów, liczba odczytanych list i przepisów (ADR-107), model; wyczerpany limit — ostrzeżenie; `AI_ENABLED=false` — wyjaśnienie.
   Sekcja ma własne stany, żeby awaria zużycia nie zasłaniała ustawień.
   **Model odczytu** — siatka opcji Haiku 5.5 / Sonnet 5.5 z jednozdaniowym opisem,
   zapis od razu po wyborze, toast „Odczyt dokumentów: Haiku 5.5"; model spoza listy
   (`AI_MODEL`) — żaden kafel nie zaznaczony, podpis z nazwą ([ADR-085](./14-decisions-log.md#adr-085)).
   **Dziennik odczytu** — wiersz otwierający arkusz z wpisami od najnowszych: plakietka
-  wagi, godzina z sekundami, plik (odnośnik do dokumentu), zdanie i szczegóły
+  wagi, godzina z sekundami, plik (odnośnik do dokumentu) albo nazwa odczytu listy
+  zakupów („Zdjęcie listy", „Przepis — przepisy.pl"), zdanie i szczegóły
   podpis–wartość (czas w s, tokeny, wymiary obrazu, status HTTP); cztery stany
   ([ADR-086](./14-decisions-log.md#adr-086)).
 - **O aplikacji** — wersja, „Zainstaluj aplikację" (gdy przeglądarka daje

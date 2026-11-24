@@ -1033,15 +1033,64 @@ export function findProductsByNames(
  *
  * @param handle - Uchwyt bazy.
  * @param now - Znacznik systemowy.
- * @returns Liczba oznaczonych.
+ * @returns Oznaczone importy — do wpisu w dzienniku odczytu (ADR-107).
  */
-export function failAllProcessingImports(handle: DbHandle, now: number): number {
+export function failAllProcessingImports(
+  handle: DbHandle,
+  now: number,
+): Pick<ShoppingImportRow, 'id' | 'householdId' | 'kind' | 'input' | 'sourceUrl'>[] {
   const failed = handle.db
     .update(shoppingImports)
     .set({ status: 'failed', errorCode: 'INTERRUPTED', updatedAt: now })
     .where(eq(shoppingImports.status, 'processing'))
-    .returning({ householdId: shoppingImports.householdId, listId: shoppingImports.listId })
+    .returning({
+      id: shoppingImports.id,
+      householdId: shoppingImports.householdId,
+      listId: shoppingImports.listId,
+      kind: shoppingImports.kind,
+      input: shoppingImports.input,
+      sourceUrl: shoppingImports.sourceUrl,
+    })
     .all();
   for (const { householdId, listId } of failed) touchList(handle, householdId, listId, now);
-  return failed.length;
+  return failed;
+}
+
+/**
+ * Zużycie odczytów list zakupów w zakresie czasu (ADR-107): odczyty z odpowiedzią modelu
+ * (`processed_at`), także te później zatwierdzone, odrzucone albo nieudane.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Identyfikator gospodarstwa.
+ * @param from - Początek (epoch ms, włącznie).
+ * @param to - Koniec (epoch ms, wyłącznie).
+ * @returns Liczba odczytów i tokeny.
+ */
+export function sumShoppingAiUsage(
+  handle: DbHandle,
+  householdId: string,
+  from: number,
+  to: number,
+): { count: number; inputTokens: number; outputTokens: number } {
+  const row = handle.db
+    .select({
+      count: sql<number>`count(*)`,
+      inputTokens: sql<number>`coalesce(sum(${shoppingImports.aiInputTokens}), 0)`,
+      outputTokens: sql<number>`coalesce(sum(${shoppingImports.aiOutputTokens}), 0)`,
+    })
+    .from(shoppingImports)
+    .where(
+      and(
+        eq(shoppingImports.householdId, householdId),
+        isNotNull(shoppingImports.processedAt),
+        gte(shoppingImports.processedAt, from),
+        lt(shoppingImports.processedAt, to),
+      ),
+    )
+    .get();
+  return {
+    count: row?.count ?? 0,
+    inputTokens: row?.inputTokens ?? 0,
+    outputTokens: row?.outputTokens ?? 0,
+  };
 }

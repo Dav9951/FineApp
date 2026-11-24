@@ -2,6 +2,8 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type {
+  AiLogEntryDto,
+  AiUsageDto,
   CommitShoppingImportResult,
   ShoppingImportDto,
   ShoppingItemsDto,
@@ -776,5 +778,115 @@ describe('poprawki po przeglądzie (ADR-102)', () => {
     ]);
     await call(s, 'POST', `/shopping-imports/${parsed.id}/discard`);
     expect(await etagOf()).not.toBe(after);
+  });
+});
+
+describe('dziennik odczytu i zużycie (ADR-107)', () => {
+  /**
+   * Dziennik odczytu jako domownik.
+   *
+   * @param s - Środowisko.
+   * @returns Wpisy od najnowszych.
+   */
+  async function readLog(s: Setup): Promise<AiLogEntryDto[]> {
+    return (await call<AiLogEntryDto[]>(s, 'GET', '/documents/log')).data;
+  }
+
+  it('zdjęcie listy: started → parsed z tokenami i kosztem; zużycie liczy odczyt', async () => {
+    const s = await setup();
+    s.extractor.extractList.mockResolvedValue(LIST_RESULT);
+    const parsed = await uploadPhoto(s);
+    const log = await readLog(s);
+    expect(log.map((entry) => [entry.event, entry.source, entry.documentName])).toEqual([
+      ['parsed', 'shopping', 'Zdjęcie listy'],
+      ['started', 'shopping', 'Zdjęcie listy'],
+    ]);
+    expect(log[0]).toMatchObject({
+      shoppingImportId: parsed.id,
+      documentId: null,
+      details: { itemCount: 2, inputTokens: META.usage.inputTokens },
+    });
+    expect(log[0]?.details.costMinor).toBeGreaterThan(0);
+    const usage = (await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data;
+    expect(usage).toMatchObject({
+      documentCount: 0,
+      shoppingImportCount: 1,
+      inputTokens: META.usage.inputTokens,
+      outputTokens: META.usage.outputTokens,
+    });
+    expect(usage.spentMinor).toBeGreaterThan(0);
+    // Po zatwierdzeniu wpis zostaje, bez odnośnika; zużycie nadal liczy odczyt.
+    await call(s, 'POST', `/shopping-imports/${parsed.id}/commit`, undefined, {
+      'idempotency-key': 'commit-adr107-a',
+    });
+    expect((await readLog(s))[0]?.shoppingImportId).toBe(parsed.id);
+    expect((await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data.shoppingImportCount).toBe(
+      1,
+    );
+  });
+
+  it('nieudane pobranie linku: failed z hostem, bez treści i pełnego adresu; zużycie bez odczytu', async () => {
+    const s = await setup();
+    s.fetchHtml.mockRejectedValue(new SafeFetchError('RECIPE_FETCH_FAILED', 'Status 403'));
+    await call(s, 'POST', '/shopping-imports', {
+      input: 'url',
+      listId: s.listId,
+      kind: 'recipe',
+      url: 'https://przepisy.pl/sekretny/przepis?token=abc',
+      servingsFactorBps: 10_000,
+    });
+    await s.jobs.idle();
+    const [failed] = await readLog(s);
+    expect(failed).toMatchObject({
+      level: 'error',
+      event: 'failed',
+      documentName: 'Przepis — przepisy.pl',
+      details: { errorCode: 'RECIPE_FETCH_FAILED', host: 'przepisy.pl', reason: 'Status 403' },
+    });
+    expect(JSON.stringify(failed)).not.toContain('token=abc');
+    expect((await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data.shoppingImportCount).toBe(
+      0,
+    );
+  });
+
+  it('wyczerpany limit i restart zostawiają wpisy', async () => {
+    const s = await setup(1);
+    s.app.db.sqlite
+      .prepare("INSERT OR REPLACE INTO app_meta(key, value, updated_at) VALUES (?, '5', 0)")
+      .run('ai_spend_2026-11_minor');
+    const rejected = await call(s, 'POST', '/shopping-imports', {
+      input: 'text',
+      listId: s.listId,
+      kind: 'recipe',
+      text: '200 g czekolady, 3 jajka, masło',
+      servingsFactorBps: 10_000,
+    });
+    expect(rejected.status).toBe(402);
+    expect((await readLog(s))[0]).toMatchObject({
+      event: 'upload_rejected',
+      details: { errorCode: 'AI_BUDGET_EXCEEDED', budgetMinor: 1 },
+    });
+
+    const id = newId();
+    s.app.db.db
+      .insert(shoppingImports)
+      .values({
+        id,
+        householdId: s.home.householdId,
+        listId: s.listId,
+        kind: 'list_photo',
+        input: 'image',
+        status: 'processing',
+        createdBy: s.home.userId,
+        createdAt: NOW.getTime(),
+        updatedAt: NOW.getTime(),
+      })
+      .run();
+    failInterruptedImports({ db: s.app.db, clock: mutableClock(NOW), log: s.app.app.log });
+    expect((await readLog(s))[0]).toMatchObject({
+      event: 'failed',
+      shoppingImportId: id,
+      details: { errorCode: 'INTERRUPTED' },
+    });
   });
 });

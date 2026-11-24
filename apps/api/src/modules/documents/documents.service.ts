@@ -94,7 +94,9 @@ import {
   replaceDocumentItems,
   sumAiUsage,
   transitionDocument,
+  LOG_RETENTION_MS,
 } from './documents.repository.js';
+import { shoppingAiUsage } from '../shopping/shopping.external.js';
 
 /**
  * Serwis dokumentów i OCR ([08](../../../../../plans/08-ocr-ai-pipeline.md), `F7-1`…`F7-7`).
@@ -131,8 +133,7 @@ const AI_DISABLED_MESSAGE = 'Odczyt dokumentów jest wyłączony. Dodaj wydatek 
 const BUDGET_MESSAGE =
   'Wyczerpano miesięczny limit OCR. Dodaj wydatek ręcznie albo zwiększ limit w ustawieniach.';
 
-/** Jak długo trzymamy wpisy dziennika odczytu (ADR-086). */
-export const LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+export { LOG_RETENTION_MS } from './documents.repository.js';
 
 /**
  * Krótszy bok obrazu po skalowaniu, poniżej którego drobny druk przestaje być czytelny.
@@ -1158,11 +1159,17 @@ export function getAiUsage(
   // Granice miesiąca w UTC ±1 dzień byłyby nieprecyzyjne — liczymy dokumenty po
   // miesiącu przetworzenia w strefie gospodarstwa przez zakres epoch ms tego miesiąca.
   const range = monthEpochRange(monthKey, household.timezone);
+  const documentsUsage = sumAiUsage(deps.db, householdId, range.from, range.to);
+  // Odczyty list zakupów płacą z tego samego limitu — liczą się w zużyciu (ADR-107).
+  const shopping = shoppingAiUsage(deps.db, householdId, range.from, range.to);
   return {
     enabled: deps.config.ai.enabled,
     model: resolveAiModel(aiModel, deps.config.ai),
     monthKey,
-    ...sumAiUsage(deps.db, householdId, range.from, range.to),
+    documentCount: documentsUsage.documentCount,
+    shoppingImportCount: shopping.count,
+    inputTokens: documentsUsage.inputTokens + shopping.inputTokens,
+    outputTokens: documentsUsage.outputTokens + shopping.outputTokens,
     spentMinor,
     budgetMinor,
     remainingMinor: budgetMinor === 0 ? null : Math.max(0, budgetMinor - spentMinor),

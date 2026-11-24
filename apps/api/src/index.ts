@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   }
 
   // Odczyt listy zakupów też biegnie w tle — restart zostawia go w `processing` (08 §17.1).
-  const interruptedImports = failInterruptedImports({ db, clock: systemClock });
+  const interruptedImports = failInterruptedImports({ db, clock: systemClock, log: app.log });
   if (interruptedImports > 0) {
     app.log.warn({ interrupted: interruptedImports }, 'Oznaczono przerwane odczyty list zakupów');
   }

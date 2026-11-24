@@ -153,6 +153,8 @@ export function toAiLogEntryDto(row: DocumentLogRow): AiLogEntryDto {
   }
   return {
     id: row.id,
+    source: row.source,
+    shoppingImportId: row.shoppingImportId,
     documentId: row.documentId,
     documentName: row.documentName,
     level: row.level,
