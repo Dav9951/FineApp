@@ -5,7 +5,7 @@
 
 **Ostatnia aktualizacja:** 2026-11-24 (odczyty list zakupów w dzienniku odczytu i w zużyciu AI — ADR-107)
 **Aktualna faza:** Faza 8 (dopracowanie i wdrożenie) — 9 / 10, **aplikacja działa produkcyjnie**; zostaje `F8-10` (miesiąc użytkowania). Faza 7 nadal czeka na pomiar `F7-11`. **Faza 9 (planer budżetu) w toku** — backend i ekrany (`F9-1`…`F9-6`), następne `F9-7` (arkusze)
-**Stan:** ✅ typecheck · lint · format · **2869 testów zielonych**
+**Stan:** ✅ typecheck · lint · format · **2872 testy zielone**
 
 ---
 

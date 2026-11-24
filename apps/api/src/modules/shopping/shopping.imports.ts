@@ -5,6 +5,7 @@ import {
   NEEDS_REVIEW_BELOW_BPS,
   normalizeShoppingName,
   recipePurchase,
+  ShoppingImportStatusSchema,
   todayInTimezone,
   type CommitShoppingImportResult,
   type ShoppingImportDto,
@@ -15,7 +16,11 @@ import {
 import type { FastifyBaseLogger } from 'fastify';
 
 import { estimateCostMinor } from '../../ai/cost.js';
-import { ExtractionError, type PreparedPart } from '../../ai/document-extractor.js';
+import {
+  ExtractionError,
+  type PreparedPart,
+  type TokenUsage,
+} from '../../ai/document-extractor.js';
 import { errorDiagnostics } from '../../ai/diagnostics.js';
 import { prepareForVision } from '../../ai/prepare-for-vision.js';
 import type { ShoppingExtractor } from '../../ai/shopping-extractor.js';
@@ -42,6 +47,7 @@ import {
   aiBudgetExhausted,
   householdAiModel,
   recordAiSpend,
+  unlinkShoppingAiLog,
   writeShoppingAiLog,
   type ShoppingAiLogEntry,
 } from '../documents/documents.external.js';
@@ -482,8 +488,11 @@ export async function analyzeImport(
   if (row?.status !== 'processing' || deps.extractor === null) return;
   const extractor = deps.extractor;
   const ai = householdAiModel(deps.db, deps.config.ai, deps.clock, householdId);
+  // Import odrzucony w trakcie odczytu — wpisy dziennika bez odnośnika (ADR-107).
+  let closed = false;
   const log = (entry: Omit<ShoppingAiLogEntry, 'importRef'>): void => {
     logImport(deps, householdId, row, entry);
+    if (closed) unlinkShoppingAiLog(deps.db, householdId, id);
   };
   const fail = (code: string, extra: Partial<ShoppingImportRow> = {}): void => {
     transitionImport(deps.db, householdId, id, ['processing'], {
@@ -493,6 +502,47 @@ export async function analyzeImport(
       updatedAt: deps.clock.now().getTime(),
     });
   };
+  // Zużycie sumuje się po próbach (ponowienie nie kasuje opłaconej wcześniej) i trafia
+  // do importu także wtedy, gdy ktoś go odrzucił w trakcie odczytu (ADR-107).
+  let paid: { usage: TokenUsage; cost: number } | undefined;
+  const usageFields = (usage: TokenUsage, cost: number): Partial<ShoppingImportRow> => ({
+    aiInputTokens: (row.aiInputTokens ?? 0) + usage.inputTokens,
+    aiOutputTokens: (row.aiOutputTokens ?? 0) + usage.outputTokens,
+    processedAt: deps.clock.now().getTime(),
+    costMinor: row.costMinor + cost,
+  });
+  /**
+   * Zapis wyniku tylko z `processing`; gdy import już odrzucono — samo zużycie.
+   *
+   * @param patch - Zmiana importu z wynikiem.
+   * @param usage - Zużycie tej próby.
+   * @param cost - Koszt tej próby.
+   * @returns Import po zapisie albo `undefined`, gdy nie był już w `processing`.
+   */
+  const settle = (
+    patch: Partial<ShoppingImportRow>,
+    usage: TokenUsage,
+    cost: number,
+  ): ShoppingImportRow | undefined => {
+    const saved = transitionImport(deps.db, householdId, id, ['processing'], {
+      ...patch,
+      ...usageFields(usage, cost),
+      updatedAt: deps.clock.now().getTime(),
+    });
+    if (saved === undefined) {
+      closed = true;
+      transitionImport(
+        deps.db,
+        householdId,
+        id,
+        ShoppingImportStatusSchema.options,
+        usageFields(usage, cost),
+      );
+    }
+    return saved;
+  };
+  const lateNote = (saved: ShoppingImportRow | undefined): string =>
+    saved === undefined ? ' Import odrzucono w trakcie odczytu — koszt i tak policzony.' : '';
   log({
     level: 'info',
     event: 'started',
@@ -502,6 +552,8 @@ export async function analyzeImport(
       kind: row.kind,
       input: row.input,
       imageCount: parseImportFilePaths(row.filePaths).length,
+      // Długość wklejonego tekstu; przy linku znana dopiero po pobraniu strony.
+      textChars: row.sourceText === null ? null : row.sourceText.length,
       servingsFactorBps: row.servingsFactorBps,
     },
   });
@@ -560,19 +612,20 @@ export async function analyzeImport(
         parts: await preparedImages(deps, row),
       });
       const cost = estimateCostMinor(result.usage, ai.rates);
+      paid = { usage: result.usage, cost };
+      let saved: ShoppingImportRow | undefined;
       deps.db.sqlite.transaction(() => {
-        const saved = transitionImport(deps.db, householdId, id, ['processing'], {
-          status: 'parsed',
-          notes: result.notes,
-          aiModel: result.model,
-          aiRawResponse: result.rawResponse,
-          aiInputTokens: result.usage.inputTokens,
-          aiOutputTokens: result.usage.outputTokens,
-          processedAt: now(),
-          costMinor: cost,
-          errorCode: null,
-          updatedAt: now(),
-        });
+        saved = settle(
+          {
+            status: 'parsed',
+            notes: result.notes,
+            aiModel: result.model,
+            aiRawResponse: result.rawResponse,
+            errorCode: null,
+          },
+          result.usage,
+          cost,
+        );
         if (saved) {
           replaceImportItems(
             deps.db,
@@ -596,12 +649,12 @@ export async function analyzeImport(
         recordAiSpend(deps.db, ai.month, cost, now());
       })();
       log({
-        level: result.items.length === 0 ? 'warn' : 'info',
+        level: result.items.length === 0 || saved === undefined ? 'warn' : 'info',
         event: 'parsed',
         message:
-          result.items.length === 0
+          (result.items.length === 0
             ? 'Model odpowiedział, ale nie odczytał żadnej pozycji.'
-            : `Odczytano pozycji: ${String(result.items.length)}.`,
+            : `Odczytano pozycji: ${String(result.items.length)}.`) + lateNote(saved),
         details: {
           ...result.diagnostics,
           inputTokens: result.usage.inputTokens,
@@ -622,36 +675,36 @@ export async function analyzeImport(
       staples: findStapleProducts(deps.db, householdId).map((product) => product.name),
     });
     const cost = estimateCostMinor(result.usage, ai.rates);
+    paid = { usage: result.usage, cost };
     const factor = row.servingsFactorBps ?? 10_000;
+    let saved: ShoppingImportRow | undefined;
     deps.db.sqlite.transaction(() => {
       if (result.ingredients.length === 0) {
-        transitionImport(deps.db, householdId, id, ['processing'], {
-          status: 'failed',
-          errorCode: 'RECIPE_NOT_FOUND',
-          notes: result.notes,
-          aiModel: result.model,
-          aiRawResponse: result.rawResponse,
-          aiInputTokens: result.usage.inputTokens,
-          aiOutputTokens: result.usage.outputTokens,
-          processedAt: now(),
-          costMinor: cost,
-          updatedAt: now(),
-        });
+        saved = settle(
+          {
+            status: 'failed',
+            errorCode: 'RECIPE_NOT_FOUND',
+            notes: result.notes,
+            aiModel: result.model,
+            aiRawResponse: result.rawResponse,
+          },
+          result.usage,
+          cost,
+        );
       } else {
-        const saved = transitionImport(deps.db, householdId, id, ['processing'], {
-          status: 'parsed',
-          recipeTitle: result.title,
-          baseServings: result.baseServings,
-          notes: result.notes,
-          aiModel: result.model,
-          aiRawResponse: result.rawResponse,
-          aiInputTokens: result.usage.inputTokens,
-          aiOutputTokens: result.usage.outputTokens,
-          processedAt: now(),
-          costMinor: cost,
-          errorCode: null,
-          updatedAt: now(),
-        });
+        saved = settle(
+          {
+            status: 'parsed',
+            recipeTitle: result.title,
+            baseServings: result.baseServings,
+            notes: result.notes,
+            aiModel: result.model,
+            aiRawResponse: result.rawResponse,
+            errorCode: null,
+          },
+          result.usage,
+          cost,
+        );
         if (saved) {
           replaceImportItems(
             deps.db,
@@ -688,7 +741,7 @@ export async function analyzeImport(
         ? {
             level: 'error',
             event: 'failed',
-            message: FAILURE_EXPLANATION.RECIPE_NOT_FOUND ?? 'RECIPE_NOT_FOUND',
+            message: (FAILURE_EXPLANATION.RECIPE_NOT_FOUND ?? 'RECIPE_NOT_FOUND') + lateNote(saved),
             details: {
               errorCode: 'RECIPE_NOT_FOUND',
               ...result.diagnostics,
@@ -699,9 +752,9 @@ export async function analyzeImport(
             },
           }
         : {
-            level: 'info',
+            level: saved === undefined ? 'warn' : 'info',
             event: 'parsed',
-            message: `Odczytano składników: ${String(result.ingredients.length)}.`,
+            message: `Odczytano składników: ${String(result.ingredients.length)}.${lateNote(saved)}`,
             details: {
               ...result.diagnostics,
               inputTokens: result.usage.inputTokens,
@@ -714,7 +767,9 @@ export async function analyzeImport(
     );
   } catch (error) {
     const extraction = error instanceof ExtractionError ? error : null;
-    const usage = extraction?.details.usage;
+    // Błąd zapisu po odpowiedzi modelu cofa transakcję wyniku — opłacone zużycie bierzemy
+    // z `paid`, inaczej koszt by przepadł (ADR-107).
+    const usage = extraction?.details.usage ?? paid?.usage;
     const cost = usage === undefined ? 0 : estimateCostMinor(usage, ai.rates);
     if (extraction === null) {
       deps.log.error({ err: error, importId: id }, 'Odczyt importu listy zakupów nie powiódł się');
@@ -725,13 +780,13 @@ export async function analyzeImport(
       );
     }
     deps.db.sqlite.transaction(() => {
-      fail(extraction?.code ?? 'INTERNAL_ERROR', {
+      const patch = {
+        status: 'failed' as const,
+        errorCode: extraction?.code ?? 'INTERNAL_ERROR',
         aiRawResponse: extraction?.details.rawResponse ?? null,
-        aiInputTokens: usage?.inputTokens ?? null,
-        aiOutputTokens: usage?.outputTokens ?? null,
-        processedAt: usage === undefined ? null : deps.clock.now().getTime(),
-        costMinor: cost,
-      });
+      };
+      if (usage === undefined) fail(patch.errorCode, { aiRawResponse: patch.aiRawResponse });
+      else settle(patch, usage, cost);
       recordAiSpend(deps.db, ai.month, cost, deps.clock.now().getTime());
     })();
     const code = extraction?.code ?? 'INTERNAL_ERROR';
@@ -993,6 +1048,7 @@ export function commitImport(
       updatedAt: now,
     });
     touchList(deps.db, householdId, row.listId, now);
+    unlinkShoppingAiLog(deps.db, householdId, id);
     return {
       result: { listId: row.listId, addedCount: added, mergedCount: merged },
       files: parseImportFilePaths(row.filePaths),
@@ -1023,6 +1079,7 @@ export function discardImport(
     updatedAt: deps.clock.now().getTime(),
   });
   if (!saved) throw new ConflictError('Ten odczyt jest już zamknięty.');
+  unlinkShoppingAiLog(deps.db, householdId, id);
   return parseImportFilePaths(row.filePaths);
 }
 

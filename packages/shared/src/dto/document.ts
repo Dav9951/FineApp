@@ -269,6 +269,8 @@ export const AiUsageDtoSchema = z.object({
   documentCount: z.number().int().nonnegative(),
   /** Odczyty list i przepisów z odpowiedzią modelu w miesiącu (ADR-107). */
   shoppingImportCount: z.number().int().nonnegative(),
+  /** Tokeny (wejście + wyjście) samych odczytów list — `inputTokens`/`outputTokens` są łączne. */
+  shoppingTokens: z.number().int().nonnegative(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   spentMinor: NonNegativeAmountMinorSchema,

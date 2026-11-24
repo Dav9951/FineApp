@@ -15,6 +15,7 @@ import {
   pruneDocumentLogs,
   readAiSpend,
   reassignItemsCategory,
+  unlinkShoppingImportLogs,
 } from './documents.repository.js';
 
 /**
@@ -160,4 +161,16 @@ export function writeShoppingAiLog(
   } catch (error) {
     deps.log.warn({ err: error, event: entry.event }, 'Nie udało się zapisać dziennika odczytu');
   }
+}
+
+/**
+ * Odpina wpisy dziennika od zatwierdzonego albo odrzuconego importu (ADR-107). Woła
+ * serwis list w swojej transakcji.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param importId - Import.
+ */
+export function unlinkShoppingAiLog(handle: DbHandle, householdId: string, importId: string): void {
+  unlinkShoppingImportLogs(handle, householdId, importId);
 }

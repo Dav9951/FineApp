@@ -10,7 +10,7 @@ import type {
   ShoppingListDto,
 } from '@fineapp/shared';
 import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { buildTestApp, testConfig, type TestApp } from '../../../test/build-app.js';
 import { multipart, receiptPhoto } from '../../../test/documents-fixtures.js';
@@ -819,7 +819,8 @@ describe('dziennik odczytu i zużycie (ADR-107)', () => {
     await call(s, 'POST', `/shopping-imports/${parsed.id}/commit`, undefined, {
       'idempotency-key': 'commit-adr107-a',
     });
-    expect((await readLog(s))[0]?.shoppingImportId).toBe(parsed.id);
+    // Zatwierdzony import nie jest już ekranem — wpisy bez odnośnika (03 §3.22).
+    expect((await readLog(s)).map((entry) => entry.shoppingImportId)).toEqual([null, null]);
     expect((await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data.shoppingImportCount).toBe(
       1,
     );
@@ -888,5 +889,73 @@ describe('dziennik odczytu i zużycie (ADR-107)', () => {
       shoppingImportId: id,
       details: { errorCode: 'INTERRUPTED' },
     });
+  });
+
+  it('ponowienie sumuje zużycie — nieudana próba bez odpowiedzi nie kasuje opłaconej', async () => {
+    const s = await setup();
+    s.extractor.extractList
+      .mockRejectedValueOnce(
+        new ExtractionError('AI_SCHEMA_MISMATCH', 'x', { usage: META.usage, rawResponse: 'zły' }),
+      )
+      .mockRejectedValueOnce(new ExtractionError('AI_UNAVAILABLE', 'x', {}))
+      .mockResolvedValueOnce(LIST_RESULT);
+    const failed = await uploadPhoto(s);
+    await call(s, 'POST', `/shopping-imports/${failed.id}/retry`);
+    await s.jobs.idle();
+    let usage = (await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data;
+    expect(usage).toMatchObject({ shoppingImportCount: 1, shoppingTokens: 1500 });
+    await call(s, 'POST', `/shopping-imports/${failed.id}/retry`);
+    await s.jobs.idle();
+    usage = (await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data;
+    expect(usage).toMatchObject({ shoppingImportCount: 1, shoppingTokens: 3000 });
+  });
+
+  it('odrzucenie w trakcie odczytu: koszt i zużycie policzone, dziennik mówi o odrzuceniu', async () => {
+    const s = await setup();
+    let importId = '';
+    // Domownik odrzuca odczyt, zanim model odpowie.
+    (s.extractor.extractList as Mock<() => Promise<ListExtraction>>).mockImplementation(
+      (): Promise<ListExtraction> =>
+        call(s, 'POST', `/shopping-imports/${importId}/discard`).then(() => LIST_RESULT),
+    );
+    const body = multipart(
+      { listId: s.listId, kind: 'list_photo' },
+      { field: 'image', filename: 'a.jpg', contentType: 'image/jpeg', bytes: await receiptPhoto() },
+    );
+    const created = await s.app.app.inject({
+      method: 'POST',
+      url: '/api/v1/shopping-imports',
+      headers: { ...s.home.headers, ...body.headers },
+      payload: body.payload,
+    });
+    importId = created.json<{ data: ShoppingImportDto }>().data.id;
+    await s.jobs.idle();
+    const row = s.app.db.db
+      .select()
+      .from(shoppingImports)
+      .where(eq(shoppingImports.id, importId))
+      .get();
+    expect(row).toMatchObject({ status: 'discarded', aiInputTokens: 1000, aiOutputTokens: 500 });
+    expect(row?.processedAt).not.toBeNull();
+    const usage = (await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data;
+    expect(usage.shoppingImportCount).toBe(1);
+    expect(usage.spentMinor).toBeGreaterThan(0);
+    const [last] = await readLog(s);
+    expect(last).toMatchObject({ level: 'warn', event: 'parsed', shoppingImportId: null });
+    expect(last?.message).toMatch(/odrzucono w trakcie odczytu/u);
+  });
+
+  it('błąd zapisu po odpowiedzi modelu nie gubi kosztu ani zużycia', async () => {
+    const s = await setup();
+    s.extractor.extractList.mockResolvedValue({
+      ...LIST_RESULT,
+      // Ilość bez jednostki łamie CHECK w bazie — zapis wyniku się cofa.
+      items: [{ ...LIST_RESULT.items[0], unit: null } as (typeof LIST_RESULT.items)[number]],
+    });
+    const failed = await uploadPhoto(s);
+    expect(failed).toMatchObject({ status: 'failed', errorCode: 'INTERNAL_ERROR' });
+    const usage = (await call<AiUsageDto>(s, 'GET', '/settings/ai-usage')).data;
+    expect(usage).toMatchObject({ shoppingImportCount: 1, shoppingTokens: 1500 });
+    expect(usage.spentMinor).toBeGreaterThan(0);
   });
 });

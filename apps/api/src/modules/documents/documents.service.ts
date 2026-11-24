@@ -1168,6 +1168,7 @@ export function getAiUsage(
     monthKey,
     documentCount: documentsUsage.documentCount,
     shoppingImportCount: shopping.count,
+    shoppingTokens: shopping.inputTokens + shopping.outputTokens,
     inputTokens: documentsUsage.inputTokens + shopping.inputTokens,
     outputTokens: documentsUsage.outputTokens + shopping.outputTokens,
     spentMinor,

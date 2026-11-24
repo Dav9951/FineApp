@@ -1448,8 +1448,8 @@ Plik to `shared/src/dto/document.ts`. Względem szkicu wyżej:
   (eksportowany z `category.ts`); `CommitDocumentResponse` = `{ document, transactions }`,
   meta jak zapis transakcji.
 - `AiUsageDto` — `enabled`, `model`, `monthKey`, `documentCount`, `shoppingImportCount`
-  (odczyty list i przepisów z odpowiedzią modelu, ADR-107), `inputTokens`, `outputTokens`
-  (obu rodzajów razem), `spentMinor`, `budgetMinor`, `remainingMinor`. `model` = model
+  (odczyty list i przepisów z odpowiedzią modelu, ADR-107), `shoppingTokens` (tokeny samych
+  list, wejście + wyjście), `inputTokens`, `outputTokens` (obu rodzajów razem), `spentMinor`, `budgetMinor`, `remainingMinor`. `model` = model
   z ustawień gospodarstwa albo `AI_MODEL` (ADR-085).
 - `UpdateAiModelRequest` — `{ model: AiModelId }`; katalog `AI_MODELS` w
   `shared/domain/ai-models.ts` (id, podpis, opis, stawki w groszach za MTok),

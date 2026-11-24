@@ -440,6 +440,28 @@ export function insertDocumentLog(
 }
 
 /**
+ * Odpina wpisy dziennika od importu listy zakupów — po zatwierdzeniu albo odrzuceniu
+ * (ADR-107): import nie jest już ekranem, do którego można wejść.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param importId - Import.
+ */
+export function unlinkShoppingImportLogs(
+  handle: DbHandle,
+  householdId: string,
+  importId: string,
+): void {
+  handle.db
+    .update(documentLogs)
+    .set({ shoppingImportId: null })
+    .where(
+      and(eq(documentLogs.householdId, householdId), eq(documentLogs.shoppingImportId, importId)),
+    )
+    .run();
+}
+
+/**
  * Usuwa wpisy dziennika gospodarstwa starsze niż `olderThan` (ADR-086).
  *
  * Wołane raz na analizę, nie przy każdym wpisie — analiza dopisuje 3–4 wiersze, a jedno

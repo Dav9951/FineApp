@@ -269,14 +269,20 @@ function AiModelSwitch({ model }: { model: string }): ReactNode {
   );
 }
 
+/** „12,4 tys.", „2,5 mln" — skrót polski, jedno miejsce po przecinku. */
+const TOKENS_FORMAT = new Intl.NumberFormat('pl-PL', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
 /**
- * Liczba tokenów do podpisu: „12,3 tys." od tysiąca w górę.
+ * Liczba tokenów do podpisu: „12,4 tys.", „2,5 mln".
  *
  * @param tokens - Liczba tokenów.
  * @returns Napis.
  */
 function tokensLabel(tokens: number): string {
-  return tokens < 1000 ? String(tokens) : `${(tokens / 1000).toFixed(1).replace('.', ',')} tys.`;
+  return TOKENS_FORMAT.format(tokens);
 }
 
 /**
@@ -324,7 +330,7 @@ function AiUsageRows({ usage, month }: { usage: AiUsageDto; month: string }): Re
         <li>
           <ListRow
             amount={<span className="text-sm tabular-nums">{usage.shoppingImportCount}</span>}
-            caption={`tokeny w miesiącu: ${tokensLabel(usage.inputTokens + usage.outputTokens)}`}
+            caption={`tokeny w miesiącu: ${tokensLabel(usage.shoppingTokens)}`}
             icon={<RowIcon icon={ShoppingCart} />}
             name="Odczytane listy i przepisy"
           />
