@@ -550,7 +550,8 @@ w `shopping_import_items`, na listę trafiają wyłącznie przez commit (I-30).
 | model z `households.ai_model` / `AI_MODEL`, structured outputs (`output_config.format`), `max_tokens`, timeout, ponowienia | do 3 obrazów na import (przepis na kilku ekranach) |
 | licznik `ai_spend_<YYYY-MM>_minor`, `AI_MONTHLY_BUDGET_MINOR`, `AI_ENABLED`; limit 20 / godz. z osobnym licznikiem (ADR-101) | pliki w `UPLOAD_DIR/shopping/YYYY/MM/`, usuwane po commit / discard, najpóźniej po 7 dniach (I-31) |
 | praca w tle, **każdy** `processing` → `failed` (`INTERRUPTED`) przy starcie — zadania żyją w pamięci (ADR-102) | wejście tekstowe (link, wklejony tekst) bez obrazu |
-| błędy `AI_REFUSED`, `AI_OUTPUT_TRUNCATED`, `AI_UNAVAILABLE`, `AI_SCHEMA_MISMATCH` | bez dziennika `document_logs` w v1 — `error_code` i `ai_raw_response` importu wystarczają |
+| błędy `AI_REFUSED`, `AI_OUTPUT_TRUNCATED`, `AI_UNAVAILABLE`, `AI_SCHEMA_MISMATCH` | — |
+| **dziennik odczytu** (`document_logs`, §16) ze `source: 'shopping'` i **zużycie w Ustawieniach** (liczba odczytów, tokeny) — ADR-107 | etapy: `started` (`model`, `kind`, `input`, `imageCount`, `textChars` — `null` przy linku przed pobraniem, `servingsFactorBps`), `parsed` (diagnostyka jak §16, `inputTokens`, `outputTokens`, `itemCount`, `costMinor`), `failed` (`errorCode` — także `RECIPE_FETCH_*` z `host` i przyczyną, `RECIPE_NOT_FOUND`, `INTERRUPTED`), `upload_rejected` (`AI_BUDGET_EXCEEDED`, jak przy dokumentach); zużycie sumuje się po ponowieniach; bez treści listy, przepisu i pełnego adresu |
 
 Ekstraktor to druga metoda obok `DocumentExtractor`: `ShoppingExtractor` z `extractList`
 i `extractRecipe` w `apps/api/src/ai/`, prompty w `ai/prompts/shopping-*.ts`, schematy

@@ -418,6 +418,9 @@ export function reassignItemsCategory(
     .run();
 }
 
+/** Jak długo trzymamy wpisy dziennika odczytu (ADR-086). */
+export const LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
 /**
  * Dopisuje wpis dziennika odczytu (ADR-086).
  *
@@ -433,6 +436,28 @@ export function insertDocumentLog(
   handle.db
     .insert(documentLogs)
     .values({ ...row, householdId })
+    .run();
+}
+
+/**
+ * Odpina wpisy dziennika od importu listy zakupów — po zatwierdzeniu albo odrzuceniu
+ * (ADR-107): import nie jest już ekranem, do którego można wejść.
+ *
+ * @param handle - Uchwyt bazy.
+ * @param householdId - Gospodarstwo.
+ * @param importId - Import.
+ */
+export function unlinkShoppingImportLogs(
+  handle: DbHandle,
+  householdId: string,
+  importId: string,
+): void {
+  handle.db
+    .update(documentLogs)
+    .set({ shoppingImportId: null })
+    .where(
+      and(eq(documentLogs.householdId, householdId), eq(documentLogs.shoppingImportId, importId)),
+    )
     .run();
 }
 

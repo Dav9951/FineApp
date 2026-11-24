@@ -87,6 +87,8 @@ describe('AiUsageDtoSchema', () => {
         model: 'claude-sonnet-5',
         monthKey: '2026-09',
         documentCount: 0,
+        shoppingImportCount: 0,
+        shoppingTokens: 0,
         inputTokens: 0,
         outputTokens: 0,
         spentMinor: 0,

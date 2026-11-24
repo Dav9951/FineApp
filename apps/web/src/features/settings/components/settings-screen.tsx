@@ -25,6 +25,7 @@ import {
   MonitorDown,
   Moon,
   ScrollText,
+  ShoppingCart,
   Smartphone,
   Sun,
   Tags,
@@ -215,7 +216,8 @@ function AiSection({ month, timezone }: { month: string; timezone: string }): Re
     );
   }
 
-  return <Section title="Odczyt dokumentów (AI)">{content}</Section>;
+  // Paragony i listy zakupów płacą z jednego limitu (ADR-107).
+  return <Section title="Odczyt AI">{content}</Section>;
 }
 
 /** Opcje przełącznika modelu — z katalogu `AI_MODELS`. */
@@ -267,6 +269,22 @@ function AiModelSwitch({ model }: { model: string }): ReactNode {
   );
 }
 
+/** „12,4 tys.", „2,5 mln" — skrót polski, jedno miejsce po przecinku. */
+const TOKENS_FORMAT = new Intl.NumberFormat('pl-PL', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
+/**
+ * Liczba tokenów do podpisu: „12,4 tys.", „2,5 mln".
+ *
+ * @param tokens - Liczba tokenów.
+ * @returns Napis.
+ */
+function tokensLabel(tokens: number): string {
+  return TOKENS_FORMAT.format(tokens);
+}
+
 /**
  * Wiersze zużycia AI.
  *
@@ -307,6 +325,14 @@ function AiUsageRows({ usage, month }: { usage: AiUsageDto; month: string }): Re
             caption={`model ${usage.model}`}
             icon={<RowIcon icon={FileJson} />}
             name="Przeanalizowane dokumenty"
+          />
+        </li>
+        <li>
+          <ListRow
+            amount={<span className="text-sm tabular-nums">{usage.shoppingImportCount}</span>}
+            caption={`tokeny w miesiącu: ${tokensLabel(usage.shoppingTokens)}`}
+            icon={<RowIcon icon={ShoppingCart} />}
+            name="Odczytane listy i przepisy"
           />
         </li>
       </ul>

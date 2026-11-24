@@ -1447,13 +1447,17 @@ Plik to `shared/src/dto/document.ts`. Względem szkicu wyżej:
   `merchant`, `itemIds` do 200, `createCategories` do 20 z `CategoryNameSchema`
   (eksportowany z `category.ts`); `CommitDocumentResponse` = `{ document, transactions }`,
   meta jak zapis transakcji.
-- `AiUsageDto` — `enabled`, `model`, `monthKey`, `documentCount`, `inputTokens`,
-  `outputTokens`, `spentMinor`, `budgetMinor`, `remainingMinor`. `model` = model
+- `AiUsageDto` — `enabled`, `model`, `monthKey`, `documentCount`, `shoppingImportCount`
+  (odczyty list i przepisów z odpowiedzią modelu, ADR-107), `shoppingTokens` (tokeny samych
+  list, wejście + wyjście), `inputTokens`, `outputTokens` (obu rodzajów razem), `spentMinor`, `budgetMinor`, `remainingMinor`. `model` = model
   z ustawień gospodarstwa albo `AI_MODEL` (ADR-085).
 - `UpdateAiModelRequest` — `{ model: AiModelId }`; katalog `AI_MODELS` w
   `shared/domain/ai-models.ts` (id, podpis, opis, stawki w groszach za MTok),
   `findAiModel` (ADR-085).
-- `AiLogEntryDto` — `id`, `documentId` (`null` po usunięciu dokumentu), `documentName`,
+- `AiLogEntryDto` — `id`, `source` (`document` | `shopping`, ADR-107), `documentId`
+  (`null` po usunięciu dokumentu i dla list), `shoppingImportId` (`null` dla dokumentów
+  i po zatwierdzeniu/odrzuceniu importu), `documentName` (plik albo „Zdjęcie listy",
+  „Przepis — przepisy.pl"),
   `level` (`info` | `warn` | `error`), `event` (`started` | `prepared` | `parsed` |
   `failed` | `upload_rejected`), `message`, `details` (rekord liczb, napisów,
   `boolean`, `null`), `createdAt`; `AiLogQuery` — `documentId?`, `limit` (ADR-086).

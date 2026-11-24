@@ -5,6 +5,7 @@ import {
   NEEDS_REVIEW_BELOW_BPS,
   normalizeShoppingName,
   recipePurchase,
+  ShoppingImportStatusSchema,
   todayInTimezone,
   type CommitShoppingImportResult,
   type ShoppingImportDto,
@@ -15,7 +16,12 @@ import {
 import type { FastifyBaseLogger } from 'fastify';
 
 import { estimateCostMinor } from '../../ai/cost.js';
-import { ExtractionError, type PreparedPart } from '../../ai/document-extractor.js';
+import {
+  ExtractionError,
+  type PreparedPart,
+  type TokenUsage,
+} from '../../ai/document-extractor.js';
+import { errorDiagnostics } from '../../ai/diagnostics.js';
 import { prepareForVision } from '../../ai/prepare-for-vision.js';
 import type { ShoppingExtractor } from '../../ai/shopping-extractor.js';
 import type { Clock } from '../../core/clock.js';
@@ -41,6 +47,9 @@ import {
   aiBudgetExhausted,
   householdAiModel,
   recordAiSpend,
+  unlinkShoppingAiLog,
+  writeShoppingAiLog,
+  type ShoppingAiLogEntry,
 } from '../documents/documents.external.js';
 import {
   normalizeUpload,
@@ -170,11 +179,19 @@ function requireImport(handle: DbHandle, householdId: string, id: string): Shopp
 function assertBudget(deps: ShoppingImportsDeps, householdId: string, id: string): void {
   const { month } = householdAiModel(deps.db, deps.config.ai, deps.clock, householdId);
   if (!aiBudgetExhausted(deps.db, deps.config.ai, month)) return;
-  transitionImport(deps.db, householdId, id, ['processing'], {
+  const row = transitionImport(deps.db, householdId, id, ['processing'], {
     status: 'failed',
     errorCode: 'AI_BUDGET_EXCEEDED',
     updatedAt: deps.clock.now().getTime(),
   });
+  if (row !== undefined) {
+    logImport(deps, householdId, row, {
+      level: 'warn',
+      event: 'upload_rejected',
+      message: FAILURE_EXPLANATION.AI_BUDGET_EXCEEDED ?? 'AI_BUDGET_EXCEEDED',
+      details: { errorCode: 'AI_BUDGET_EXCEEDED', budgetMinor: deps.config.ai.monthlyBudgetMinor },
+    });
+  }
   throw new AiBudgetExceededError(BUDGET_MESSAGE, [{ path: 'importId', message: id }]);
 }
 
@@ -394,6 +411,66 @@ function purchaseFor(
 }
 
 /**
+ * Nazwa odczytu w dzienniku (ADR-107) — bez treści i pełnego adresu, sam host.
+ *
+ * @param row - Import.
+ * @param row.kind - Rodzaj.
+ * @param row.input - Wejście.
+ * @param row.sourceUrl - Link przepisu.
+ * @returns Np. „Zdjęcie listy", „Przepis — przepisy.pl".
+ */
+export function importLogName(row: {
+  readonly kind: ShoppingImportRow['kind'];
+  readonly input: ShoppingImportRow['input'];
+  readonly sourceUrl: string | null;
+}): string {
+  if (row.kind === 'list_photo') return 'Zdjęcie listy';
+  if (row.input === 'image') return 'Przepis — zrzut ekranu';
+  if (row.input === 'text') return 'Przepis — wklejony tekst';
+  try {
+    return `Przepis — ${new URL(row.sourceUrl ?? '').hostname}`;
+  } catch {
+    return 'Przepis — link';
+  }
+}
+
+/** Wyjaśnienie przyczyny w dzienniku — dokładniejsze niż komunikat dla użytkownika. */
+const FAILURE_EXPLANATION: Readonly<Record<string, string>> = {
+  AI_UNAVAILABLE:
+    'Usługa AI nie odpowiedziała poprawnie (błąd HTTP, przekroczony czas albo zerwane połączenie) — po ponowieniach.',
+  AI_SCHEMA_MISMATCH: 'Odpowiedź modelu nie pasuje do schematu odczytu.',
+  AI_OUTPUT_TRUNCATED: 'Odpowiedź ucięta na limicie tokenów wyjścia (AI_MAX_OUTPUT_TOKENS).',
+  AI_REFUSED: 'Model odmówił odczytu.',
+  RECIPE_FETCH_BLOCKED:
+    'Adres przepisu niedozwolony (sieć prywatna, port, schemat) — bez wywołania modelu.',
+  RECIPE_FETCH_FAILED: 'Nie udało się pobrać strony przepisu — bez wywołania modelu.',
+  RECIPE_NOT_FOUND: 'Nie znaleziono składników przepisu.',
+  AI_BUDGET_EXCEEDED: 'Wyczerpany miesięczny limit kosztów AI — odczyt nie wystartował.',
+  INTERRUPTED: 'Odczyt przerwany restartem serwera.',
+  INTERNAL_ERROR: 'Błąd aplikacji przed wywołaniem albo przy zapisie wyniku.',
+};
+
+/**
+ * Wpis dziennika odczytu importu. Nigdy nie rzuca.
+ *
+ * @param deps - Zależności.
+ * @param householdId - Gospodarstwo.
+ * @param row - Import.
+ * @param entry - Wpis bez odnośnika do importu.
+ */
+function logImport(
+  deps: Pick<ShoppingImportsDeps, 'db' | 'clock' | 'log'>,
+  householdId: string,
+  row: Pick<ShoppingImportRow, 'id' | 'kind' | 'input' | 'sourceUrl'>,
+  entry: Omit<ShoppingAiLogEntry, 'importRef'>,
+): void {
+  writeShoppingAiLog(deps, householdId, {
+    importRef: { id: row.id, name: importLogName(row) },
+    ...entry,
+  });
+}
+
+/**
  * Odczyt w tle: obrazy albo tekst → model → propozycje. Nigdy nie rzuca — błąd kończy
  * import jako `failed` z kodem (08 §17.1). Koszt, jeśli usługa odpowiedziała, trafia do
  * licznika miesiąca także przy błędzie.
@@ -411,6 +488,12 @@ export async function analyzeImport(
   if (row?.status !== 'processing' || deps.extractor === null) return;
   const extractor = deps.extractor;
   const ai = householdAiModel(deps.db, deps.config.ai, deps.clock, householdId);
+  // Import odrzucony w trakcie odczytu — wpisy dziennika bez odnośnika (ADR-107).
+  let closed = false;
+  const log = (entry: Omit<ShoppingAiLogEntry, 'importRef'>): void => {
+    logImport(deps, householdId, row, entry);
+    if (closed) unlinkShoppingAiLog(deps.db, householdId, id);
+  };
   const fail = (code: string, extra: Partial<ShoppingImportRow> = {}): void => {
     transitionImport(deps.db, householdId, id, ['processing'], {
       status: 'failed',
@@ -419,6 +502,61 @@ export async function analyzeImport(
       updatedAt: deps.clock.now().getTime(),
     });
   };
+  // Zużycie sumuje się po próbach (ponowienie nie kasuje opłaconej wcześniej) i trafia
+  // do importu także wtedy, gdy ktoś go odrzucił w trakcie odczytu (ADR-107).
+  let paid: { usage: TokenUsage; cost: number } | undefined;
+  const usageFields = (usage: TokenUsage, cost: number): Partial<ShoppingImportRow> => ({
+    aiInputTokens: (row.aiInputTokens ?? 0) + usage.inputTokens,
+    aiOutputTokens: (row.aiOutputTokens ?? 0) + usage.outputTokens,
+    processedAt: deps.clock.now().getTime(),
+    costMinor: row.costMinor + cost,
+  });
+  /**
+   * Zapis wyniku tylko z `processing`; gdy import już odrzucono — samo zużycie.
+   *
+   * @param patch - Zmiana importu z wynikiem.
+   * @param usage - Zużycie tej próby.
+   * @param cost - Koszt tej próby.
+   * @returns Import po zapisie albo `undefined`, gdy nie był już w `processing`.
+   */
+  const settle = (
+    patch: Partial<ShoppingImportRow>,
+    usage: TokenUsage,
+    cost: number,
+  ): ShoppingImportRow | undefined => {
+    const saved = transitionImport(deps.db, householdId, id, ['processing'], {
+      ...patch,
+      ...usageFields(usage, cost),
+      updatedAt: deps.clock.now().getTime(),
+    });
+    if (saved === undefined) {
+      closed = true;
+      transitionImport(
+        deps.db,
+        householdId,
+        id,
+        ShoppingImportStatusSchema.options,
+        usageFields(usage, cost),
+      );
+    }
+    return saved;
+  };
+  const lateNote = (saved: ShoppingImportRow | undefined): string =>
+    saved === undefined ? ' Import odrzucono w trakcie odczytu — koszt i tak policzony.' : '';
+  log({
+    level: 'info',
+    event: 'started',
+    message: `Odczyt rozpoczęty — model ${ai.model}.`,
+    details: {
+      model: ai.model,
+      kind: row.kind,
+      input: row.input,
+      imageCount: parseImportFilePaths(row.filePaths).length,
+      // Długość wklejonego tekstu; przy linku znana dopiero po pobraniu strony.
+      textChars: row.sourceText === null ? null : row.sourceText.length,
+      servingsFactorBps: row.servingsFactorBps,
+    },
+  });
 
   try {
     let sourceText = row.sourceText;
@@ -439,6 +577,16 @@ export async function analyzeImport(
           'Nie udało się pobrać przepisu',
         );
         fail(code);
+        log({
+          level: 'error',
+          event: 'failed',
+          message: FAILURE_EXPLANATION[code] ?? code,
+          details: {
+            errorCode: code,
+            host: new URL(row.sourceUrl).hostname,
+            reason: (error as Error).message.slice(0, 300),
+          },
+        });
         return;
       }
       transitionImport(deps.db, householdId, id, ['processing'], { sourceText });
@@ -447,6 +595,13 @@ export async function analyzeImport(
     // modelu, które i tak skończyłoby się `RECIPE_NOT_FOUND` (ADR-101 pkt 4, ADR-102).
     if (row.input !== 'image' && (sourceText ?? '').trim().length < MIN_RECIPE_TEXT) {
       fail('RECIPE_NOT_FOUND');
+      log({
+        level: 'error',
+        event: 'failed',
+        message:
+          'Strona bez widocznego tekstu przepisu (np. renderowana skryptem) — bez wywołania modelu.',
+        details: { errorCode: 'RECIPE_NOT_FOUND', textChars: (sourceText ?? '').trim().length },
+      });
       return;
     }
 
@@ -457,16 +612,20 @@ export async function analyzeImport(
         parts: await preparedImages(deps, row),
       });
       const cost = estimateCostMinor(result.usage, ai.rates);
+      paid = { usage: result.usage, cost };
+      let saved: ShoppingImportRow | undefined;
       deps.db.sqlite.transaction(() => {
-        const saved = transitionImport(deps.db, householdId, id, ['processing'], {
-          status: 'parsed',
-          notes: result.notes,
-          aiModel: result.model,
-          aiRawResponse: result.rawResponse,
-          costMinor: cost,
-          errorCode: null,
-          updatedAt: now(),
-        });
+        saved = settle(
+          {
+            status: 'parsed',
+            notes: result.notes,
+            aiModel: result.model,
+            aiRawResponse: result.rawResponse,
+            errorCode: null,
+          },
+          result.usage,
+          cost,
+        );
         if (saved) {
           replaceImportItems(
             deps.db,
@@ -489,6 +648,22 @@ export async function analyzeImport(
         }
         recordAiSpend(deps.db, ai.month, cost, now());
       })();
+      log({
+        level: result.items.length === 0 || saved === undefined ? 'warn' : 'info',
+        event: 'parsed',
+        message:
+          (result.items.length === 0
+            ? 'Model odpowiedział, ale nie odczytał żadnej pozycji.'
+            : `Odczytano pozycji: ${String(result.items.length)}.`) + lateNote(saved),
+        details: {
+          ...result.diagnostics,
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          itemCount: result.items.length,
+          costMinor: cost,
+          requestId: result.requestId,
+        },
+      });
       return;
     }
 
@@ -500,30 +675,36 @@ export async function analyzeImport(
       staples: findStapleProducts(deps.db, householdId).map((product) => product.name),
     });
     const cost = estimateCostMinor(result.usage, ai.rates);
+    paid = { usage: result.usage, cost };
     const factor = row.servingsFactorBps ?? 10_000;
+    let saved: ShoppingImportRow | undefined;
     deps.db.sqlite.transaction(() => {
       if (result.ingredients.length === 0) {
-        transitionImport(deps.db, householdId, id, ['processing'], {
-          status: 'failed',
-          errorCode: 'RECIPE_NOT_FOUND',
-          notes: result.notes,
-          aiModel: result.model,
-          aiRawResponse: result.rawResponse,
-          costMinor: cost,
-          updatedAt: now(),
-        });
+        saved = settle(
+          {
+            status: 'failed',
+            errorCode: 'RECIPE_NOT_FOUND',
+            notes: result.notes,
+            aiModel: result.model,
+            aiRawResponse: result.rawResponse,
+          },
+          result.usage,
+          cost,
+        );
       } else {
-        const saved = transitionImport(deps.db, householdId, id, ['processing'], {
-          status: 'parsed',
-          recipeTitle: result.title,
-          baseServings: result.baseServings,
-          notes: result.notes,
-          aiModel: result.model,
-          aiRawResponse: result.rawResponse,
-          costMinor: cost,
-          errorCode: null,
-          updatedAt: now(),
-        });
+        saved = settle(
+          {
+            status: 'parsed',
+            recipeTitle: result.title,
+            baseServings: result.baseServings,
+            notes: result.notes,
+            aiModel: result.model,
+            aiRawResponse: result.rawResponse,
+            errorCode: null,
+          },
+          result.usage,
+          cost,
+        );
         if (saved) {
           replaceImportItems(
             deps.db,
@@ -555,9 +736,40 @@ export async function analyzeImport(
       }
       recordAiSpend(deps.db, ai.month, cost, now());
     })();
+    log(
+      result.ingredients.length === 0
+        ? {
+            level: 'error',
+            event: 'failed',
+            message: (FAILURE_EXPLANATION.RECIPE_NOT_FOUND ?? 'RECIPE_NOT_FOUND') + lateNote(saved),
+            details: {
+              errorCode: 'RECIPE_NOT_FOUND',
+              ...result.diagnostics,
+              inputTokens: result.usage.inputTokens,
+              outputTokens: result.usage.outputTokens,
+              costMinor: cost,
+              requestId: result.requestId,
+            },
+          }
+        : {
+            level: saved === undefined ? 'warn' : 'info',
+            event: 'parsed',
+            message: `Odczytano składników: ${String(result.ingredients.length)}.${lateNote(saved)}`,
+            details: {
+              ...result.diagnostics,
+              inputTokens: result.usage.inputTokens,
+              outputTokens: result.usage.outputTokens,
+              itemCount: result.ingredients.length,
+              costMinor: cost,
+              requestId: result.requestId,
+            },
+          },
+    );
   } catch (error) {
     const extraction = error instanceof ExtractionError ? error : null;
-    const usage = extraction?.details.usage;
+    // Błąd zapisu po odpowiedzi modelu cofa transakcję wyniku — opłacone zużycie bierzemy
+    // z `paid`, inaczej koszt by przepadł (ADR-107).
+    const usage = extraction?.details.usage ?? paid?.usage;
     const cost = usage === undefined ? 0 : estimateCostMinor(usage, ai.rates);
     if (extraction === null) {
       deps.log.error({ err: error, importId: id }, 'Odczyt importu listy zakupów nie powiódł się');
@@ -568,12 +780,29 @@ export async function analyzeImport(
       );
     }
     deps.db.sqlite.transaction(() => {
-      fail(extraction?.code ?? 'INTERNAL_ERROR', {
+      const patch = {
+        status: 'failed' as const,
+        errorCode: extraction?.code ?? 'INTERNAL_ERROR',
         aiRawResponse: extraction?.details.rawResponse ?? null,
-        costMinor: cost,
-      });
+      };
+      if (usage === undefined) fail(patch.errorCode, { aiRawResponse: patch.aiRawResponse });
+      else settle(patch, usage, cost);
       recordAiSpend(deps.db, ai.month, cost, deps.clock.now().getTime());
     })();
+    const code = extraction?.code ?? 'INTERNAL_ERROR';
+    log({
+      level: 'error',
+      event: 'failed',
+      message: FAILURE_EXPLANATION[code] ?? code,
+      details: {
+        errorCode: code,
+        ...(extraction === null ? errorDiagnostics(error) : extraction.details.diagnostics),
+        ...(usage === undefined
+          ? {}
+          : { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costMinor: cost }),
+        requestId: extraction?.details.requestId ?? null,
+      },
+    });
   }
 }
 
@@ -819,6 +1048,7 @@ export function commitImport(
       updatedAt: now,
     });
     touchList(deps.db, householdId, row.listId, now);
+    unlinkShoppingAiLog(deps.db, householdId, id);
     return {
       result: { listId: row.listId, addedCount: added, mergedCount: merged },
       files: parseImportFilePaths(row.filePaths),
@@ -849,6 +1079,7 @@ export function discardImport(
     updatedAt: deps.clock.now().getTime(),
   });
   if (!saved) throw new ConflictError('Ten odczyt jest już zamknięty.');
+  unlinkShoppingAiLog(deps.db, householdId, id);
   return parseImportFilePaths(row.filePaths);
 }
 
@@ -901,9 +1132,26 @@ export function retryImport(
  * @param deps - Baza i zegar.
  * @param deps.db - Uchwyt bazy.
  * @param deps.clock - Źródło czasu.
+ * @param deps.log - Log procesu — gdy jest, każdy przerwany dostaje wpis w dzienniku.
  * @returns Liczba oznaczonych.
  */
-export function failInterruptedImports(deps: { db: DbHandle; clock: Clock }): number {
+export function failInterruptedImports(deps: {
+  db: DbHandle;
+  clock: Clock;
+  log?: ShoppingImportsDeps['log'];
+}): number {
   const now = deps.clock.now().getTime();
-  return failAllProcessingImports(deps.db, now);
+  const failed = failAllProcessingImports(deps.db, now);
+  const { log } = deps;
+  if (log !== undefined) {
+    for (const row of failed) {
+      logImport({ db: deps.db, clock: deps.clock, log }, row.householdId, row, {
+        level: 'error',
+        event: 'failed',
+        message: FAILURE_EXPLANATION.INTERRUPTED ?? 'INTERRUPTED',
+        details: { errorCode: 'INTERRUPTED' },
+      });
+    }
+  }
+  return failed.length;
 }

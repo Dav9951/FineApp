@@ -55,8 +55,10 @@ const USAGE: AiUsageDto = {
   model: 'claude-sonnet-5',
   monthKey: '2026-09',
   documentCount: 7,
-  inputTokens: 1,
-  outputTokens: 1,
+  shoppingImportCount: 3,
+  shoppingTokens: 12_400,
+  inputTokens: 90_000,
+  outputTokens: 30_000,
   spentMinor: 1_250,
   budgetMinor: 5_000,
   remainingMinor: 3_750,
@@ -134,10 +136,14 @@ describe('stany ekranu', () => {
     expect(within(members).getByText('Ty')).toBeInTheDocument();
 
     expect(screen.getByText('1.4.2')).toBeInTheDocument();
-    const ai = section('Odczyt dokumentów (AI)');
+    const ai = section('Odczyt AI');
     expect(await within(ai).findByText('12,50 zł')).toBeInTheDocument();
     expect(within(ai).getByText(/25%/u)).toBeInTheDocument();
     expect(within(ai).getByText('7')).toBeInTheDocument();
+    // Listy zakupów płacą z tego samego limitu (ADR-107).
+    const lists = within(ai).getByText('Odczytane listy i przepisy').closest('li') as HTMLElement;
+    expect(within(lists).getByText('3')).toBeInTheDocument();
+    expect(within(lists).getByText('tokeny w miesiącu: 12,4 tys.')).toBeInTheDocument();
   });
 
   it('ładowanie — szkielet', () => {
@@ -234,6 +240,8 @@ describe('stany ekranu', () => {
     vi.spyOn(documentsApi, 'fetchAiLog').mockResolvedValue([
       {
         id: '01J9ZQK8WQ4444444444444444',
+        source: 'document',
+        shoppingImportId: null,
         documentId: null,
         documentName: 'paragon.jpg',
         level: 'error',
@@ -241,6 +249,18 @@ describe('stany ekranu', () => {
         message: 'Odpowiedź ucięta na limicie tokenów wyjścia.',
         details: { errorCode: 'AI_OUTPUT_TRUNCATED', durationMs: 95_400 },
         createdAt: Date.parse('2026-09-23T10:00:00Z'),
+      },
+      {
+        id: '01J9ZQK8WQ5555555555555555',
+        source: 'shopping',
+        shoppingImportId: '01J9ZQK8WQ6666666666666666',
+        documentId: null,
+        documentName: 'Zdjęcie listy',
+        level: 'info',
+        event: 'parsed',
+        message: 'Odczytano pozycji: 4.',
+        details: { itemCount: 4 },
+        createdAt: Date.parse('2026-09-23T09:00:00Z'),
       },
     ]);
     renderSettings();
@@ -250,6 +270,9 @@ describe('stany ekranu', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('AI_OUTPUT_TRUNCATED')).toBeInTheDocument();
     expect(screen.getByText('95,4 s')).toBeInTheDocument();
+    // Odczyt listy zakupów w tym samym dzienniku — nazwa bez odnośnika (ADR-107).
+    expect(screen.getByText('Odczytano pozycji: 4.')).toBeInTheDocument();
+    expect(screen.getByText('Zdjęcie listy')).not.toHaveAttribute('href');
   });
 });
 

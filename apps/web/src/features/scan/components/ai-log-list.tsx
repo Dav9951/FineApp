@@ -78,6 +78,7 @@ export function AiLogList({ documentId, enabled, live, timezone }: AiLogListProp
                 {logTime(entry.createdAt, timezone)}
               </time>
               {documentId === undefined && entry.documentName !== null ? (
+                // Odczyt listy zakupów (ADR-107) i usunięty dokument — sama nazwa, bez odnośnika.
                 entry.documentId === null ? (
                   <span className="min-w-0 truncate">{entry.documentName}</span>
                 ) : (

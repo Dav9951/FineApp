@@ -267,6 +267,10 @@ export const AiUsageDtoSchema = z.object({
   model: z.string(),
   monthKey: MonthKeySchema,
   documentCount: z.number().int().nonnegative(),
+  /** Odczyty list i przepisów z odpowiedzią modelu w miesiącu (ADR-107). */
+  shoppingImportCount: z.number().int().nonnegative(),
+  /** Tokeny (wejście + wyjście) samych odczytów list — `inputTokens`/`outputTokens` są łączne. */
+  shoppingTokens: z.number().int().nonnegative(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   spentMinor: NonNegativeAmountMinorSchema,
@@ -303,12 +307,20 @@ export const AiLogEventSchema = z.enum([
 /** Etap odczytu. */
 export type AiLogEvent = z.infer<typeof AiLogEventSchema>;
 
+/** Skąd odczyt w dzienniku: dokument albo import listy zakupów (ADR-107). */
+export const AiLogSourceSchema = z.enum(['document', 'shopping']);
+/** Źródło wpisu dziennika. */
+export type AiLogSource = z.infer<typeof AiLogSourceSchema>;
+
 /** Wartość szczegółu — tylko liczby i krótkie napisy, nigdy treść dokumentu. */
 const AiLogDetailValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
 /** Wpis dziennika odczytu dokumentów — `GET /documents/log` (ADR-086). */
 export const AiLogEntryDtoSchema = z.object({
   id: IdSchema,
+  source: AiLogSourceSchema,
+  /** Import listy zakupów; `null` dla dokumentów i po zatwierdzeniu/odrzuceniu. */
+  shoppingImportId: IdSchema.nullable(),
   /** `null`, gdy dokument został usunięty. */
   documentId: IdSchema.nullable(),
   /** Nazwa pliku z chwili wpisu — zostaje po usunięciu dokumentu. */

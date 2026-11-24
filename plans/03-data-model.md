@@ -889,6 +889,10 @@ CREATE TABLE document_logs (
   -- SET NULL: wpis zostaje po usunięciu dokumentu, nazwa pliku w document_name.
   document_id   TEXT    REFERENCES documents(id) ON DELETE SET NULL,
   document_name TEXT,
+  -- Skąd odczyt (ADR-107): dokument albo import listy zakupów; ten sam dziennik.
+  source        TEXT    NOT NULL DEFAULT 'document' CHECK (source IN ('document','shopping')),
+  -- SET NULL: wpis zostaje po zatwierdzeniu/odrzuceniu importu; nazwa w document_name.
+  shopping_import_id TEXT REFERENCES shopping_imports(id) ON DELETE SET NULL,
   level         TEXT    NOT NULL CHECK (level IN ('info','warn','error')),
   event         TEXT    NOT NULL CHECK (event IN ('started','prepared','parsed',
                                                   'failed','upload_rejected')),
@@ -1032,6 +1036,11 @@ CREATE TABLE shopping_imports (
   notes                TEXT,          -- uwagi modelu („część tablicy nieczytelna")
   ai_model             TEXT,
   ai_raw_response      TEXT,          -- do diagnozy AI_SCHEMA_MISMATCH; czyszczone przy commit
+  -- Zużycie odczytu (ADR-107) — do sumy w Ustawieniach; NULL, gdy model nie odpowiedział.
+  ai_input_tokens      INTEGER,
+  ai_output_tokens     INTEGER,
+  -- Chwila odczytu (udanego albo z odpowiedzią modelu) — miesiąc w zużyciu.
+  processed_at         INTEGER,
   cost_minor           INTEGER NOT NULL DEFAULT 0,
   error_code           TEXT,
   created_by           TEXT    NOT NULL REFERENCES users(id),

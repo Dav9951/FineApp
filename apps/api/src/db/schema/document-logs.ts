@@ -1,9 +1,10 @@
-import { AiLogEventSchema, AiLogLevelSchema } from '@fineapp/shared';
+import { AiLogEventSchema, AiLogLevelSchema, AiLogSourceSchema } from '@fineapp/shared';
 import { check, index, sqliteTable, text, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 
 import { idColumn, inEnum, timestampColumn } from './_shared.js';
 import { documents } from './documents.js';
 import { households } from './households.js';
+import { shoppingImports } from './shopping.js';
 
 /**
  * Dziennik odczytu dokumentów — co się działo z każdą analizą (ADR-086).
@@ -30,6 +31,13 @@ export const documentLogs = sqliteTable(
       onDelete: 'set null',
     }),
     documentName: text('document_name'),
+    /** Skąd odczyt: dokument albo import listy zakupów (ADR-107). */
+    source: text('source').notNull().default('document').$type<'document' | 'shopping'>(),
+    /** Import listy zakupów; `set null` po zatwierdzeniu albo odrzuceniu (ADR-107). */
+    shoppingImportId: text('shopping_import_id').references(
+      (): AnySQLiteColumn => shoppingImports.id,
+      { onDelete: 'set null' },
+    ),
     level: text('level').notNull().$type<'info' | 'warn' | 'error'>(),
     event: text('event').notNull(),
     message: text('message').notNull(),
@@ -40,6 +48,7 @@ export const documentLogs = sqliteTable(
   (table) => [
     check('document_logs_level_check', inEnum(table.level, AiLogLevelSchema.options)),
     check('document_logs_event_check', inEnum(table.event, AiLogEventSchema.options)),
+    check('document_logs_source_check', inEnum(table.source, AiLogSourceSchema.options)),
     index('idx_document_logs_household').on(table.householdId, table.createdAt),
     index('idx_document_logs_document').on(table.documentId, table.createdAt),
   ],
